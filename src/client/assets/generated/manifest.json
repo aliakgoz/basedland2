@@ -1,0 +1,61 @@
+{
+  "tiles": {
+    "grass": [
+      "tiles/grass-0.png",
+      "tiles/grass-1.png",
+      "tiles/grass-2.png",
+      "tiles/grass-3.png",
+      "tiles/grass-4.png",
+      "tiles/grass-5.png"
+    ],
+    "dirt": [
+      "tiles/dirt-0.png",
+      "tiles/dirt-1.png",
+      "tiles/dirt-2.png",
+      "tiles/dirt-3.png",
+      "tiles/dirt-4.png",
+      "tiles/dirt-5.png"
+    ],
+    "stone": [
+      "tiles/stone-0.png",
+      "tiles/stone-1.png",
+      "tiles/stone-2.png",
+      "tiles/stone-3.png",
+      "tiles/stone-4.png",
+      "tiles/stone-5.png"
+    ],
+    "water": [
+      "tiles/water-0.png",
+      "tiles/water-1.png",
+      "tiles/water-2.png",
+      "tiles/water-3.png",
+      "tiles/water-4.png",
+      "tiles/water-5.png"
+    ],
+    "forest": [
+      "tiles/forest-0.png",
+      "tiles/forest-1.png",
+      "tiles/forest-2.png",
+      "tiles/forest-3.png",
+      "tiles/forest-4.png",
+      "tiles/forest-5.png"
+    ]
+  },
+  "objects": {
+    "house": "objects/house.png",
+    "tree": "objects/tree.png",
+    "stone": "objects/stone.png",
+    "crate": "objects/crate.png",
+    "well": "objects/well.png",
+    "ruins": "objects/ruins.png",
+    "sign": "objects/sign.png",
+    "chest": "objects/chest.png",
+    "horse": "objects/horse.png",
+    "sheep": "objects/sheep.png",
+    "grass-tuft": "objects/grass-tuft.png"
+  },
+  "players": {
+    "local-player": "players/local-player.png",
+    "remote-player": "players/remote-player.png"
+  }
+}

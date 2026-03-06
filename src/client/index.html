@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BasedLand</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2314211b'/%3E%3Crect x='3' y='3' width='10' height='10' fill='%23f5d56b'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        color-scheme: only light;
+        --bg-0: #14211b;
+        --bg-1: #203229;
+        --panel: rgba(13, 20, 17, 0.82);
+        --panel-border: rgba(173, 194, 147, 0.24);
+        --text: #edf3dc;
+        --muted: #b8c79f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at top, rgba(98, 137, 107, 0.22), transparent 30%),
+          linear-gradient(180deg, var(--bg-1), var(--bg-0));
+        color: var(--text);
+        font-family: "Trebuchet MS", "Verdana", sans-serif;
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        image-rendering: pixelated;
+      }
+
+      .hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .panel {
+        position: absolute;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
+        backdrop-filter: blur(8px);
+      }
+
+      #title {
+        top: 18px;
+        left: 18px;
+        padding: 12px 16px;
+        min-width: 180px;
+      }
+
+      #title h1 {
+        margin: 0 0 4px;
+        font-size: 20px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      #title p,
+      #hint,
+      #message {
+        margin: 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      #hint {
+        left: 18px;
+        bottom: 18px;
+        padding: 10px 14px;
+      }
+
+      #message {
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        padding: 10px 14px;
+        color: var(--text);
+        border-color: rgba(217, 169, 75, 0.28);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div class="hud">
+      <div id="title" class="panel">
+        <h1>BasedLand</h1>
+        <p id="online">Players online: 0</p>
+      </div>
+      <div id="hint" class="panel">Use WASD to move. Press E to interact. Mouse wheel zooms.</div>
+      <div id="message" class="panel">Connecting...</div>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+  </html>
