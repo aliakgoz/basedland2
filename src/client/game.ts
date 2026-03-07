@@ -2,6 +2,7 @@ import { AnimationState, Direction, InputFlag, PLAYER_SPEED, TILE_SIZE } from ".
 import { getTileType, isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { InputController } from "./input";
+import { MapEditor } from "./map_editor";
 import { NetworkClient } from "./network";
 import { Renderer } from "./renderer";
 import { WorldState } from "./world";
@@ -19,9 +20,11 @@ const renderer = new Renderer(canvas, { online, message }, assets);
 const input = new InputController();
 const world = new WorldState();
 const network = new NetworkClient();
+const editor = new MapEditor(assets, world, renderer, canvas, () => network.localPlayer);
 
 renderer.setMessage("Loading pixel assets...");
 assets.loadGeneratedOverrides().then(() => {
+  editor.refreshPalette();
   renderer.setMessage("Assets ready. Connecting...");
 });
 

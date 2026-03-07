@@ -136,6 +136,10 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
         type = ObjectType.Sheep;
       } else if ((biome === MacroBiome.Plains || biome === MacroBiome.Village) && roll > 0.94 && roll < 0.953) {
         type = ObjectType.Horse;
+      } else if (biome === MacroBiome.Village && roll > 0.89 && roll < 0.905) {
+        type = ObjectType.Dog;
+      } else if (biome === MacroBiome.Village && roll > 0.905 && roll < 0.92) {
+        type = ObjectType.Cat;
       } else if (biome === MacroBiome.Village && roll > 0.965) {
         type = ObjectType.Well;
       } else if (biome === MacroBiome.Mountain && roll > 0.965) {
@@ -202,6 +206,10 @@ export function describeInteraction(type: ObjectType): { action: number; text: s
       return { action: 9, text: "The sheep lets out a soft baa." };
     case ObjectType.GrassTuft:
       return { action: 10, text: "Wild grass sways in the breeze." };
+    case ObjectType.Dog:
+      return { action: 11, text: "The dog circles your boots happily." };
+    case ObjectType.Cat:
+      return { action: 12, text: "The cat watches you with royal judgment." };
     default:
       return { action: 0, text: "Nothing interesting happens." };
   }

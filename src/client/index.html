@@ -46,6 +46,10 @@
         pointer-events: none;
       }
 
+      .interactive {
+        pointer-events: auto;
+      }
+
       .panel {
         position: absolute;
         background: var(--panel);
@@ -90,6 +94,67 @@
         color: var(--text);
         border-color: rgba(217, 169, 75, 0.28);
       }
+
+      #editor-toggle {
+        top: 18px;
+        right: 18px;
+        padding: 10px 14px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      #editor-dock {
+        left: 18px;
+        right: 18px;
+        bottom: 64px;
+        padding: 12px;
+        max-height: 180px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        display: none;
+      }
+
+      #editor-dock.active {
+        display: block;
+      }
+
+      #editor-groups {
+        display: flex;
+        gap: 14px;
+        min-width: max-content;
+      }
+
+      .editor-group {
+        min-width: 180px;
+      }
+
+      .editor-group h3 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .editor-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 44px);
+        gap: 8px;
+      }
+
+      .editor-item {
+        width: 44px;
+        height: 44px;
+        border: 1px solid rgba(173, 194, 147, 0.18);
+        background: rgba(255, 255, 255, 0.03);
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .editor-item.active {
+        border-color: rgba(217, 169, 75, 0.9);
+        box-shadow: 0 0 0 1px rgba(217, 169, 75, 0.5);
+      }
     </style>
   </head>
   <body>
@@ -99,8 +164,12 @@
         <h1>BasedLand</h1>
         <p id="online">Players online: 0</p>
       </div>
-      <div id="hint" class="panel">Use WASD to move. Press E to interact. Mouse wheel zooms.</div>
+      <button id="editor-toggle" class="panel interactive" type="button">Map Maker: Off</button>
+      <div id="hint" class="panel">WASD move, E interact, wheel zoom, M map maker, left paint, right erase.</div>
       <div id="message" class="panel">Connecting...</div>
+      <div id="editor-dock" class="panel interactive">
+        <div id="editor-groups"></div>
+      </div>
     </div>
     <script src="./app.js"></script>
   </body>

@@ -1,10 +1,29 @@
 import { ObjectType, TILE_SIZE, TileType, WORLD_SEED } from "../shared/protocol";
 
 type SpriteSource = HTMLCanvasElement | HTMLImageElement;
+export interface AssetArchiveEntry {
+  id: string;
+  label: string;
+  group: string;
+  kind: "ground" | "road" | "object" | "erase";
+  preview: SpriteSource;
+  tileType?: TileType;
+  roadVariant?: number;
+  objectType?: ObjectType;
+  objectVariant?: number;
+}
+
+export interface AssetArchiveGroup {
+  id: string;
+  label: string;
+  entries: AssetArchiveEntry[];
+}
+
 interface GeneratedManifest {
   tiles: Partial<Record<string, string[]>>;
   objects: Partial<Record<string, string>>;
   players: Partial<Record<string, string>>;
+  worldSurface?: string;
 }
 
 const TILE_VARIANTS = 6;
@@ -131,6 +150,86 @@ function makeTreeSprite(): HTMLCanvasElement {
       paintPixel(ctx, x, y, s, shade);
     }
   }
+  return canvas;
+}
+
+function makeTreeVariantSprite(variant: number): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE * 2, OBJECT_SIZE * 2);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const trunkX = 14 + (variant % 4);
+  const trunkHeight = 9 + (variant % 3);
+  drawRectPx(ctx, trunkX, 19 - trunkHeight, 4, trunkHeight, 2, variant % 2 === 0 ? "#6d4828" : "#7d5330");
+  const canopyRadius = 8 + (variant % 5);
+  const palette = [
+    ["#3f6e2f", "#5f9a44", "#8ec66c"],
+    ["#2f5f2f", "#4e8747", "#78b563"],
+    ["#446b29", "#679945", "#97c96f"],
+    ["#355e27", "#56843f", "#7eb55e"]
+  ][variant % 4];
+
+  for (let y = 4; y <= 18; y += 1) {
+    for (let x = 5; x <= 25; x += 1) {
+      const offsetX = x - 16 + ((variant % 3) - 1);
+      const offsetY = y - 10;
+      const ellipse = (offsetX * offsetX) / ((canopyRadius + 1) * (canopyRadius + 1)) + (offsetY * offsetY) / (canopyRadius * canopyRadius);
+      if (ellipse > 1) {
+        continue;
+      }
+      const shadeIndex = (hash2d(WORLD_SEED + 400 + variant, x, y) % palette.length);
+      paintPixel(ctx, x, y, 2, palette[shadeIndex]);
+    }
+  }
+
+  return canvas;
+}
+
+function makeRoadSprite(variant: number): HTMLCanvasElement {
+  const canvas = createCanvas(TILE_SIZE, TILE_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+  const pixel = 2;
+  const pathStyles = [
+    ["#8a6a47", "#a47a52", "#694e35"],
+    ["#7a7d7f", "#9da1a3", "#5a5d60"],
+    ["#8f7554", "#b28d66", "#71593d"],
+    ["#7c6c5d", "#a08f7d", "#5c4f43"]
+  ];
+  const palette = pathStyles[variant % pathStyles.length];
+  ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
+
+  for (let py = 0; py < 16; py += 1) {
+    for (let px = 0; px < 16; px += 1) {
+      const dx = px - 8;
+      const dy = py - 8;
+      const shape = variant % 5;
+      let onRoad = false;
+      if (shape === 0) {
+        onRoad = Math.abs(dx) < 3;
+      } else if (shape === 1) {
+        onRoad = Math.abs(dy) < 3;
+      } else if (shape === 2) {
+        onRoad = Math.abs(dx) < 3 || Math.abs(dy) < 3;
+      } else if (shape === 3) {
+        onRoad = (dx < 0 && Math.abs(dy) < 3) || (dy > 0 && Math.abs(dx) < 3);
+      } else {
+        onRoad = Math.abs(dx - dy) < 3;
+      }
+
+      if (!onRoad) {
+        continue;
+      }
+
+      const shade = palette[hash2d(WORLD_SEED + 800 + variant, px, py) % palette.length];
+      paintPixel(ctx, px, py, pixel, shade);
+    }
+  }
+
   return canvas;
 }
 
@@ -268,6 +367,35 @@ function makeSheepSprite(): HTMLCanvasElement {
   return canvas;
 }
 
+function makeDogSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+  const s = 2;
+  drawRectPx(ctx, 5, 9, 5, 3, s, "#8d6a4b");
+  drawRectPx(ctx, 9, 8, 2, 2, s, "#6b4b32");
+  drawRectPx(ctx, 5, 12, 1, 2, s, "#4b331f");
+  drawRectPx(ctx, 8, 12, 1, 2, s, "#4b331f");
+  paintPixel(ctx, 10, 9, s, "#1f1a15");
+  return canvas;
+}
+
+function makeCatSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+  const s = 2;
+  drawRectPx(ctx, 6, 9, 4, 3, s, "#d2b784");
+  drawRectPx(ctx, 8, 8, 2, 2, s, "#b99667");
+  drawRectPx(ctx, 5, 10, 1, 3, s, "#8a6e47");
+  paintPixel(ctx, 9, 9, s, "#1f1a15");
+  return canvas;
+}
+
 function makeGrassTuftSprite(): HTMLCanvasElement {
   const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
   const ctx = canvas.getContext("2d");
@@ -324,6 +452,10 @@ function makeFallbackObjectSprite(type: ObjectType): HTMLCanvasElement {
       return makeSheepSprite();
     case ObjectType.GrassTuft:
       return makeGrassTuftSprite();
+    case ObjectType.Dog:
+      return makeDogSprite();
+    case ObjectType.Cat:
+      return makeCatSprite();
     default:
       return makeStoneSprite();
   }
@@ -353,6 +485,10 @@ function objectSlug(type: ObjectType): string {
       return "sheep";
     case ObjectType.GrassTuft:
       return "grass-tuft";
+    case ObjectType.Dog:
+      return "dog";
+    case ObjectType.Cat:
+      return "cat";
     default:
       return "stone";
   }
@@ -399,28 +535,35 @@ async function loadManifest(): Promise<GeneratedManifest | null> {
 export function sizeForObject(type: ObjectType): { width: number; height: number } {
   switch (type) {
     case ObjectType.House:
-      return { width: TILE_SIZE * 1.8, height: TILE_SIZE * 1.8 };
+      return { width: TILE_SIZE * 3.2, height: TILE_SIZE * 3.2 };
     case ObjectType.Tree:
-      return { width: TILE_SIZE * 1.4, height: TILE_SIZE * 1.6 };
+      return { width: TILE_SIZE * 2.2, height: TILE_SIZE * 2.5 };
     case ObjectType.Horse:
-      return { width: TILE_SIZE * 1.2, height: TILE_SIZE * 1.1 };
+      return { width: TILE_SIZE * 1.6, height: TILE_SIZE * 1.4 };
     case ObjectType.Sheep:
-      return { width: TILE_SIZE, height: TILE_SIZE * 0.95 };
+      return { width: TILE_SIZE * 0.95, height: TILE_SIZE * 0.85 };
+    case ObjectType.Dog:
+      return { width: TILE_SIZE * 0.8, height: TILE_SIZE * 0.7 };
+    case ObjectType.Cat:
+      return { width: TILE_SIZE * 0.7, height: TILE_SIZE * 0.65 };
     case ObjectType.Well:
     case ObjectType.Ruins:
-      return { width: TILE_SIZE * 1.15, height: TILE_SIZE * 1.15 };
+      return { width: TILE_SIZE * 1.75, height: TILE_SIZE * 1.75 };
     case ObjectType.GrassTuft:
-      return { width: TILE_SIZE * 0.75, height: TILE_SIZE * 0.75 };
+      return { width: TILE_SIZE * 0.6, height: TILE_SIZE * 0.6 };
     default:
-      return { width: TILE_SIZE * 0.9, height: TILE_SIZE * 0.9 };
+      return { width: TILE_SIZE * 1.1, height: TILE_SIZE * 1.1 };
   }
 }
 
 export class AssetManager {
   private readonly tileSprites = new Map<TileType, SpriteSource[]>();
   private readonly objectSprites = new Map<ObjectType, SpriteSource>();
+  private readonly treeArchive = Array.from({ length: 20 }, (_, index) => makeTreeVariantSprite(index));
+  private readonly roadArchive = Array.from({ length: 20 }, (_, index) => makeRoadSprite(index));
   private localPlayerSprite: SpriteSource = makePlayerSprite("#d49442", "#355d78", "#f1d4b3");
   private remotePlayerSprite: SpriteSource = makePlayerSprite("#8771c1", "#5b4c8e", "#ead5bf");
+  private worldSurface: SpriteSource | null = null;
 
   constructor() {
     for (const type of [TileType.Grass, TileType.Dirt, TileType.Stone, TileType.Water, TileType.Forest]) {
@@ -441,7 +584,9 @@ export class AssetManager {
       ObjectType.Chest,
       ObjectType.Horse,
       ObjectType.Sheep,
-      ObjectType.GrassTuft
+      ObjectType.GrassTuft,
+      ObjectType.Dog,
+      ObjectType.Cat
     ]) {
       this.objectSprites.set(type, makeFallbackObjectSprite(type));
     }
@@ -515,7 +660,25 @@ export class AssetManager {
       );
     }
 
+    if (manifest.worldSurface) {
+      work.push(
+        loadImage(`./assets/generated/${manifest.worldSurface}`)
+          .then((image) => {
+            this.worldSurface = image;
+          })
+          .catch(() => undefined)
+      );
+    }
+
     await Promise.all(work);
+  }
+
+  getWorldSurface(): SpriteSource | null {
+    return this.worldSurface;
+  }
+
+  getRoadSprite(variant: number): SpriteSource {
+    return this.roadArchive[Math.abs(variant) % this.roadArchive.length];
   }
 
   getTileSprite(type: TileType, tileX: number, tileY: number): SpriteSource {
@@ -527,11 +690,68 @@ export class AssetManager {
     return variants[index];
   }
 
-  getObjectSprite(type: ObjectType): SpriteSource {
+  getObjectSprite(type: ObjectType, variant?: number): SpriteSource {
+    if (type === ObjectType.Tree && variant !== undefined) {
+      const index = Math.max(0, Math.min(this.treeArchive.length - 1, variant));
+      return index === 0 ? this.objectSprites.get(type) ?? this.treeArchive[0] : this.treeArchive[index];
+    }
     return this.objectSprites.get(type) ?? makeFallbackObjectSprite(type);
   }
 
   getPlayerSprite(isLocal: boolean): SpriteSource {
     return isLocal ? this.localPlayerSprite : this.remotePlayerSprite;
+  }
+
+  getArchiveGroups(): AssetArchiveGroup[] {
+    const grounds: AssetArchiveEntry[] = [
+      { id: "ground-grass", label: "Grass", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Grass, 0, 0), tileType: TileType.Grass },
+      { id: "ground-dirt", label: "Dirt", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Dirt, 0, 0), tileType: TileType.Dirt },
+      { id: "ground-stone", label: "Stone", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Stone, 0, 0), tileType: TileType.Stone },
+      { id: "ground-water", label: "Water", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Water, 0, 0), tileType: TileType.Water },
+      { id: "ground-forest", label: "Forest", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Forest, 0, 0), tileType: TileType.Forest }
+    ];
+
+    const roads: AssetArchiveEntry[] = this.roadArchive.map((sprite, index) => ({
+      id: `road-${index}`,
+      label: `Road ${index + 1}`,
+      group: "roads",
+      kind: "road",
+      preview: sprite,
+      roadVariant: index
+    }));
+
+    const trees: AssetArchiveEntry[] = this.treeArchive.map((sprite, index) => ({
+      id: `tree-${index}`,
+      label: `Tree ${index + 1}`,
+      group: "trees",
+      kind: "object",
+      preview: index === 0 ? this.getObjectSprite(ObjectType.Tree) : sprite,
+      objectType: ObjectType.Tree,
+      objectVariant: index
+    }));
+
+    const buildings: AssetArchiveEntry[] = [
+      { id: "building-house", label: "House", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.House), objectType: ObjectType.House },
+      { id: "building-well", label: "Well", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Well), objectType: ObjectType.Well },
+      { id: "building-sign", label: "Sign", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Sign), objectType: ObjectType.Sign }
+    ];
+
+    const props: AssetArchiveEntry[] = [
+      { id: "prop-horse", label: "Horse", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Horse), objectType: ObjectType.Horse },
+      { id: "prop-sheep", label: "Sheep", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Sheep), objectType: ObjectType.Sheep },
+      { id: "prop-dog", label: "Dog", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Dog), objectType: ObjectType.Dog },
+      { id: "prop-cat", label: "Cat", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Cat), objectType: ObjectType.Cat },
+      { id: "prop-stone", label: "Stone", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Stone), objectType: ObjectType.Stone },
+      { id: "prop-crate", label: "Crate", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Crate), objectType: ObjectType.Crate }
+    ];
+
+    return [
+      { id: "ground", label: "Ground", entries: grounds },
+      { id: "roads", label: "Roads", entries: roads },
+      { id: "trees", label: "Trees", entries: trees },
+      { id: "buildings", label: "Buildings", entries: buildings },
+      { id: "props", label: "Props", entries: props },
+      { id: "erase", label: "Erase", entries: [{ id: "erase-brush", label: "Erase", group: "erase", kind: "erase", preview: this.getTileSprite(TileType.Dirt, 1, 1) }] }
+    ];
   }
 }

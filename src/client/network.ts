@@ -31,7 +31,9 @@ function interactionText(objectType: ObjectType, action: number): string {
     7: "The chest is locked for now.",
     8: "The horse snorts and paws the dirt.",
     9: "The sheep lets out a soft baa.",
-    10: "Wild grass sways in the breeze."
+    10: "Wild grass sways in the breeze.",
+    11: "The dog circles your boots happily.",
+    12: "The cat watches you with royal judgment."
   };
   return map[action] ?? `You inspect object ${objectType}.`;
 }

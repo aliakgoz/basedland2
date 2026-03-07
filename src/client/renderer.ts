@@ -64,7 +64,12 @@ export class Renderer {
     const cameraX = localPlayer.renderX;
     const cameraY = localPlayer.renderY;
     this.drawTiles(world, cameraX, cameraY);
-    this.drawScene(world.getVisibleObjects(cameraX, cameraY, this.width, this.height), [localPlayer, ...remotePlayers], cameraX, cameraY);
+    this.drawScene(
+      world.getVisibleObjects(cameraX, cameraY, this.width / this.zoom, this.height / this.zoom),
+      [localPlayer, ...remotePlayers],
+      cameraX,
+      cameraY
+    );
   }
 
   private drawTiles(world: WorldState, cameraX: number, cameraY: number): void {
@@ -82,6 +87,10 @@ export class Renderer {
         const screenY = Math.floor((tileY * TILE_SIZE - cameraY) * this.zoom + this.height / 2);
         const sprite = this.assets.getTileSprite(world.getTileType(tileX, tileY), tileX, tileY);
         this.ctx.drawImage(sprite, screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
+        const roadVariant = world.getRoadVariant(tileX, tileY);
+        if (roadVariant !== null) {
+          this.ctx.drawImage(this.assets.getRoadSprite(roadVariant), screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
+        }
       }
     }
   }
@@ -109,7 +118,7 @@ export class Renderer {
         const scaledHeight = height * this.zoom;
         const screenX = Math.floor((item.object.x - width / 2 - cameraX) * this.zoom + this.width / 2);
         const screenY = Math.floor((item.object.y - height / 2 - cameraY) * this.zoom + this.height / 2);
-        const sprite = this.assets.getObjectSprite(item.object.type);
+        const sprite = this.assets.getObjectSprite(item.object.type, item.object.variant);
         this.ctx.drawImage(sprite, screenX, screenY, scaledWidth, scaledHeight);
         this.ctx.fillStyle = "rgba(0,0,0,0.18)";
         this.ctx.fillRect(

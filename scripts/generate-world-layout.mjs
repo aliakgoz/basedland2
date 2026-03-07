@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import OpenAI from "openai";
 import sharp from "sharp";
@@ -13,6 +13,8 @@ const client = new OpenAI({ apiKey });
 const outputDir = path.resolve("src/client/assets/generated");
 const layoutJsonPath = path.resolve("src/shared/generated/world-layout.json");
 const previewPath = path.join(outputDir, "world-layout-preview.png");
+const worldSurfacePath = path.join(outputDir, "world-surface.png");
+const manifestPath = path.join(outputDir, "manifest.json");
 
 const palette = [
   { id: 0, name: "plains", rgb: [120, 181, 87] },
@@ -89,10 +91,36 @@ async function generateSourceImage() {
   return Buffer.from(encoded, "base64");
 }
 
+async function generateWorldSurfaceImage() {
+  const prompt = [
+    "Create a complete top-down pixel-art MMO world map, not a biome mask.",
+    "The whole image must represent a coherent 1000x1000-pixel world surface with villages, towns, roads, lakes, rivers, fields, forests, plains, and mountain ranges.",
+    "Houses must read as large 10x10 or bigger pixel masses, horses as tiny 2-pixel marks, humans sheep dogs and cats as 1-pixel marks.",
+    "Use a cohesive retro RPG palette, keep features connected and readable, avoid isolated random pixels, and avoid perspective.",
+    "No labels, no UI, no decorative border."
+  ].join(" ");
+
+  const result = await client.images.generate({
+    model: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1.5",
+    prompt,
+    size: "1024x1024",
+    quality: "high",
+    output_format: "png",
+    background: "opaque"
+  });
+
+  const encoded = result.data?.[0]?.b64_json;
+  if (!encoded) {
+    throw new Error("World surface generation returned no image data.");
+  }
+  return Buffer.from(encoded, "base64");
+}
+
 async function run() {
   await mkdir(outputDir, { recursive: true });
 
   const imageBytes = await generateSourceImage();
+  const surfaceBytes = await generateWorldSurfaceImage();
   const { data, info } = await sharp(imageBytes)
     .resize(100, 100, { fit: "fill" })
     .removeAlpha()
@@ -127,11 +155,30 @@ async function run() {
     .png({ palette: true, compressionLevel: 9 })
     .toFile(previewPath);
 
+  const surfacePixelated = await sharp(surfaceBytes)
+    .resize(250, 250, { fit: "fill" })
+    .png({ palette: true, colors: 64, compressionLevel: 9 })
+    .toBuffer();
+
+  await sharp(surfacePixelated)
+    .resize(1000, 1000, { kernel: sharp.kernel.nearest, fit: "fill" })
+    .png({ palette: true, compressionLevel: 9 })
+    .toFile(worldSurfacePath);
+
   await writeFile(
     layoutJsonPath,
     `${JSON.stringify({ width: info.width, height: info.height, data: Array.from(grid) }, null, 2)}\n`,
     "utf8"
   );
+
+  let manifest = { tiles: {}, objects: {}, players: {} };
+  try {
+    manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  } catch {
+    manifest = { tiles: {}, objects: {}, players: {} };
+  }
+  manifest.worldSurface = "world-surface.png";
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
   console.log(`generated world layout ${info.width}x${info.height}`);
 }

@@ -52,10 +52,13 @@
     "chest": "objects/chest.png",
     "horse": "objects/horse.png",
     "sheep": "objects/sheep.png",
+    "dog": "objects/dog.png",
+    "cat": "objects/cat.png",
     "grass-tuft": "objects/grass-tuft.png"
   },
   "players": {
     "local-player": "players/local-player.png",
     "remote-player": "players/remote-player.png"
-  }
+  },
+  "worldSurface": "world-surface.png"
 }

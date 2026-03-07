@@ -51,7 +51,9 @@ export const enum ObjectType {
   Chest = 7,
   Horse = 8,
   Sheep = 9,
-  GrassTuft = 10
+  GrassTuft = 10,
+  Dog = 11,
+  Cat = 12
 }
 
 export const enum Direction {

@@ -18,6 +18,8 @@ export interface StaticProp {
   type: ObjectType;
   x: number;
   y: number;
+  variant?: number;
+  editorPlaced?: boolean;
 }
 
 export function createPlayerEntity(id: number, x: number, y: number, isLocal: boolean): PlayerEntity {
