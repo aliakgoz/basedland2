@@ -1,7 +1,9 @@
 import type { AssetArchiveEntry, AssetArchiveGroup, AssetManager } from "./assets";
 import type { PlayerEntity } from "./entity";
 import { Renderer } from "./renderer";
-import { WorldState } from "./world";
+import { type EditorMapData, WorldState } from "./world";
+
+const LOCAL_STORAGE_KEY = "basedland.map-editor.v1";
 
 function makeThumb(source: CanvasImageSource): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -34,6 +36,12 @@ export class MapEditor {
   private readonly toggleButton: HTMLButtonElement;
   private readonly dock: HTMLElement;
   private readonly groups: HTMLElement;
+  private readonly exportButton: HTMLButtonElement;
+  private readonly importButton: HTMLButtonElement;
+  private readonly importInput: HTMLInputElement;
+  private readonly saveLocalButton: HTMLButtonElement;
+  private readonly loadLocalButton: HTMLButtonElement;
+  private readonly clearButton: HTMLButtonElement;
 
   constructor(
     private readonly assets: AssetManager,
@@ -45,12 +53,24 @@ export class MapEditor {
     const toggleButton = document.querySelector<HTMLButtonElement>("#editor-toggle");
     const dock = document.querySelector<HTMLElement>("#editor-dock");
     const groups = document.querySelector<HTMLElement>("#editor-groups");
-    if (!toggleButton || !dock || !groups) {
+    const exportButton = document.querySelector<HTMLButtonElement>("#editor-export");
+    const importButton = document.querySelector<HTMLButtonElement>("#editor-import-button");
+    const importInput = document.querySelector<HTMLInputElement>("#editor-import-input");
+    const saveLocalButton = document.querySelector<HTMLButtonElement>("#editor-save-local");
+    const loadLocalButton = document.querySelector<HTMLButtonElement>("#editor-load-local");
+    const clearButton = document.querySelector<HTMLButtonElement>("#editor-clear");
+    if (!toggleButton || !dock || !groups || !exportButton || !importButton || !importInput || !saveLocalButton || !loadLocalButton || !clearButton) {
       throw new Error("Map editor UI missing");
     }
     this.toggleButton = toggleButton;
     this.dock = dock;
     this.groups = groups;
+    this.exportButton = exportButton;
+    this.importButton = importButton;
+    this.importInput = importInput;
+    this.saveLocalButton = saveLocalButton;
+    this.loadLocalButton = loadLocalButton;
+    this.clearButton = clearButton;
 
     this.selectedBrush = this.assets.getArchiveGroups()[0]?.entries[0] ?? null;
     this.renderPalette();
@@ -63,6 +83,12 @@ export class MapEditor {
 
   private bindUI(): void {
     this.toggleButton.addEventListener("click", () => this.setEnabled(!this.enabled));
+    this.exportButton.addEventListener("click", () => this.exportJson());
+    this.importButton.addEventListener("click", () => this.importInput.click());
+    this.importInput.addEventListener("change", () => this.importJsonFile());
+    this.saveLocalButton.addEventListener("click", () => this.saveLocal());
+    this.loadLocalButton.addEventListener("click", () => this.loadLocal());
+    this.clearButton.addEventListener("click", () => this.clearAll());
     window.addEventListener("keydown", (event) => {
       if (event.code === "KeyM" && !event.repeat) {
         this.setEnabled(!this.enabled);
@@ -186,5 +212,57 @@ export class MapEditor {
     if (this.selectedBrush.kind === "object" && this.selectedBrush.objectType !== undefined) {
       this.world.placeEditorObject(tileX, tileY, this.selectedBrush.objectType, this.selectedBrush.objectVariant);
     }
+  }
+
+  private exportJson(): void {
+    const data = this.world.exportEditorLayer();
+    const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `basedland-map-${Date.now()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private async importJsonFile(): Promise<void> {
+    const file = this.importInput.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as EditorMapData;
+      this.world.importEditorLayer(data);
+    } catch (error) {
+      console.error("Failed to import map json", error);
+    } finally {
+      this.importInput.value = "";
+    }
+  }
+
+  private saveLocal(): void {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(this.world.exportEditorLayer()));
+    } catch (error) {
+      console.error("Failed to save local map", error);
+    }
+  }
+
+  private loadLocal(): void {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      this.world.importEditorLayer(JSON.parse(raw) as EditorMapData);
+    } catch (error) {
+      console.error("Failed to load local map", error);
+    }
+  }
+
+  private clearAll(): void {
+    this.world.clearEditorLayer();
   }
 }

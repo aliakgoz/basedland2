@@ -1,68 +1,553 @@
 # BasedLand
 
-Phase 1 multiplayer browser prototype focused on low-bandwidth, server-authoritative movement and chunked interest management.
+BasedLand is Phase 1 of a browser MMO prototype focused on a lightweight shared world, low bandwidth usage, and a clean path toward large-scale multiplayer. The project currently includes:
 
-## Run
+- a browser client with Canvas rendering
+- a Node.js WebSocket server
+- binary movement/input packets
+- chunk-based interest management
+- OpenAI-assisted asset generation
+- OpenAI-assisted world layout generation
+- a local map maker/editor
+
+This file is the operational guide for the whole project.
+
+## 1. What Exists Today
+
+The current prototype supports:
+
+- top-down pixel movement with `W A S D`
+- interaction with `E`
+- camera zoom with mouse wheel
+- nearby player visibility
+- static world props such as houses, trees, stones, wells, ruins, animals, and signs
+- generated art assets loaded from disk when available
+- a `1000 x 1000` world driven by generated biome/layout data
+- a local map editor mode for painting ground, roads, and object layers
+
+The current focus is the multiplayer core, world pipeline, and editing workflow. Blockchain, wallet, and Base integration are intentionally not included yet.
+
+## 2. Project Layout
+
+Main folders:
+
+- `src/client/`
+  Browser game, renderer, networking, asset loading, and map editor.
+- `src/server/`
+  WebSocket server, simulation loop, player state, chunk visibility, and network encoding.
+- `src/shared/`
+  Shared protocol constants, world generation, and generated layout data.
+- `src/client/assets/generated/`
+  Generated sprites, generated tile variants, generated world preview/output, and the runtime asset manifest.
+- `scripts/`
+  Asset and world generation scripts.
+
+Important files:
+
+- [scripts/generate-assets.mjs](c:/Genel/99_Python/basedland/scripts/generate-assets.mjs)
+- [scripts/generate-world-layout.mjs](c:/Genel/99_Python/basedland/scripts/generate-world-layout.mjs)
+- [src/client/map_editor.ts](c:/Genel/99_Python/basedland/src/client/map_editor.ts)
+- [src/client/assets.ts](c:/Genel/99_Python/basedland/src/client/assets.ts)
+- [src/client/renderer.ts](c:/Genel/99_Python/basedland/src/client/renderer.ts)
+- [src/shared/worldgen.ts](c:/Genel/99_Python/basedland/src/shared/worldgen.ts)
+- [src/shared/generated/world-layout.json](c:/Genel/99_Python/basedland/src/shared/generated/world-layout.json)
+
+## 3. First-Time Setup
+
+Requirements:
+
+- Node.js 22+
+- npm
+- `.env` file with `OPENAI_API_KEY` if you want to generate assets or generate a new world
+
+Install:
 
 ```bash
 npm install
+```
+
+## 4. Normal Run Flow
+
+If the project is already built and you only want to open the game:
+
+```bash
+npm start
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+If you changed TypeScript or client/server code:
+
+```bash
 npm run build
 npm start
 ```
 
-Open `http://localhost:3000`.
+Recommended normal workflow:
 
-## Art Pipeline
+1. Change code
+2. Run `npm run build`
+3. Run `npm start`
+4. Refresh the browser with `Ctrl+F5`
 
-- Runtime uses pixel-art sprite and tile assets from `src/client/assets/generated/` when present.
-- If generated assets are missing, the client falls back to built-in procedural pixel art so the game still renders cleanly.
-- Generate OpenAI art with:
+## 5. Controls
+
+Gameplay:
+
+- `W A S D`: move
+- `E`: interact
+- mouse wheel: zoom in/out
+
+Editor:
+
+- `M`: open/close map maker
+- left click: paint/place selected brush
+- right click: erase
+- bottom dock: select grouped archive items such as `Ground`, `Roads`, `Trees`, `Buildings`, `Props`
+
+## 6. Build Scripts
+
+Available npm scripts:
+
+```bash
+npm run build
+npm run assets:generate
+npm run world:generate
+npm start
+```
+
+Meaning:
+
+- `npm run build`
+  Bundles the client and server into `dist/`.
+- `npm run assets:generate`
+  Generates or grows the sprite/tile archive using OpenAI image generation.
+- `npm run world:generate`
+  Generates a new macro world layout and supporting preview files.
+- `npm start`
+  Starts the built Node.js server from `dist/server/server.js`.
+
+## 7. Asset System
+
+The runtime tries to load generated assets from:
+
+- [src/client/assets/generated](c:/Genel/99_Python/basedland/src/client/assets/generated)
+
+If a generated asset is missing, the client falls back to built-in procedural pixel art so the game still works.
+
+### 7.1 Asset Manifest
+
+The generated asset manifest lives here:
+
+- [src/client/assets/generated/manifest.json](c:/Genel/99_Python/basedland/src/client/assets/generated/manifest.json)
+
+The manifest contains:
+
+- `tiles`
+- `objects`
+- `players`
+- `tileArchive`
+- `objectArchive`
+- `playerArchive`
+- optional generated extras like `worldSurface`
+
+Runtime compatibility:
+
+- `tiles`, `objects`, and `players` are the runtime-facing keys the client reads immediately.
+- the `*Archive` keys preserve the full history of generated variants.
+
+### 7.2 Append-Only Rule
+
+The asset generator is intentionally append-only by default. This means:
+
+- rerunning asset generation does not regenerate what already exists
+- no unnecessary OpenAI API usage happens once target counts are satisfied
+- the archive grows only when you explicitly ask it to grow
+
+This is important because the user specifically wanted to avoid wasting assets and to keep the library growing over time instead of replacing older work.
+
+### 7.3 Generate Assets
+
+Use:
 
 ```bash
 npm run assets:generate
 ```
 
-- Required env: `OPENAI_API_KEY`
-- Optional env: `OPENAI_IMAGE_MODEL=gpt-image-1.5`
-- The generator creates multiple tile variants per ground type and writes `manifest.json` so the browser only loads available assets.
+Required env:
 
-## World Pipeline
+```text
+OPENAI_API_KEY=...
+```
 
-- The world is now `1000x1000` tiles.
-- Macro biome layout is generated once with OpenAI image generation and then converted into a `100x100` biome grid that drives rivers, villages, plains, forests, and mountain ranges.
-- Generate a fresh world layout with:
+Optional env:
+
+```text
+OPENAI_IMAGE_MODEL=gpt-image-1.5
+```
+
+Default targets:
+
+- tiles: `6` variants per ground type
+- objects: `1` variant per object type
+- players: `1` variant per player sprite
+
+If those targets are already met, the script prints `skipped ...` messages and makes no new image requests.
+
+### 7.4 Grow the Archive Deliberately
+
+Use these only when you want more variants:
+
+```bash
+npm run assets:generate -- --tile-target 12
+npm run assets:generate -- --object-target 3
+npm run assets:generate -- --player-target 2
+```
+
+Examples:
+
+- more ground variation:
+  `npm run assets:generate -- --tile-target 20`
+- more object variants:
+  `npm run assets:generate -- --object-target 5`
+
+### 7.5 Force Regeneration
+
+Only use `--force` when you intentionally want to regenerate up to the requested target count:
+
+```bash
+npm run assets:generate -- --tile-target 12 --force
+```
+
+Do not use `--force` as part of the normal workflow.
+
+## 8. World Generation System
+
+The world is currently designed around a `1000 x 1000` tile space.
+
+The world pipeline is now hybrid but much stricter:
+
+1. OpenAI generates a semantic pixel-world masterplan using an exact palette
+2. the script classifies that image into terrain and district layers
+3. the script detects village blobs, enforces readable settlement structure, and connects them with a controlled road graph
+4. the result is exported as a full `1000 x 1000` layered world JSON using RLE compression
+5. the shared world generator and renderer use that generated layout as the actual runtime source
+
+This is deliberate. The game should not show a blurry painted image as the final map. The AI image is only part of the generation pipeline, not the final rendering surface.
+
+### 8.1 Generate a New Main World
+
+Use:
 
 ```bash
 npm run world:generate
 ```
 
-- The resulting biome mask is written to `src/shared/generated/world-layout.json`.
-- A debug preview is written to `src/client/assets/generated/world-layout-preview.png`.
+This script:
 
-## Architecture
+- generates an AI semantic masterplan image
+- converts it into `terrain + village + plaza + housing + field + road + bridge` layers
+- extracts village centers from AI blobs
+- forces a readable road network between settlements
+- writes preview files to generated assets
+- writes the actual logic-driving world data to shared JSON
 
-- Server-authoritative movement at `20 Hz`.
-- Binary input packets from client at `10 Hz`.
-- Binary delta snapshots from server at `10 Hz`.
-- Grid-based chunk interest management with `32x32` tile chunks and a `3 chunk` view radius.
-- Static world objects generated deterministically per chunk and streamed once when chunks enter view.
-- Client-side prediction for local movement plus reconciliation from authoritative snapshots.
-- Remote player interpolation to keep rendering smooth at `60 FPS`.
+Outputs:
 
-## Network design
+- [src/shared/generated/world-layout.json](c:/Genel/99_Python/basedland/src/shared/generated/world-layout.json)
+- [src/client/assets/generated/world-layout-preview.png](c:/Genel/99_Python/basedland/src/client/assets/generated/world-layout-preview.png)
+- [src/client/assets/generated/world-masterplan.png](c:/Genel/99_Python/basedland/src/client/assets/generated/world-masterplan.png)
 
-- Input packet: `op + seq + buttons`, 4 bytes total.
-- Interaction packet: `op`, 1 byte total.
-- Snapshot packets only include nearby changed players.
-- Remote player deltas use `dx/dy` `int8` values when possible; the server falls back to absolute `uint16` coordinates only when needed.
-- Static object packets are chunk-scoped and only sent for chunks entering the visibility ring.
-- Tile data is derived from a shared seed instead of streaming a full `2000x2000` array. This is a deliberate optimization for Phase 1.
+What each file means:
 
-## Scaling path to 50k
+- `world-layout.json`
+  This is the important one. It drives the logical world and contains the RLE-compressed layer data.
+- `world-layout-preview.png`
+  Clean debug preview of the structured runtime layers.
+- `world-masterplan.png`
+  Raw AI semantic planning image before the cleanup and structure pass.
 
-- Split world simulation by region and route clients through a gateway tier.
-- Move chunk ownership into sharded world workers with handoff at chunk boundaries.
-- Replace `ws` with `uWebSockets.js` or a custom UDP/WebTransport edge for lower overhead.
-- Store per-connection interest caches in compact shared-memory structures.
-- Add AOI diff batching across groups of clients that share the same visible chunk set.
-- Offload static chunk manifests to CDN and keep only dynamic entity deltas on the realtime path.
+### 8.2 When to Regenerate the World
+
+Run `npm run world:generate` only when you want a new main world.
+
+Do not run it every startup.
+
+Normal use after a world already exists:
+
+```bash
+npm run build
+npm start
+```
+
+## 9. Recommended Command Flows
+
+### 9.1 I only want to open the game
+
+```bash
+npm start
+```
+
+### 9.2 I changed code and want to test it
+
+```bash
+npm run build
+npm start
+```
+
+### 9.3 I want more art variants, but only if needed
+
+```bash
+npm run assets:generate -- --tile-target 12
+npm run build
+npm start
+```
+
+### 9.4 I want to create a brand new world
+
+```bash
+npm run world:generate
+npm run build
+npm start
+```
+
+### 9.5 I want to create both art and a new world
+
+```bash
+npm run assets:generate
+npm run world:generate
+npm run build
+npm start
+```
+
+## 10. Map Maker
+
+The project includes a local map editor intended for manual polish and hand-authored areas.
+
+Open it with:
+
+- `M`
+
+What it does:
+
+- paint ground overrides
+- paint road overlays
+- place and erase objects
+- choose brushes from grouped archive sections
+
+Current workflow:
+
+- use generated/procedural world as the base
+- use map maker to shape villages, roads, landmarks, and special areas
+- export or save the editor layer
+
+Editor save options:
+
+- `Export JSON`
+- `Import JSON`
+- `Save Local`
+- `Load Local`
+
+Current scope:
+
+- this is a local editing layer
+- it is not yet a collaborative shared editor
+- it is not yet a server-persisted map database
+
+## 11. Multiplayer and Network Design
+
+This prototype is not a simple JSON WebSocket demo. The current architecture is shaped around MMO-style constraints.
+
+### 11.1 Current Principles
+
+- server authority
+- local client prediction
+- reconciliation
+- chunk-based interest management
+- binary packet design
+- delta-style nearby updates
+- minimal static object sync
+
+### 11.2 Runtime Model
+
+- server simulation: `20 Hz`
+- client input send rate: `10 Hz`
+- server snapshot send rate: `10 Hz`
+- client rendering: `60 FPS`
+
+### 11.3 Interest Management
+
+The world is divided into chunks.
+
+Players only receive:
+
+- nearby players
+- nearby chunk objects
+- chunk entry/exit relevant data
+
+This keeps bandwidth and CPU low.
+
+### 11.4 Packet Strategy
+
+Examples:
+
+- input packet:
+  `op + seq + buttons`
+- interaction packet:
+  `op`
+- snapshots:
+  nearby changed players only
+
+Compression behavior:
+
+- remote movement tries `dx/dy` delta form first
+- absolute coordinates are only used when deltas are not enough
+- static world data is not streamed every frame
+
+## 12. Rendering Approach
+
+Rendering is optimized for clarity and lightweight performance:
+
+- top-down pixel art
+- sharp tile rendering
+- sprite/object layering
+- camera centered on player
+- zoom support
+
+Important design rule:
+
+- AI-generated images may help produce layouts and assets
+- final runtime world should still read as a proper sharp game map, not a blurry poster
+
+## 13. Troubleshooting
+
+### `process is not defined`
+
+Cause:
+
+- server-only config leaked into the browser bundle
+
+Status:
+
+- already fixed by moving server port lookup into server-side code
+
+### `Disconnected from server`
+
+Check:
+
+1. is `npm start` running
+2. did you run `npm run build` after code changes
+3. did you hard refresh the browser with `Ctrl+F5`
+
+The client now includes reconnect behavior, but if the server crashes you still need to inspect the terminal.
+
+### Port `3000` already in use
+
+Find running Node processes:
+
+```powershell
+Get-Process node
+```
+
+Stop the old one:
+
+```powershell
+Stop-Process -Id <PID>
+```
+
+### Asset generation should not waste API calls
+
+This is already handled by the append-only asset generator.
+
+If the archive is full enough, the script prints `skipped ...` and does not generate replacements.
+
+### The map looks blurry
+
+The final runtime map should be tile-rendered, not displayed as a raw full image.
+
+If blur returns, inspect:
+
+- [src/client/renderer.ts](c:/Genel/99_Python/basedland/src/client/renderer.ts)
+- [scripts/generate-world-layout.mjs](c:/Genel/99_Python/basedland/scripts/generate-world-layout.mjs)
+
+## 14. Git Hygiene
+
+The repo is configured to ignore local-only files such as:
+
+- `node_modules`
+- `.env`
+- build output
+
+Before committing:
+
+```bash
+git status
+```
+
+If you want to commit:
+
+```bash
+git add .
+git commit -m "Your message"
+```
+
+If you want to push, make sure a remote exists first:
+
+```bash
+git remote -v
+git push -u origin main
+```
+
+## 15. Scaling Path
+
+The current prototype is Phase 1. It is intentionally simple enough to stay productive, but the design already points toward larger scale.
+
+Future scaling path:
+
+- shard simulation by region
+- separate gateway and world workers
+- move from `ws` to `uWebSockets.js` or another lower-overhead transport layer
+- batch AOI diffs across clients with matching visible chunk sets
+- CDN-host static chunk manifests and asset packs
+- persist dynamic world and editing layers in chunk-oriented storage
+
+## 16. Practical Summary
+
+If you forget everything else, remember these command patterns:
+
+Open the game:
+
+```bash
+npm start
+```
+
+Rebuild after code changes:
+
+```bash
+npm run build
+npm start
+```
+
+Grow art archive without wasting existing assets:
+
+```bash
+npm run assets:generate -- --tile-target 12
+```
+
+Generate a new main world:
+
+```bash
+npm run world:generate
+npm run build
+npm start
+```
+
+Open the editor in-game:
+
+```text
+Press M
+```

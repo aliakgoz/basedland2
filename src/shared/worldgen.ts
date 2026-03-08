@@ -8,7 +8,17 @@ import {
   WORLD_WIDTH_TILES,
   type StaticObject
 } from "./protocol";
-import { MacroBiome, getMacroBiome } from "./world-layout";
+import {
+  MacroBiome,
+  getMacroBiome,
+  getVillageCenters,
+  hasBridgeTile,
+  hasGeneratedRoad,
+  isFieldTile,
+  isHousingTile,
+  isPlazaTile,
+  isVillageTile
+} from "./world-layout";
 
 function hash(value: number): number {
   let x = value >>> 0;
@@ -30,30 +40,109 @@ function noise01(seed: number, x: number, y: number, scale: number): number {
   return hash2d(seed, sx, sy) / 0xffffffff;
 }
 
+function coarseBand(seed: number, x: number, y: number, scale: number): number {
+  return hash2d(seed, Math.floor(x / scale), Math.floor(y / scale)) % 4;
+}
+
+function isNearRoad(tileX: number, tileY: number, radius: number): boolean {
+  for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
+    for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+      if (hasGeneratedRoad(tileX + offsetX, tileY + offsetY)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isNearWater(tileX: number, tileY: number, radius: number): boolean {
+  for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
+    for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+      if (offsetX === 0 && offsetY === 0) {
+        continue;
+      }
+      if (getMacroBiome(tileX + offsetX, tileY + offsetY) === MacroBiome.Water) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isHouseLot(tileX: number, tileY: number): boolean {
+  const coarseX = Math.floor(tileX / 4);
+  const coarseY = Math.floor(tileY / 4);
+  const localX = ((tileX % 4) + 4) % 4;
+  const localY = ((tileY % 4) + 4) % 4;
+  const lotSeed = hash2d(WORLD_SEED + 1901, coarseX, coarseY) / 0xffffffff;
+  return localX === 1 && localY === 1 && lotSeed > 0.45 && lotSeed < 0.8;
+}
+
+function isVillageAnimalLot(tileX: number, tileY: number): boolean {
+  return (Math.floor(tileX / 4) + Math.floor(tileY / 4)) % 3 === 0;
+}
+
 export function getTileType(tileX: number, tileY: number): TileType {
   if (tileX < 0 || tileY < 0 || tileX >= WORLD_WIDTH_TILES || tileY >= WORLD_HEIGHT_TILES) {
     return TileType.Water;
   }
 
-  const detail = noise01(WORLD_SEED + 61, tileX, tileY, 6);
-  const terrain = noise01(WORLD_SEED + 17, tileX, tileY, 20);
+  if (hasBridgeTile(tileX, tileY)) {
+    return (tileX + tileY) % 2 === 0 ? TileType.Stone : TileType.Dirt;
+  }
+
   const biome = getMacroBiome(tileX, tileY);
+  if (biome === MacroBiome.Water) {
+    return TileType.Water;
+  }
+
+  const patch = noise01(WORLD_SEED + 61, tileX, tileY, 32);
+  const band = coarseBand(WORLD_SEED + 811, tileX, tileY, 64);
+  const field = isFieldTile(tileX, tileY);
+  const village = isVillageTile(tileX, tileY);
+  const plaza = isPlazaTile(tileX, tileY);
+  const housing = isHousingTile(tileX, tileY);
+  const road = hasGeneratedRoad(tileX, tileY);
+  const shoreline = isNearWater(tileX, tileY, 2);
+
+  if (plaza) {
+    return (Math.floor(tileX / 2) + Math.floor(tileY / 2)) % 2 === 0 ? TileType.Stone : TileType.Dirt;
+  }
+
+  if (road) {
+    return (tileX + tileY) % 7 === 0 ? TileType.Stone : TileType.Dirt;
+  }
+
+  if (housing) {
+    return patch > 0.88 ? TileType.Dirt : TileType.Grass;
+  }
+
+  if (field) {
+    return Math.floor(tileY / 3) % 2 === 0 ? TileType.Dirt : TileType.Grass;
+  }
 
   switch (biome) {
-    case MacroBiome.Water:
-      return TileType.Water;
     case MacroBiome.Mountain:
-      return detail > 0.14 ? TileType.Stone : TileType.Dirt;
+      return band === 0 ? TileType.Dirt : TileType.Stone;
+
     case MacroBiome.Forest:
-      return detail > 0.9 ? TileType.Grass : TileType.Forest;
-    case MacroBiome.Village:
-      if (detail > 0.82 || (terrain > 0.48 && terrain < 0.55)) {
-        return TileType.Dirt;
+      if (shoreline && band === 0) {
+        return TileType.Grass;
       }
-      return detail < 0.08 ? TileType.Stone : TileType.Grass;
+      return band === 3 && patch > 0.8 ? TileType.Grass : TileType.Forest;
+
+    case MacroBiome.Village:
+      if (village) {
+        return patch > 0.92 ? TileType.Dirt : TileType.Grass;
+      }
+      return TileType.Grass;
+
     case MacroBiome.Plains:
     default:
-      return detail > 0.9 ? TileType.Dirt : TileType.Grass;
+      if (shoreline && band !== 3) {
+        return TileType.Grass;
+      }
+      return patch > 0.965 ? TileType.Dirt : TileType.Grass;
   }
 }
 
@@ -107,45 +196,82 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
   const baseTileX = cx * CHUNK_SIZE_TILES;
   const baseTileY = cy * CHUNK_SIZE_TILES;
 
-  for (let cellY = 0; cellY < CHUNK_SIZE_TILES; cellY += 4) {
-    for (let cellX = 0; cellX < CHUNK_SIZE_TILES; cellX += 4) {
+  for (let cellY = 0; cellY < CHUNK_SIZE_TILES; cellY += 2) {
+    for (let cellX = 0; cellX < CHUNK_SIZE_TILES; cellX += 2) {
       const tileX = baseTileX + cellX + 1;
       const tileY = baseTileY + cellY + 1;
       const tile = getTileType(tileX, tileY);
       const biome = getMacroBiome(tileX, tileY);
-      if (!isWalkableTile(tile)) {
+      const village = isVillageTile(tileX, tileY);
+      const plaza = isPlazaTile(tileX, tileY);
+      const housing = isHousingTile(tileX, tileY);
+      const field = isFieldTile(tileX, tileY);
+      const onRoad = hasGeneratedRoad(tileX, tileY);
+      const onBridge = hasBridgeTile(tileX, tileY);
+      const nearRoad = isNearRoad(tileX, tileY, 3);
+
+      if (!isWalkableTile(tile) || onRoad || onBridge) {
+        continue;
+      }
+
+      if (isNearWater(tileX, tileY, 1) && village === false) {
         continue;
       }
 
       const roll = hash2d(WORLD_SEED + 91, tileX, tileY) / 0xffffffff;
+      const cluster = noise01(WORLD_SEED + 701, tileX, tileY, 14);
       let type: ObjectType | null = null;
 
-      if (biome === MacroBiome.Forest && roll < 0.45) {
-        type = ObjectType.Tree;
-      } else if (biome === MacroBiome.Mountain && roll < 0.24) {
-        type = ObjectType.Stone;
-      } else if (biome === MacroBiome.Village && roll < 0.1) {
-        type = ObjectType.House;
-      } else if (biome === MacroBiome.Village && roll < 0.125) {
-        type = ObjectType.Sign;
-      } else if (biome === MacroBiome.Plains && roll < 0.06) {
-        type = ObjectType.GrassTuft;
-      } else if (biome === MacroBiome.Village && roll < 0.155) {
-        type = ObjectType.Crate;
-      } else if ((biome === MacroBiome.Plains || biome === MacroBiome.Village) && roll > 0.92 && roll < 0.94) {
-        type = ObjectType.Sheep;
-      } else if ((biome === MacroBiome.Plains || biome === MacroBiome.Village) && roll > 0.94 && roll < 0.953) {
-        type = ObjectType.Horse;
-      } else if (biome === MacroBiome.Village && roll > 0.89 && roll < 0.905) {
-        type = ObjectType.Dog;
-      } else if (biome === MacroBiome.Village && roll > 0.905 && roll < 0.92) {
-        type = ObjectType.Cat;
-      } else if (biome === MacroBiome.Village && roll > 0.965) {
-        type = ObjectType.Well;
-      } else if (biome === MacroBiome.Mountain && roll > 0.965) {
-        type = ObjectType.Ruins;
-      } else if (biome === MacroBiome.Village && roll > 0.955 && roll < 0.965) {
-        type = ObjectType.Chest;
+      if (biome === MacroBiome.Forest && !village) {
+        if (!nearRoad && cluster > 0.32 && roll < 0.48) {
+          type = ObjectType.Tree;
+        } else if (roll > 0.988) {
+          type = ObjectType.GrassTuft;
+        }
+      } else if (biome === MacroBiome.Mountain && !village) {
+        if (cluster > 0.38 && roll < 0.26) {
+          type = ObjectType.Stone;
+        } else if (roll > 0.994) {
+          type = ObjectType.Ruins;
+        }
+      } else if (field) {
+        if (isVillageAnimalLot(tileX, tileY) && roll > 0.944 && roll < 0.97) {
+          type = ObjectType.Sheep;
+        } else if (isVillageAnimalLot(tileX, tileY) && roll > 0.97 && roll < 0.982) {
+          type = ObjectType.Horse;
+        } else if (!nearRoad && roll > 0.996) {
+          type = ObjectType.GrassTuft;
+        }
+      } else if (plaza) {
+        if ((tileX + tileY) % 11 === 0 && roll > 0.992) {
+          type = ObjectType.Well;
+        } else if ((tileX * 3 + tileY) % 19 === 0 && roll > 0.987 && roll < 0.991) {
+          type = ObjectType.Sign;
+        }
+      } else if (housing) {
+        if (isHouseLot(tileX, tileY)) {
+          type = ObjectType.House;
+        } else if (nearRoad && roll > 0.986 && roll < 0.992) {
+          type = ObjectType.Crate;
+        } else if (nearRoad && roll > 0.992 && roll < 0.996) {
+          type = ObjectType.Sign;
+        } else if (roll > 0.996 && roll < 0.9985) {
+          type = ObjectType.Dog;
+        } else if (roll > 0.9985) {
+          type = ObjectType.Cat;
+        }
+      } else if (village) {
+        if (!nearRoad && cluster > 0.7 && roll < 0.05) {
+          type = ObjectType.Tree;
+        } else if (roll > 0.995 && roll < 0.9975) {
+          type = ObjectType.Chest;
+        }
+      } else if (biome === MacroBiome.Plains) {
+        if (!nearRoad && cluster > 0.58 && roll < 0.04) {
+          type = ObjectType.GrassTuft;
+        } else if (nearRoad && roll > 0.996) {
+          type = ObjectType.Sign;
+        }
       }
 
       if (type !== null) {
@@ -155,10 +281,50 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
     }
   }
 
+  const chunkMinX = baseTileX;
+  const chunkMinY = baseTileY;
+  const chunkMaxX = baseTileX + CHUNK_SIZE_TILES - 1;
+  const chunkMaxY = baseTileY + CHUNK_SIZE_TILES - 1;
+
+  for (const center of getVillageCenters()) {
+    if (center.tileX < chunkMinX || center.tileX > chunkMaxX || center.tileY < chunkMinY || center.tileY > chunkMaxY) {
+      continue;
+    }
+
+    pushObject(objects, cx, cy, localIndex, ObjectType.Well, center.tileX, center.tileY);
+    localIndex += 1;
+
+    const signTileX = Math.min(chunkMaxX, center.tileX + 3);
+    const signTileY = center.tileY + 1 <= chunkMaxY ? center.tileY + 1 : center.tileY;
+    pushObject(objects, cx, cy, localIndex, ObjectType.Sign, signTileX, signTileY);
+    localIndex += 1;
+  }
+
   return objects;
 }
 
 export function findSpawnTile(id: number): [number, number] {
+  const villages = getVillageCenters();
+  if (villages.length > 0) {
+    const center = villages[id % villages.length];
+    for (let radius = 0; radius < 56; radius += 1) {
+      for (let y = -radius; y <= radius; y += 1) {
+        for (let x = -radius; x <= radius; x += 1) {
+          const tileX = center.tileX + x;
+          const tileY = center.tileY + y;
+          if (
+            isWalkableTile(getTileType(tileX, tileY)) &&
+            !hasGeneratedRoad(tileX, tileY) &&
+            !isFieldTile(tileX, tileY) &&
+            !isPlazaTile(tileX, tileY)
+          ) {
+            return [tileX, tileY];
+          }
+        }
+      }
+    }
+  }
+
   const centerX = Math.floor(WORLD_WIDTH_TILES / 2);
   const centerY = Math.floor(WORLD_HEIGHT_TILES / 2);
   const offsetX = ((id * 17) % 41) - 20;
@@ -166,13 +332,17 @@ export function findSpawnTile(id: number): [number, number] {
   const candidateX = centerX + offsetX;
   const candidateY = centerY + offsetY;
 
-  for (let radius = 0; radius < 100; radius += 1) {
+  for (let radius = 0; radius < 120; radius += 1) {
     for (let y = -radius; y <= radius; y += 1) {
       for (let x = -radius; x <= radius; x += 1) {
         const tileX = candidateX + x;
         const tileY = candidateY + y;
         const biome = getMacroBiome(tileX, tileY);
-        if ((biome === MacroBiome.Village || biome === MacroBiome.Plains) && isWalkableTile(getTileType(tileX, tileY))) {
+        if (
+          (biome === MacroBiome.Village || biome === MacroBiome.Plains) &&
+          isWalkableTile(getTileType(tileX, tileY)) &&
+          !hasGeneratedRoad(tileX, tileY)
+        ) {
           return [tileX, tileY];
         }
       }

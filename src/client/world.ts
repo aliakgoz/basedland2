@@ -1,6 +1,14 @@
 import { TILE_SIZE, TileType, chunkKey, type StaticObject } from "../shared/protocol";
 import { getTileType } from "../shared/worldgen";
+import { getGeneratedRoadVariant } from "../shared/world-layout";
 import type { StaticProp } from "./entity";
+
+export interface EditorMapData {
+  version: 1;
+  ground: Array<{ x: number; y: number; type: number }>;
+  roads: Array<{ x: number; y: number; variant: number }>;
+  objects: Array<{ x: number; y: number; type: number; variant?: number }>;
+}
 
 export class WorldState {
   readonly chunkObjects = new Map<string, StaticProp[]>();
@@ -38,7 +46,7 @@ export class WorldState {
   }
 
   getRoadVariant(tileX: number, tileY: number): number | null {
-    return this.roadOverrides.get(this.tileKey(tileX, tileY)) ?? null;
+    return this.roadOverrides.get(this.tileKey(tileX, tileY)) ?? getGeneratedRoadVariant(tileX, tileY);
   }
 
   setRoadVariant(tileX: number, tileY: number, variant: number | null): void {
@@ -67,6 +75,64 @@ export class WorldState {
     this.groundOverrides.delete(key);
     this.roadOverrides.delete(key);
     this.editorObjects.delete(key);
+  }
+
+  clearEditorLayer(): void {
+    this.groundOverrides.clear();
+    this.roadOverrides.clear();
+    this.editorObjects.clear();
+  }
+
+  exportEditorLayer(): EditorMapData {
+    const ground: EditorMapData["ground"] = [];
+    const roads: EditorMapData["roads"] = [];
+    const objects: EditorMapData["objects"] = [];
+
+    for (const [key, type] of this.groundOverrides) {
+      const [x, y] = key.split(",").map(Number);
+      ground.push({ x, y, type });
+    }
+
+    for (const [key, variant] of this.roadOverrides) {
+      const [x, y] = key.split(",").map(Number);
+      roads.push({ x, y, variant });
+    }
+
+    for (const object of this.editorObjects.values()) {
+      objects.push({
+        x: Math.floor(object.x / TILE_SIZE),
+        y: Math.floor(object.y / TILE_SIZE),
+        type: object.type,
+        variant: object.variant
+      });
+    }
+
+    ground.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    roads.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    objects.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+
+    return {
+      version: 1,
+      ground,
+      roads,
+      objects
+    };
+  }
+
+  importEditorLayer(data: EditorMapData): void {
+    this.clearEditorLayer();
+
+    for (const item of data.ground ?? []) {
+      this.setGroundOverride(item.x, item.y, item.type as TileType);
+    }
+
+    for (const item of data.roads ?? []) {
+      this.setRoadVariant(item.x, item.y, item.variant);
+    }
+
+    for (const item of data.objects ?? []) {
+      this.placeEditorObject(item.x, item.y, item.type as StaticProp["type"], item.variant);
+    }
   }
 
   getVisibleObjects(cameraX: number, cameraY: number, viewportWidth: number, viewportHeight: number): StaticProp[] {

@@ -11,6 +11,52 @@ if (!apiKey) {
 
 const client = new OpenAI({ apiKey });
 const outRoot = path.resolve("src/client/assets/generated");
+const manifestPath = path.join(outRoot, "manifest.json");
+
+function parseArgs(argv) {
+  const options = {
+    force: false,
+    targetTileVariants: 6,
+    targetObjectVariants: 1,
+    targetPlayerVariants: 1
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const current = argv[index];
+    if (current === "--force") {
+      options.force = true;
+    } else if (current === "--tile-target" && argv[index + 1]) {
+      options.targetTileVariants = Math.max(1, Number(argv[index + 1]) || options.targetTileVariants);
+      index += 1;
+    } else if (current === "--object-target" && argv[index + 1]) {
+      options.targetObjectVariants = Math.max(1, Number(argv[index + 1]) || options.targetObjectVariants);
+      index += 1;
+    } else if (current === "--player-target" && argv[index + 1]) {
+      options.targetPlayerVariants = Math.max(1, Number(argv[index + 1]) || options.targetPlayerVariants);
+      index += 1;
+    }
+  }
+
+  return options;
+}
+
+const options = parseArgs(process.argv.slice(2));
+
+/**
+ * Manifest is append-only. Current runtime still reads the original keys
+ * while archive arrays keep every generated version for future expansion.
+ */
+function createEmptyManifest() {
+  return {
+    schemaVersion: 2,
+    tiles: {},
+    objects: {},
+    players: {},
+    tileArchive: {},
+    objectArchive: {},
+    playerArchive: {}
+  };
+}
 
 const tileEntries = [
   {
@@ -162,69 +208,150 @@ async function pixelate(buffer, logicalWidth, logicalHeight, outFile) {
     .toFile(outFile);
 }
 
+function ensureArrayStore(record, key) {
+  const existing = record[key];
+  if (Array.isArray(existing)) {
+    return existing;
+  }
+  record[key] = [];
+  return record[key];
+}
+
+function nextVariantPath(kind, slug, existingPaths) {
+  const nextIndex = existingPaths.length + 1;
+  const padded = String(nextIndex).padStart(3, "0");
+  return `${kind}/${slug}/${slug}-v${padded}.png`;
+}
+
+async function migrateLegacyManifest(manifest) {
+  for (const [slug, value] of Object.entries(manifest.objects ?? {})) {
+    const archive = ensureArrayStore(manifest.objectArchive, slug);
+    if (typeof value === "string" && !archive.includes(value)) {
+      archive.push(value);
+    }
+  }
+
+  for (const [slug, value] of Object.entries(manifest.players ?? {})) {
+    const archive = ensureArrayStore(manifest.playerArchive, slug);
+    if (typeof value === "string" && !archive.includes(value)) {
+      archive.push(value);
+    }
+  }
+
+  for (const [slug, values] of Object.entries(manifest.tiles ?? {})) {
+    const archive = ensureArrayStore(manifest.tileArchive, slug);
+    if (Array.isArray(values)) {
+      for (const value of values) {
+        if (!archive.includes(value)) {
+          archive.push(value);
+        }
+      }
+    }
+  }
+}
+
 async function run() {
   await ensureDirs();
-  let manifest = {
-    tiles: {},
-    objects: {},
-    players: {}
-  };
+  let manifest = createEmptyManifest();
   try {
-    const existing = JSON.parse(await readFile(path.join(outRoot, "manifest.json"), "utf8"));
+    const existing = JSON.parse(await readFile(manifestPath, "utf8"));
     manifest = {
-      ...existing,
-      tiles: {},
-      objects: {},
-      players: {}
+      ...createEmptyManifest(),
+      ...existing
     };
+    await migrateLegacyManifest(manifest);
   } catch {
-    manifest = {
-      tiles: {},
-      objects: {},
-      players: {}
-    };
+    manifest = createEmptyManifest();
   }
 
   for (const tile of tileEntries) {
-    manifest.tiles[tile.slug] = [];
-    for (let variant = 0; variant < 6; variant += 1) {
-      const prompt = `${tile.prompt} Variation ${variant + 1} of 6, visually distinct from the others, but still matching the same biome.`;
+    const archive = ensureArrayStore(manifest.tileArchive, tile.slug);
+    manifest.tiles[tile.slug] = [...archive];
+    const remaining = options.force ? options.targetTileVariants : Math.max(0, options.targetTileVariants - archive.length);
+
+    if (remaining === 0) {
+      console.log(`skipped tile ${tile.slug}, archive already has ${archive.length} variants`);
+    }
+
+    for (let variant = 0; variant < remaining; variant += 1) {
+      const nextOrdinal = archive.length + 1;
+      const prompt = `${tile.prompt} Variation ${nextOrdinal} of an expanding archive, visually distinct from previous variants while matching the same biome.`;
       const bytes = await generateImage(prompt, false);
-      const relative = `tiles/${tile.slug}-${variant}.png`;
+      const relative = nextVariantPath("tiles", tile.slug, archive);
+      await mkdir(path.join(outRoot, "tiles", tile.slug), { recursive: true });
       await pixelate(bytes, 32, 32, path.join(outRoot, relative));
-      manifest.tiles[tile.slug].push(relative);
-      console.log(`generated tile ${tile.slug}-${variant}`);
+      archive.push(relative);
+      manifest.tiles[tile.slug] = [...archive];
+      console.log(`generated tile ${tile.slug} variant ${nextOrdinal}`);
     }
   }
 
   for (const entry of objectEntries) {
-    const bytes = await generateImage(entry.prompt, true);
-    const relative = `objects/${entry.slug}.png`;
-    await pixelate(bytes, entry.logicalWidth, entry.logicalHeight, path.join(outRoot, relative));
-    manifest.objects[entry.slug] = relative;
-    console.log(`generated object ${entry.slug}`);
+    const archive = ensureArrayStore(manifest.objectArchive, entry.slug);
+    const remaining = options.force ? options.targetObjectVariants : Math.max(0, options.targetObjectVariants - archive.length);
+
+    if (remaining === 0) {
+      console.log(`skipped object ${entry.slug}, archive already has ${archive.length} variants`);
+    }
+
+    for (let variant = 0; variant < remaining; variant += 1) {
+      const nextOrdinal = archive.length + 1;
+      const bytes = await generateImage(`${entry.prompt} Archive variant ${nextOrdinal}.`, true);
+      const relative = nextVariantPath("objects", entry.slug, archive);
+      await mkdir(path.join(outRoot, "objects", entry.slug), { recursive: true });
+      await pixelate(bytes, entry.logicalWidth, entry.logicalHeight, path.join(outRoot, relative));
+      archive.push(relative);
+      console.log(`generated object ${entry.slug} variant ${nextOrdinal}`);
+    }
+
+    if (archive.length > 0) {
+      manifest.objects[entry.slug] = archive[archive.length - 1];
+    }
   }
 
   for (const [slug, prompt] of playerEntries) {
-    const bytes = await generateImage(prompt, true);
-    const logicalHeight = slug.includes("player") ? 20 : 32;
-    const logicalWidth = slug.includes("player") ? 16 : 32;
-    const downscaled = await sharp(bytes)
-      .resize(logicalWidth, logicalHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png()
-      .toBuffer();
-    await sharp(downscaled)
-      .resize(logicalWidth * 4, logicalHeight * 4, { kernel: sharp.kernel.nearest })
-      .png({ palette: true, compressionLevel: 9 })
-      .toFile(path.join(outRoot, "players", `${slug}.png`));
-    manifest.players[slug] = `players/${slug}.png`;
-    console.log(`generated player ${slug}`);
+    const archive = ensureArrayStore(manifest.playerArchive, slug);
+    const remaining = options.force ? options.targetPlayerVariants : Math.max(0, options.targetPlayerVariants - archive.length);
+
+    if (remaining === 0) {
+      console.log(`skipped player ${slug}, archive already has ${archive.length} variants`);
+    }
+
+    for (let variant = 0; variant < remaining; variant += 1) {
+      const nextOrdinal = archive.length + 1;
+      const bytes = await generateImage(`${prompt} Archive variant ${nextOrdinal}.`, true);
+      const logicalHeight = slug.includes("player") ? 20 : 32;
+      const logicalWidth = slug.includes("player") ? 16 : 32;
+      const downscaled = await sharp(bytes)
+        .resize(logicalWidth, logicalHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+
+      const relative = nextVariantPath("players", slug, archive);
+      await mkdir(path.join(outRoot, "players", slug), { recursive: true });
+      await sharp(downscaled)
+        .resize(logicalWidth * 4, logicalHeight * 4, { kernel: sharp.kernel.nearest })
+        .png({ palette: true, compressionLevel: 9 })
+        .toFile(path.join(outRoot, relative));
+      archive.push(relative);
+      console.log(`generated player ${slug} variant ${nextOrdinal}`);
+    }
+
+    if (archive.length > 0) {
+      manifest.players[slug] = archive[archive.length - 1];
+    }
   }
 
-  await writeFile(path.join(outRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   await writeFile(
     path.join(outRoot, "README.txt"),
-    "Generated with OpenAI gpt-image-1.5 via scripts/generate-assets.mjs.\n",
+    [
+      "Generated with OpenAI gpt-image-1.5 via scripts/generate-assets.mjs.",
+      "The archive is append-only by default.",
+      "Rerunning the script will skip generation once the target counts are already satisfied.",
+      "Use --tile-target, --object-target, or --player-target to grow the archive deliberately.",
+      "Use --force to regenerate up to the requested target counts regardless of existing archive size."
+    ].join("\n") + "\n",
     "utf8"
   );
 }

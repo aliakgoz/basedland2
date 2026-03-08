@@ -31,6 +31,7 @@ const TILE_PIXEL_SIZE = 16;
 const OBJECT_SIZE = 32;
 const PLAYER_WIDTH = 16;
 const PLAYER_HEIGHT = 20;
+const USE_GENERATED_GROUND = false;
 
 const TILE_PALETTES: Record<TileType, string[]> = {
   [TileType.Grass]: ["#6fa84f", "#78b154", "#5d913f", "#8fc76d", "#4f7b33"],
@@ -98,22 +99,22 @@ function makeTileVariant(type: TileType, variant: number): HTMLCanvasElement {
 
   for (let py = 0; py < TILE_PIXEL_SIZE; py += 1) {
     for (let px = 0; px < TILE_PIXEL_SIZE; px += 1) {
-      const roll = hash2d(WORLD_SEED + variant * 97 + type * 131, px, py) % 100;
+      const coarse = hash2d(WORLD_SEED + variant * 97 + type * 131, Math.floor(px / 3), Math.floor(py / 3)) % 100;
       let color = palette[1];
 
       if (type === TileType.Water) {
-        color = roll < 18 ? palette[3] : roll < 64 ? palette[1] : palette[2];
-        if ((py + variant) % 5 === 0 && px % 3 !== 0) {
+        color = coarse < 28 ? palette[3] : coarse < 76 ? palette[1] : palette[2];
+        if ((py + variant) % 4 === 0) {
           color = palette[3];
         }
       } else if (type === TileType.Stone) {
-        color = roll < 12 ? palette[3] : roll < 54 ? palette[1] : palette[2];
+        color = coarse < 22 ? palette[3] : coarse < 68 ? palette[1] : palette[2];
       } else if (type === TileType.Dirt) {
-        color = roll < 10 ? palette[3] : roll < 60 ? palette[1] : palette[2];
+        color = coarse < 18 ? palette[3] : coarse < 70 ? palette[1] : palette[2];
       } else if (type === TileType.Forest) {
-        color = roll < 9 ? palette[3] : roll < 65 ? palette[1] : palette[2];
+        color = coarse < 18 ? palette[3] : coarse < 74 ? palette[1] : palette[2];
       } else {
-        color = roll < 11 ? palette[3] : roll < 66 ? palette[1] : palette[2];
+        color = coarse < 16 ? palette[3] : coarse < 72 ? palette[1] : palette[2];
       }
 
       paintPixel(ctx, px, py, pixel, color);
@@ -121,13 +122,10 @@ function makeTileVariant(type: TileType, variant: number): HTMLCanvasElement {
   }
 
   const accent = palette[4];
-  for (let i = 0; i < 5; i += 1) {
-    const ax = 1 + (hash2d(WORLD_SEED + 700 + variant, i, type) % 14);
-    const ay = 1 + (hash2d(WORLD_SEED + 900 + variant, type, i) % 14);
+  for (let i = 0; i < 3; i += 1) {
+    const ax = 2 + (hash2d(WORLD_SEED + 700 + variant, i, type) % 12);
+    const ay = 2 + (hash2d(WORLD_SEED + 900 + variant, type, i) % 12);
     paintPixel(ctx, ax, ay, pixel, accent);
-    if (type !== TileType.Water && ay + 1 < TILE_PIXEL_SIZE) {
-      paintPixel(ctx, ax, ay + 1, pixel, accent);
-    }
   }
 
   return canvas;
@@ -195,39 +193,91 @@ function makeRoadSprite(variant: number): HTMLCanvasElement {
   }
   const pixel = 2;
   const pathStyles = [
-    ["#8a6a47", "#a47a52", "#694e35"],
-    ["#7a7d7f", "#9da1a3", "#5a5d60"],
-    ["#8f7554", "#b28d66", "#71593d"],
-    ["#7c6c5d", "#a08f7d", "#5c4f43"]
+    ["#6f5438", "#8f6b46", "#c39a69", "#4f3925"],
+    ["#686b6d", "#84888b", "#b7babc", "#4d5052"],
+    ["#7a6044", "#9f7a56", "#d1ab73", "#57412d"],
+    ["#6c5d50", "#8a7968", "#c2b19f", "#4f4338"]
   ];
   const palette = pathStyles[variant % pathStyles.length];
   ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
 
+  const shape = variant % 8;
   for (let py = 0; py < 16; py += 1) {
     for (let px = 0; px < 16; px += 1) {
       const dx = px - 8;
       const dy = py - 8;
-      const shape = variant % 5;
       let onRoad = false;
+      let innerRoad = false;
       if (shape === 0) {
         onRoad = Math.abs(dx) < 3;
-      } else if (shape === 1) {
+        innerRoad = Math.abs(dx) < 2;
+      } else if (shape === 1 || shape === 4) {
         onRoad = Math.abs(dy) < 3;
+        innerRoad = Math.abs(dy) < 2;
       } else if (shape === 2) {
         onRoad = Math.abs(dx) < 3 || Math.abs(dy) < 3;
+        innerRoad = Math.abs(dx) < 2 || Math.abs(dy) < 2;
       } else if (shape === 3) {
-        onRoad = (dx < 0 && Math.abs(dy) < 3) || (dy > 0 && Math.abs(dx) < 3);
+        onRoad = (dx <= 0 && Math.abs(dy) < 3) || (dy >= 0 && Math.abs(dx) < 3);
+        innerRoad = (dx <= 0 && Math.abs(dy) < 2) || (dy >= 0 && Math.abs(dx) < 2);
+      } else if (shape === 5) {
+        onRoad = (dx >= 0 && Math.abs(dy) < 3) || (dy >= 0 && Math.abs(dx) < 3);
+        innerRoad = (dx >= 0 && Math.abs(dy) < 2) || (dy >= 0 && Math.abs(dx) < 2);
+      } else if (shape === 6) {
+        onRoad = (dx <= 0 && Math.abs(dy) < 3) || (dy <= 0 && Math.abs(dx) < 3);
+        innerRoad = (dx <= 0 && Math.abs(dy) < 2) || (dy <= 0 && Math.abs(dx) < 2);
       } else {
-        onRoad = Math.abs(dx - dy) < 3;
+        onRoad = (dx >= 0 && Math.abs(dy) < 3) || (dy <= 0 && Math.abs(dx) < 3);
+        innerRoad = (dx >= 0 && Math.abs(dy) < 2) || (dy <= 0 && Math.abs(dx) < 2);
       }
 
       if (!onRoad) {
         continue;
       }
 
-      const shade = palette[hash2d(WORLD_SEED + 800 + variant, px, py) % palette.length];
+      let shade = palette[0];
+      if (innerRoad) {
+        shade = palette[2];
+      } else if (Math.abs(dx) === 2 || Math.abs(dy) === 2) {
+        shade = palette[3];
+      } else {
+        shade = palette[1 + (hash2d(WORLD_SEED + 800 + variant, px, py) % 2)];
+      }
       paintPixel(ctx, px, py, pixel, shade);
+
+      if (innerRoad && (px + py + variant) % 7 === 0) {
+        paintPixel(ctx, px, py, pixel, palette[1]);
+      }
     }
+  }
+
+  return canvas;
+}
+
+function makeBridgeSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(TILE_SIZE, TILE_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const pixel = 2;
+  for (let py = 0; py < 16; py += 1) {
+    for (let px = 0; px < 16; px += 1) {
+      const dx = Math.abs(px - 8);
+      if (dx > 4) {
+        continue;
+      }
+      const edge = dx === 4;
+      const board = py % 2 === 0;
+      const color = edge ? "#5b3f28" : board ? "#b98b55" : "#8e6541";
+      paintPixel(ctx, px, py, pixel, color);
+    }
+  }
+
+  for (let py = 0; py < 16; py += 1) {
+    paintPixel(ctx, 4, py, pixel, "#3d2a1c");
+    paintPixel(ctx, 11, py, pixel, "#3d2a1c");
   }
 
   return canvas;
@@ -561,6 +611,7 @@ export class AssetManager {
   private readonly objectSprites = new Map<ObjectType, SpriteSource>();
   private readonly treeArchive = Array.from({ length: 20 }, (_, index) => makeTreeVariantSprite(index));
   private readonly roadArchive = Array.from({ length: 20 }, (_, index) => makeRoadSprite(index));
+  private readonly bridgeSprite = makeBridgeSprite();
   private localPlayerSprite: SpriteSource = makePlayerSprite("#d49442", "#355d78", "#f1d4b3");
   private remotePlayerSprite: SpriteSource = makePlayerSprite("#8771c1", "#5b4c8e", "#ead5bf");
   private worldSurface: SpriteSource | null = null;
@@ -600,25 +651,27 @@ export class AssetManager {
 
     const work: Promise<void>[] = [];
 
-    for (const type of [TileType.Grass, TileType.Dirt, TileType.Stone, TileType.Water, TileType.Forest]) {
-      const tileFiles = manifest.tiles[tileSlug(type)] ?? [];
-      for (let variant = 0; variant < TILE_VARIANTS; variant += 1) {
-        const file = tileFiles[variant];
-        if (!file) {
-          continue;
+    if (USE_GENERATED_GROUND) {
+      for (const type of [TileType.Grass, TileType.Dirt, TileType.Stone, TileType.Water, TileType.Forest]) {
+        const tileFiles = manifest.tiles[tileSlug(type)] ?? [];
+        for (let variant = 0; variant < TILE_VARIANTS; variant += 1) {
+          const file = tileFiles[variant];
+          if (!file) {
+            continue;
+          }
+          const url = `./assets/generated/${file}`;
+          work.push(
+            loadImage(url)
+              .then((image) => {
+                const list = this.tileSprites.get(type);
+                if (list) {
+                  list[variant] = image;
+                }
+                return undefined;
+              })
+              .catch(() => undefined)
+          );
         }
-        const url = `./assets/generated/${file}`;
-        work.push(
-          loadImage(url)
-            .then((image) => {
-              const list = this.tileSprites.get(type);
-              if (list) {
-                list[variant] = image;
-              }
-              return undefined;
-            })
-            .catch(() => undefined)
-        );
       }
     }
 
@@ -679,6 +732,10 @@ export class AssetManager {
 
   getRoadSprite(variant: number): SpriteSource {
     return this.roadArchive[Math.abs(variant) % this.roadArchive.length];
+  }
+
+  getBridgeSprite(): SpriteSource {
+    return this.bridgeSprite;
   }
 
   getTileSprite(type: TileType, tileX: number, tileY: number): SpriteSource {
