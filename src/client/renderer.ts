@@ -23,6 +23,8 @@ export class Renderer {
   private height = window.innerHeight;
   private zoom = 1;
   private worldMapOpen = false;
+  private manualCameraX: number | null = null;
+  private manualCameraY: number | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -48,7 +50,16 @@ export class Renderer {
       this.minimapBuffer.height = this.minimapCanvas?.height ?? 200;
       this.paintMinimapBase();
     }
-    this.minimapCanvas?.addEventListener("click", () => this.setWorldMapOpen(true));
+    this.minimapCanvas?.addEventListener("click", (event) => {
+      const rect = this.minimapCanvas?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+      const ratioX = (event.clientX - rect.left) / rect.width;
+      const ratioY = (event.clientY - rect.top) / rect.height;
+      this.manualCameraX = Math.max(0, Math.min(WORLD_WIDTH_TILES * TILE_SIZE, ratioX * WORLD_WIDTH_TILES * TILE_SIZE));
+      this.manualCameraY = Math.max(0, Math.min(WORLD_HEIGHT_TILES * TILE_SIZE, ratioY * WORLD_HEIGHT_TILES * TILE_SIZE));
+    });
     this.worldMapClose?.addEventListener("click", () => this.setWorldMapOpen(false));
     this.resize();
     window.addEventListener("resize", () => this.resize());
@@ -82,6 +93,11 @@ export class Renderer {
     this.worldMapPanel?.classList.toggle("active", next);
   }
 
+  clearManualCamera(): void {
+    this.manualCameraX = null;
+    this.manualCameraY = null;
+  }
+
   render(world: WorldState, localPlayer: PlayerEntity | null, remotePlayers: PlayerEntity[]): void {
     this.ctx.clearRect(0, 0, this.width, this.height);
 
@@ -89,8 +105,8 @@ export class Renderer {
       return;
     }
 
-    const cameraX = localPlayer.renderX;
-    const cameraY = localPlayer.renderY;
+    const cameraX = this.manualCameraX ?? localPlayer.renderX;
+    const cameraY = this.manualCameraY ?? localPlayer.renderY;
     this.drawTiles(world, cameraX, cameraY);
     this.drawScene(
       world.getVisibleObjects(cameraX, cameraY, this.width / this.zoom, this.height / this.zoom),
@@ -120,12 +136,13 @@ export class Renderer {
         this.ctx.drawImage(sprite, screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
 
         const roadVariant = world.getRoadVariant(tileX, tileY);
-        if (roadVariant !== null) {
-          this.ctx.drawImage(this.assets.getRoadSprite(roadVariant), screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
+        const bridge = hasBridgeTile(tileX, tileY);
+        if (roadVariant !== null && !bridge) {
+          this.drawRoadOverlay(screenX, screenY, scaledTileSize, roadVariant);
         }
 
-        if (hasBridgeTile(tileX, tileY)) {
-          this.ctx.drawImage(this.assets.getBridgeSprite(), screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
+        if (bridge && roadVariant !== null) {
+          this.ctx.drawImage(this.assets.getBridgeSprite(roadVariant), screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
         }
 
         this.drawFieldFence(tileX, tileY, screenX, screenY, scaledTileSize);
@@ -143,6 +160,9 @@ export class Renderer {
     const left = !isFieldTile(tileX - 1, tileY);
     const right = !isFieldTile(tileX + 1, tileY);
     if (!top && !bottom && !left && !right) {
+      return;
+    }
+    if ((tileX + tileY) % 3 !== 0) {
       return;
     }
 
@@ -166,6 +186,88 @@ export class Renderer {
       this.ctx.lineTo(screenX + scaledTileSize - 2 * this.zoom, screenY + scaledTileSize);
     }
     this.ctx.stroke();
+  }
+
+  private drawRoadOverlay(screenX: number, screenY: number, scaledTileSize: number, roadVariant: number): void {
+    const lane = Math.max(4, Math.floor(scaledTileSize * 0.28));
+    const center = Math.floor((scaledTileSize - lane) / 2);
+    const edge = Math.max(1, Math.floor(this.zoom));
+
+    this.ctx.fillStyle = "#5b3e28";
+    this.ctx.strokeStyle = "#c89a68";
+    this.ctx.lineWidth = edge;
+
+    const drawVertical = (): void => {
+      this.ctx.fillRect(screenX + center, screenY, lane, scaledTileSize);
+      this.ctx.strokeRect(screenX + center, screenY, lane, scaledTileSize);
+    };
+
+    const drawHorizontal = (): void => {
+      this.ctx.fillRect(screenX, screenY + center, scaledTileSize, lane);
+      this.ctx.strokeRect(screenX, screenY + center, scaledTileSize, lane);
+    };
+
+    switch (roadVariant) {
+      case 0:
+        drawVertical();
+        break;
+      case 1:
+        drawHorizontal();
+        break;
+      case 2:
+        drawVertical();
+        drawHorizontal();
+        break;
+      case 8:
+        this.ctx.fillRect(screenX + center, screenY, lane, scaledTileSize);
+        this.ctx.fillRect(screenX + center, screenY + center, scaledTileSize - center, lane);
+        this.ctx.strokeRect(screenX + center, screenY, lane, scaledTileSize);
+        this.ctx.strokeRect(screenX + center, screenY + center, scaledTileSize - center, lane);
+        break;
+      case 9:
+        this.ctx.fillRect(screenX + center, screenY, lane, scaledTileSize);
+        this.ctx.fillRect(screenX, screenY + center, center + lane, lane);
+        this.ctx.strokeRect(screenX + center, screenY, lane, scaledTileSize);
+        this.ctx.strokeRect(screenX, screenY + center, center + lane, lane);
+        break;
+      case 10:
+        this.ctx.fillRect(screenX, screenY + center, scaledTileSize, lane);
+        this.ctx.fillRect(screenX + center, screenY, lane, center + lane);
+        this.ctx.strokeRect(screenX, screenY + center, scaledTileSize, lane);
+        this.ctx.strokeRect(screenX + center, screenY, lane, center + lane);
+        break;
+      case 11:
+        this.ctx.fillRect(screenX, screenY + center, scaledTileSize, lane);
+        this.ctx.fillRect(screenX + center, screenY + center, lane, scaledTileSize - center);
+        this.ctx.strokeRect(screenX, screenY + center, scaledTileSize, lane);
+        this.ctx.strokeRect(screenX + center, screenY + center, lane, scaledTileSize - center);
+        break;
+      case 3:
+        this.ctx.fillRect(screenX, screenY + center, center + lane, lane);
+        this.ctx.fillRect(screenX + center, screenY + center, lane, scaledTileSize - center);
+        this.ctx.strokeRect(screenX, screenY + center, center + lane, lane);
+        this.ctx.strokeRect(screenX + center, screenY + center, lane, scaledTileSize - center);
+        break;
+      case 5:
+        this.ctx.fillRect(screenX + center, screenY + center, scaledTileSize - center, lane);
+        this.ctx.fillRect(screenX + center, screenY + center, lane, scaledTileSize - center);
+        this.ctx.strokeRect(screenX + center, screenY + center, scaledTileSize - center, lane);
+        this.ctx.strokeRect(screenX + center, screenY + center, lane, scaledTileSize - center);
+        break;
+      case 6:
+        this.ctx.fillRect(screenX, screenY + center, center + lane, lane);
+        this.ctx.fillRect(screenX + center, screenY, lane, center + lane);
+        this.ctx.strokeRect(screenX, screenY + center, center + lane, lane);
+        this.ctx.strokeRect(screenX + center, screenY, lane, center + lane);
+        break;
+      case 7:
+      default:
+        this.ctx.fillRect(screenX + center, screenY + center, scaledTileSize - center, lane);
+        this.ctx.fillRect(screenX + center, screenY, lane, center + lane);
+        this.ctx.strokeRect(screenX + center, screenY + center, scaledTileSize - center, lane);
+        this.ctx.strokeRect(screenX + center, screenY, lane, center + lane);
+        break;
+    }
   }
 
   private drawScene(objects: StaticProp[], players: PlayerEntity[], cameraX: number, cameraY: number): void {

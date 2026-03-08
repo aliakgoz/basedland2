@@ -66,7 +66,7 @@ export function encodeWelcome(options: {
 export function encodeChunkData(chunks: Array<{ key: ChunkKey; objects: StaticObject[] }>): ArrayBuffer {
   let size = 2;
   for (const chunk of chunks) {
-    size += 6 + chunk.objects.length * 9;
+    size += 6 + chunk.objects.length * 10;
   }
 
   const buffer = new ArrayBuffer(size);
@@ -89,6 +89,8 @@ export function encodeChunkData(chunks: Array<{ key: ChunkKey; objects: StaticOb
       offset += 1;
       offset = writeUint16(view, offset, object.x);
       offset = writeUint16(view, offset, object.y);
+      view.setUint8(offset, object.variant ?? 0);
+      offset += 1;
     }
   }
 

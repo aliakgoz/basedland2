@@ -163,8 +163,17 @@ export function getGeneratedRoadVariant(tileX: number, tileY: number): number | 
   if (north && south && east && west) {
     return 2;
   }
-  if ((north && south && east) || (north && south && west) || (east && west && north) || (east && west && south)) {
-    return 2;
+  if (north && south && east) {
+    return 8;
+  }
+  if (north && south && west) {
+    return 9;
+  }
+  if (east && west && north) {
+    return 10;
+  }
+  if (east && west && south) {
+    return 11;
   }
   if (west && south) {
     return 3;

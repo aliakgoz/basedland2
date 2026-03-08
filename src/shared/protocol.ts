@@ -53,7 +53,17 @@ export const enum ObjectType {
   Sheep = 9,
   GrassTuft = 10,
   Dog = 11,
-  Cat = 12
+  Cat = 12,
+  Pub = 13,
+  Inn = 14,
+  Barn = 15,
+  Stable = 16,
+  Blacksmith = 17,
+  Windmill = 18,
+  Chapel = 19,
+  Market = 20,
+  Manor = 21,
+  TownHall = 22
 }
 
 export const enum Direction {
@@ -79,6 +89,7 @@ export interface StaticObject {
   type: ObjectType;
   x: number;
   y: number;
+  variant?: number;
 }
 
 export function clamp(value: number, min: number, max: number): number {

@@ -31,7 +31,8 @@ export class WorldState {
         id: object.id,
         type: object.type,
         x: object.x,
-        y: object.y
+        y: object.y,
+        variant: object.variant
       }))
     );
   }

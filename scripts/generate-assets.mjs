@@ -18,7 +18,8 @@ function parseArgs(argv) {
     force: false,
     targetTileVariants: 6,
     targetObjectVariants: 1,
-    targetPlayerVariants: 1
+    targetPlayerVariants: 1,
+    targetHouseVariants: 1
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,6 +34,9 @@ function parseArgs(argv) {
       index += 1;
     } else if (current === "--player-target" && argv[index + 1]) {
       options.targetPlayerVariants = Math.max(1, Number(argv[index + 1]) || options.targetPlayerVariants);
+      index += 1;
+    } else if (current === "--house-target" && argv[index + 1]) {
+      options.targetHouseVariants = Math.max(1, Number(argv[index + 1]) || options.targetHouseVariants);
       index += 1;
     }
   }
@@ -52,9 +56,11 @@ function createEmptyManifest() {
     tiles: {},
     objects: {},
     players: {},
+    bridges: {},
     tileArchive: {},
     objectArchive: {},
-    playerArchive: {}
+    playerArchive: {},
+    bridgeArchive: {}
   };
 }
 
@@ -93,6 +99,66 @@ const objectEntries = [
     logicalHeight: 96,
     prompt:
       "Top-down cozy pixel-art village house sprite, isolated, transparent background, nostalgic MMO style. The house must read as a large prop with at least a 10x10 logical pixel body."
+  },
+  {
+    slug: "pub",
+    logicalWidth: 112,
+    logicalHeight: 112,
+    prompt: "Top-down cozy pixel-art village pub sprite, isolated, transparent background, nostalgic MMO style. Warm roof, welcoming sign, larger than a normal house."
+  },
+  {
+    slug: "inn",
+    logicalWidth: 112,
+    logicalHeight: 112,
+    prompt: "Top-down cozy pixel-art village inn sprite, isolated, transparent background, nostalgic MMO style. Large lodging building with readable roof and entrance."
+  },
+  {
+    slug: "barn",
+    logicalWidth: 112,
+    logicalHeight: 112,
+    prompt: "Top-down cozy pixel-art rustic barn sprite, isolated, transparent background, nostalgic MMO style. Broad red barn roof, agricultural feeling."
+  },
+  {
+    slug: "stable",
+    logicalWidth: 112,
+    logicalHeight: 112,
+    prompt: "Top-down cozy pixel-art horse stable sprite, isolated, transparent background, nostalgic MMO style. Long low roof and open stall feel."
+  },
+  {
+    slug: "blacksmith",
+    logicalWidth: 112,
+    logicalHeight: 112,
+    prompt: "Top-down cozy pixel-art blacksmith workshop sprite, isolated, transparent background, nostalgic MMO style. Forge chimney and sturdy stone details."
+  },
+  {
+    slug: "windmill",
+    logicalWidth: 96,
+    logicalHeight: 128,
+    prompt: "Top-down cozy pixel-art windmill sprite, isolated, transparent background, nostalgic MMO style. Visible mill body and sails from above."
+  },
+  {
+    slug: "chapel",
+    logicalWidth: 112,
+    logicalHeight: 112,
+    prompt: "Top-down cozy pixel-art small village chapel sprite, isolated, transparent background, nostalgic MMO style. Quiet stone roof and sacred feeling."
+  },
+  {
+    slug: "market",
+    logicalWidth: 96,
+    logicalHeight: 88,
+    prompt: "Top-down cozy pixel-art market stall cluster sprite, isolated, transparent background, nostalgic MMO style. Cloth canopy and goods visible from above."
+  },
+  {
+    slug: "manor",
+    logicalWidth: 120,
+    logicalHeight: 120,
+    prompt: "Top-down cozy pixel-art manor house sprite, isolated, transparent background, nostalgic MMO style. Larger and richer than village houses."
+  },
+  {
+    slug: "townhall",
+    logicalWidth: 120,
+    logicalHeight: 120,
+    prompt: "Top-down cozy pixel-art village town hall sprite, isolated, transparent background, nostalgic MMO style. Official building with symmetrical roof."
   },
   {
     slug: "tree",
@@ -173,10 +239,25 @@ const playerEntries = [
   ["remote-player", "Top-down cozy pixel-art adventurer player sprite, isolated, transparent background, cream and violet outfit, readable at 16x20."]
 ];
 
+const bridgeEntries = [
+  ["bridge-v", "Top-down cozy pixel-art wooden bridge tile, isolated on transparent background, straight vertical orientation, detailed planks and side rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-h", "Top-down cozy pixel-art wooden bridge tile, isolated on transparent background, straight horizontal orientation, detailed planks and side rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-cross", "Top-down cozy pixel-art wooden bridge intersection tile, isolated on transparent background, cross junction, detailed planks and side rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-sw", "Top-down cozy pixel-art wooden bridge corner tile, isolated on transparent background, west-to-south turn, detailed planks and side rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-se", "Top-down cozy pixel-art wooden bridge corner tile, isolated on transparent background, east-to-south turn, detailed planks and side rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-nw", "Top-down cozy pixel-art wooden bridge corner tile, isolated on transparent background, west-to-north turn, detailed planks and side rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-ne", "Top-down cozy pixel-art wooden bridge corner tile, isolated on transparent background, east-to-north turn, detailed planks and side rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-t-east", "Top-down cozy pixel-art wooden bridge T junction tile, isolated on transparent background, vertical bridge connecting to east branch, detailed planks and rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-t-west", "Top-down cozy pixel-art wooden bridge T junction tile, isolated on transparent background, vertical bridge connecting to west branch, detailed planks and rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-t-north", "Top-down cozy pixel-art wooden bridge T junction tile, isolated on transparent background, horizontal bridge connecting to north branch, detailed planks and rails, retro MMO style, centered in a 32x32 tile."],
+  ["bridge-t-south", "Top-down cozy pixel-art wooden bridge T junction tile, isolated on transparent background, horizontal bridge connecting to south branch, detailed planks and rails, retro MMO style, centered in a 32x32 tile."]
+];
+
 async function ensureDirs() {
   await mkdir(path.join(outRoot, "tiles"), { recursive: true });
   await mkdir(path.join(outRoot, "objects"), { recursive: true });
   await mkdir(path.join(outRoot, "players"), { recursive: true });
+  await mkdir(path.join(outRoot, "bridges"), { recursive: true });
 }
 
 async function generateImage(prompt, transparent) {
@@ -238,6 +319,13 @@ async function migrateLegacyManifest(manifest) {
     }
   }
 
+  for (const [slug, value] of Object.entries(manifest.bridges ?? {})) {
+    const archive = ensureArrayStore(manifest.bridgeArchive, slug);
+    if (typeof value === "string" && !archive.includes(value)) {
+      archive.push(value);
+    }
+  }
+
   for (const [slug, values] of Object.entries(manifest.tiles ?? {})) {
     const archive = ensureArrayStore(manifest.tileArchive, slug);
     if (Array.isArray(values)) {
@@ -288,7 +376,8 @@ async function run() {
 
   for (const entry of objectEntries) {
     const archive = ensureArrayStore(manifest.objectArchive, entry.slug);
-    const remaining = options.force ? options.targetObjectVariants : Math.max(0, options.targetObjectVariants - archive.length);
+    const targetVariants = entry.slug === "house" ? options.targetHouseVariants : options.targetObjectVariants;
+    const remaining = options.force ? targetVariants : Math.max(0, targetVariants - archive.length);
 
     if (remaining === 0) {
       console.log(`skipped object ${entry.slug}, archive already has ${archive.length} variants`);
@@ -339,6 +428,29 @@ async function run() {
 
     if (archive.length > 0) {
       manifest.players[slug] = archive[archive.length - 1];
+    }
+  }
+
+  for (const [slug, prompt] of bridgeEntries) {
+    const archive = ensureArrayStore(manifest.bridgeArchive, slug);
+    const remaining = options.force ? 1 : Math.max(0, 1 - archive.length);
+
+    if (remaining === 0) {
+      console.log(`skipped bridge ${slug}, archive already has ${archive.length} variants`);
+    }
+
+    for (let variant = 0; variant < remaining; variant += 1) {
+      const nextOrdinal = archive.length + 1;
+      const bytes = await generateImage(`${prompt} Archive variant ${nextOrdinal}.`, true);
+      const relative = nextVariantPath("bridges", slug, archive);
+      await mkdir(path.join(outRoot, "bridges", slug), { recursive: true });
+      await pixelate(bytes, 32, 32, path.join(outRoot, relative));
+      archive.push(relative);
+      console.log(`generated bridge ${slug} variant ${nextOrdinal}`);
+    }
+
+    if (archive.length > 0) {
+      manifest.bridges[slug] = archive[archive.length - 1];
     }
   }
 

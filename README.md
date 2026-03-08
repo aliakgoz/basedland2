@@ -20,7 +20,7 @@ The current prototype supports:
 - interaction with `E`
 - camera zoom with mouse wheel
 - nearby player visibility
-- static world props such as houses, trees, stones, wells, ruins, animals, and signs
+- static world props such as houses, pubs, inns, barns, stables, blacksmiths, windmills, chapels, markets, manors, town halls, trees, stones, animals, and signs
 - generated art assets loaded from disk when available
 - a `1000 x 1000` world driven by generated biome/layout data
 - a local map editor mode for painting ground, roads, and object layers
@@ -131,6 +131,40 @@ Meaning:
 - `npm start`
   Starts the built Node.js server from `dist/server/server.js`.
 
+### 6.1 Vercel Deploy
+
+This repo is not a pure static site. It has:
+
+- a static browser client
+- a stateful Node.js WebSocket server
+
+That matters because Vercel can host the built client, but this MMO backend should not be deployed there as the primary game server.
+
+Current Vercel setup:
+
+- [vercel.json](c:/Genel/99_Python/basedland/vercel.json)
+- build command: `npm run build`
+- output directory: `dist/client`
+
+Important:
+
+- Vercel should host only the frontend bundle from `dist/client`
+- the WebSocket backend should run somewhere else such as Railway, Fly.io, Render, or your own VM
+
+Client connection override:
+
+- the client now supports a build-time WebSocket override through `BASEDLAND_WS_URL`
+- this is injected during the client build in [esbuild.mjs](c:/Genel/99_Python/basedland/esbuild.mjs)
+- runtime usage is in [src/client/network.ts](c:/Genel/99_Python/basedland/src/client/network.ts)
+
+Example Vercel environment variable:
+
+```bash
+BASEDLAND_WS_URL=wss://your-backend.example.com
+```
+
+If `BASEDLAND_WS_URL` is not set, the client falls back to `ws://` or `wss://` on the current page host.
+
 ## 7. Asset System
 
 The runtime tries to load generated assets from:
@@ -195,6 +229,7 @@ Default targets:
 - tiles: `6` variants per ground type
 - objects: `1` variant per object type
 - players: `1` variant per player sprite
+- houses: `1` generated variant by default, with procedural fallback archive support for `20` runtime house styles
 
 If those targets are already met, the script prints `skipped ...` messages and makes no new image requests.
 
@@ -206,6 +241,7 @@ Use these only when you want more variants:
 npm run assets:generate -- --tile-target 12
 npm run assets:generate -- --object-target 3
 npm run assets:generate -- --player-target 2
+npm run assets:generate -- --house-target 8
 ```
 
 Examples:
@@ -214,6 +250,8 @@ Examples:
   `npm run assets:generate -- --tile-target 20`
 - more object variants:
   `npm run assets:generate -- --object-target 5`
+- more generated house styles without expanding every other object:
+  `npm run assets:generate -- --house-target 12`
 
 ### 7.5 Force Regeneration
 

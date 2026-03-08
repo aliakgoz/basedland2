@@ -13,6 +13,8 @@ import type { PlayerEntity } from "./entity";
 import { createPlayerEntity } from "./entity";
 import type { WorldState } from "./world";
 
+declare const __BASEDLAND_WS_URL__: string;
+
 interface PendingInput {
   seq: number;
   mask: number;
@@ -33,7 +35,17 @@ function interactionText(objectType: ObjectType, action: number): string {
     9: "The sheep lets out a soft baa.",
     10: "Wild grass sways in the breeze.",
     11: "The dog circles your boots happily.",
-    12: "The cat watches you with royal judgment."
+    12: "The cat watches you with royal judgment.",
+    13: "The pub smells like hearth smoke and cider.",
+    14: "The innkeeper has rooms, but not yet for players.",
+    15: "Hay and old tools fill the barn.",
+    16: "The stable is warm and full of saddle leather.",
+    17: "A hammer rings somewhere inside the smithy.",
+    18: "The windmill creaks over the fields.",
+    19: "The chapel is quiet and cool.",
+    20: "Stalls are stacked with bread, apples, and cloth.",
+    21: "The manor keeps its curtains drawn.",
+    22: "Village notices are pinned to the hall door."
   };
   return map[action] ?? `You inspect object ${objectType}.`;
 }
@@ -91,7 +103,8 @@ export class NetworkClient {
 
   connect(world: WorldState): void {
     this.world = world;
-    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
+    const url =
+      __BASEDLAND_WS_URL__ || `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
     this.socket = new WebSocket(url);
     this.socket.binaryType = "arraybuffer";
 
@@ -210,7 +223,9 @@ export class NetworkClient {
         offset += 2;
         const y = view.getUint16(offset, true);
         offset += 2;
-        objects.push({ id, type, x, y });
+        const variant = view.getUint8(offset);
+        offset += 1;
+        objects.push({ id, type, x, y, variant });
       }
 
       world.ingestChunk(cx, cy, objects);

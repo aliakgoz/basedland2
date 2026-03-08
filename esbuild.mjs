@@ -10,6 +10,9 @@ await build({
   bundle: true,
   format: "iife",
   target: "es2020",
+  define: {
+    __BASEDLAND_WS_URL__: JSON.stringify(process.env.BASEDLAND_WS_URL ?? "")
+  },
   outfile: "dist/client/app.js",
   sourcemap: false,
   minify: false

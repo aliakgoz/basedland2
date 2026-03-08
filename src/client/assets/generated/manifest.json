@@ -55,11 +55,34 @@
     "sheep": "objects/sheep.png",
     "dog": "objects/dog.png",
     "cat": "objects/cat.png",
-    "grass-tuft": "objects/grass-tuft.png"
+    "grass-tuft": "objects/grass-tuft.png",
+    "pub": "objects/pub/pub-v001.png",
+    "inn": "objects/inn/inn-v001.png",
+    "barn": "objects/barn/barn-v001.png",
+    "stable": "objects/stable/stable-v001.png",
+    "blacksmith": "objects/blacksmith/blacksmith-v001.png",
+    "windmill": "objects/windmill/windmill-v001.png",
+    "chapel": "objects/chapel/chapel-v001.png",
+    "market": "objects/market/market-v001.png",
+    "manor": "objects/manor/manor-v001.png",
+    "townhall": "objects/townhall/townhall-v001.png"
   },
   "players": {
     "local-player": "players/local-player.png",
     "remote-player": "players/remote-player.png"
+  },
+  "bridges": {
+    "bridge-v": "bridges/bridge-v/bridge-v-v001.png",
+    "bridge-h": "bridges/bridge-h/bridge-h-v001.png",
+    "bridge-cross": "bridges/bridge-cross/bridge-cross-v001.png",
+    "bridge-sw": "bridges/bridge-sw/bridge-sw-v001.png",
+    "bridge-se": "bridges/bridge-se/bridge-se-v001.png",
+    "bridge-nw": "bridges/bridge-nw/bridge-nw-v001.png",
+    "bridge-ne": "bridges/bridge-ne/bridge-ne-v001.png",
+    "bridge-t-east": "bridges/bridge-t-east/bridge-t-east-v001.png",
+    "bridge-t-west": "bridges/bridge-t-west/bridge-t-west-v001.png",
+    "bridge-t-north": "bridges/bridge-t-north/bridge-t-north-v001.png",
+    "bridge-t-south": "bridges/bridge-t-south/bridge-t-south-v001.png"
   },
   "tileArchive": {
     "grass": [
@@ -142,6 +165,36 @@
     ],
     "grass-tuft": [
       "objects/grass-tuft.png"
+    ],
+    "pub": [
+      "objects/pub/pub-v001.png"
+    ],
+    "inn": [
+      "objects/inn/inn-v001.png"
+    ],
+    "barn": [
+      "objects/barn/barn-v001.png"
+    ],
+    "stable": [
+      "objects/stable/stable-v001.png"
+    ],
+    "blacksmith": [
+      "objects/blacksmith/blacksmith-v001.png"
+    ],
+    "windmill": [
+      "objects/windmill/windmill-v001.png"
+    ],
+    "chapel": [
+      "objects/chapel/chapel-v001.png"
+    ],
+    "market": [
+      "objects/market/market-v001.png"
+    ],
+    "manor": [
+      "objects/manor/manor-v001.png"
+    ],
+    "townhall": [
+      "objects/townhall/townhall-v001.png"
     ]
   },
   "playerArchive": {
@@ -150,6 +203,41 @@
     ],
     "remote-player": [
       "players/remote-player.png"
+    ]
+  },
+  "bridgeArchive": {
+    "bridge-v": [
+      "bridges/bridge-v/bridge-v-v001.png"
+    ],
+    "bridge-h": [
+      "bridges/bridge-h/bridge-h-v001.png"
+    ],
+    "bridge-cross": [
+      "bridges/bridge-cross/bridge-cross-v001.png"
+    ],
+    "bridge-sw": [
+      "bridges/bridge-sw/bridge-sw-v001.png"
+    ],
+    "bridge-se": [
+      "bridges/bridge-se/bridge-se-v001.png"
+    ],
+    "bridge-nw": [
+      "bridges/bridge-nw/bridge-nw-v001.png"
+    ],
+    "bridge-ne": [
+      "bridges/bridge-ne/bridge-ne-v001.png"
+    ],
+    "bridge-t-east": [
+      "bridges/bridge-t-east/bridge-t-east-v001.png"
+    ],
+    "bridge-t-west": [
+      "bridges/bridge-t-west/bridge-t-west-v001.png"
+    ],
+    "bridge-t-north": [
+      "bridges/bridge-t-north/bridge-t-north-v001.png"
+    ],
+    "bridge-t-south": [
+      "bridges/bridge-t-south/bridge-t-south-v001.png"
     ]
   },
   "worldSurface": "world-surface.png",

@@ -76,6 +76,10 @@ function applyLocalMovement(dt: number): void {
 
   player.animation = dx === 0 && dy === 0 ? AnimationState.Idle : AnimationState.Walk;
 
+  if (dx !== 0 || dy !== 0) {
+    renderer.clearManualCamera();
+  }
+
   if (dx !== 0 && dy !== 0) {
     dx *= Math.SQRT1_2;
     dy *= Math.SQRT1_2;

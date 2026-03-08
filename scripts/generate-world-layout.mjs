@@ -260,6 +260,164 @@ function drawOrganicRoad(mask, fromX, fromY, toX, toY, seed) {
   drawLine(mask, midX, midY, toX, toY);
 }
 
+const ROAD_GRID_SCALE = 4;
+const ROAD_GRID_WIDTH = Math.ceil(WORLD_WIDTH / ROAD_GRID_SCALE);
+const ROAD_GRID_HEIGHT = Math.ceil(WORLD_HEIGHT / ROAD_GRID_SCALE);
+
+function coarseIndex(x, y) {
+  return y * ROAD_GRID_WIDTH + x;
+}
+
+function terrainRoadCost(terrain, semantic, coarseX, coarseY) {
+  const tileX = clamp(coarseX * ROAD_GRID_SCALE + Math.floor(ROAD_GRID_SCALE / 2), 0, WORLD_WIDTH - 1);
+  const tileY = clamp(coarseY * ROAD_GRID_SCALE + Math.floor(ROAD_GRID_SCALE / 2), 0, WORLD_HEIGHT - 1);
+  const tileIndex = indexOf(tileX, tileY);
+  const terrainType = terrain[tileIndex];
+  const semanticType = semantic[tileIndex];
+
+  if (terrainType === MacroBiome.Water) {
+    let adjacentWater = 0;
+    for (let oy = -1; oy <= 1; oy += 1) {
+      for (let ox = -1; ox <= 1; ox += 1) {
+        const nx = coarseX + ox;
+        const ny = coarseY + oy;
+        if (nx < 0 || ny < 0 || nx >= ROAD_GRID_WIDTH || ny >= ROAD_GRID_HEIGHT) {
+          continue;
+        }
+        const wx = clamp(nx * ROAD_GRID_SCALE + Math.floor(ROAD_GRID_SCALE / 2), 0, WORLD_WIDTH - 1);
+        const wy = clamp(ny * ROAD_GRID_SCALE + Math.floor(ROAD_GRID_SCALE / 2), 0, WORLD_HEIGHT - 1);
+        if (terrain[indexOf(wx, wy)] === MacroBiome.Water) {
+          adjacentWater += 1;
+        }
+      }
+    }
+    return 120 + adjacentWater * 35;
+  }
+  if (terrainType === MacroBiome.Mountain) {
+    return 14;
+  }
+  if (terrainType === MacroBiome.Forest) {
+    return 4;
+  }
+  if (semanticType === Semantic.Road) {
+    return 0.7;
+  }
+  if (semanticType === Semantic.Field || semanticType === Semantic.Village || semanticType === Semantic.Plaza) {
+    return 1.2;
+  }
+  return 1;
+}
+
+function traceCoarsePath(cameFrom, current) {
+  const path = [];
+  let cursor = current;
+  while (cursor !== -1) {
+    const x = cursor % ROAD_GRID_WIDTH;
+    const y = Math.floor(cursor / ROAD_GRID_WIDTH);
+    path.push([
+      clamp(x * ROAD_GRID_SCALE + Math.floor(ROAD_GRID_SCALE / 2), 0, WORLD_WIDTH - 1),
+      clamp(y * ROAD_GRID_SCALE + Math.floor(ROAD_GRID_SCALE / 2), 0, WORLD_HEIGHT - 1)
+    ]);
+    cursor = cameFrom[cursor];
+  }
+  path.reverse();
+  return path;
+}
+
+function routeRoadPath(terrain, semantic, fromX, fromY, toX, toY) {
+  const startX = clamp(Math.floor(fromX / ROAD_GRID_SCALE), 0, ROAD_GRID_WIDTH - 1);
+  const startY = clamp(Math.floor(fromY / ROAD_GRID_SCALE), 0, ROAD_GRID_HEIGHT - 1);
+  const goalX = clamp(Math.floor(toX / ROAD_GRID_SCALE), 0, ROAD_GRID_WIDTH - 1);
+  const goalY = clamp(Math.floor(toY / ROAD_GRID_SCALE), 0, ROAD_GRID_HEIGHT - 1);
+  const start = coarseIndex(startX, startY);
+  const goal = coarseIndex(goalX, goalY);
+  const total = ROAD_GRID_WIDTH * ROAD_GRID_HEIGHT;
+  const gScore = new Float32Array(total);
+  const cameFrom = new Int32Array(total);
+  const openSet = new Uint8Array(total);
+  const closed = new Uint8Array(total);
+  gScore.fill(Number.POSITIVE_INFINITY);
+  cameFrom.fill(-1);
+  gScore[start] = 0;
+  openSet[start] = 1;
+  const openList = [start];
+
+  while (openList.length > 0) {
+    let bestIndex = 0;
+    let current = openList[0];
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < openList.length; index += 1) {
+      const candidate = openList[index];
+      const cx = candidate % ROAD_GRID_WIDTH;
+      const cy = Math.floor(candidate / ROAD_GRID_WIDTH);
+      const heuristic = Math.abs(goalX - cx) + Math.abs(goalY - cy);
+      const score = gScore[candidate] + heuristic;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
+        current = candidate;
+      }
+    }
+
+    openList.splice(bestIndex, 1);
+    openSet[current] = 0;
+
+    if (current === goal) {
+      return traceCoarsePath(cameFrom, current);
+    }
+
+    closed[current] = 1;
+    const cx = current % ROAD_GRID_WIDTH;
+    const cy = Math.floor(current / ROAD_GRID_WIDTH);
+
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1]
+    ]) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= ROAD_GRID_WIDTH || ny >= ROAD_GRID_HEIGHT) {
+        continue;
+      }
+      const next = coarseIndex(nx, ny);
+      if (closed[next]) {
+        continue;
+      }
+
+      const tentative = gScore[current] + terrainRoadCost(terrain, semantic, nx, ny);
+      if (tentative >= gScore[next]) {
+        continue;
+      }
+
+      cameFrom[next] = current;
+      gScore[next] = tentative;
+      if (!openSet[next]) {
+        openSet[next] = 1;
+        openList.push(next);
+      }
+    }
+  }
+
+  return null;
+}
+
+function drawRoutedRoad(mask, terrain, semantic, fromX, fromY, toX, toY, seed) {
+  const path = routeRoadPath(terrain, semantic, fromX, fromY, toX, toY);
+  if (!path || path.length < 2) {
+    drawOrganicRoad(mask, fromX, fromY, toX, toY, seed);
+    return;
+  }
+
+  drawLine(mask, fromX, fromY, path[0][0], path[0][1]);
+  for (let index = 1; index < path.length; index += 1) {
+    drawLine(mask, path[index - 1][0], path[index - 1][1], path[index][0], path[index][1]);
+  }
+  drawLine(mask, path[path.length - 1][0], path[path.length - 1][1], toX, toY);
+}
+
 function encodeRle(source) {
   const output = [];
   let current = source[0];
@@ -597,16 +755,16 @@ function buildStructuredWorld(semantic) {
       markRect(fieldMask, x, y, width, height);
     }
 
-    drawOrganicRoad(roadMask, center.tileX - center.radius, center.tileY, center.tileX + center.radius, center.tileY, seed);
-    drawOrganicRoad(roadMask, center.tileX, center.tileY - center.radius, center.tileX, center.tileY + center.radius, seed + 1);
-    drawOrganicRoad(roadMask, center.tileX - 20, center.tileY - 12, center.tileX + 20, center.tileY - 12, seed + 2);
-    drawOrganicRoad(roadMask, center.tileX - 20, center.tileY + 12, center.tileX + 20, center.tileY + 12, seed + 3);
+    drawLine(roadMask, center.tileX - center.radius, center.tileY, center.tileX + center.radius, center.tileY);
+    drawLine(roadMask, center.tileX, center.tileY - center.radius, center.tileX, center.tileY + center.radius);
+    drawLine(roadMask, center.tileX - 20, center.tileY - 12, center.tileX + 20, center.tileY - 12);
+    drawLine(roadMask, center.tileX - 20, center.tileY + 12, center.tileX + 20, center.tileY + 12);
   }
 
   for (const [fromId, toId] of edges) {
     const from = centers[fromId];
     const to = centers[toId];
-    drawOrganicRoad(roadMask, from.tileX, from.tileY, to.tileX, to.tileY, hash2d(2701, from.tileX + to.tileX, from.tileY + to.tileY));
+    drawRoutedRoad(roadMask, terrain, semantic, from.tileX, from.tileY, to.tileX, to.tileY, hash2d(2701, from.tileX + to.tileX, from.tileY + to.tileY));
   }
 
   for (let y = 0; y < WORLD_HEIGHT; y += 1) {

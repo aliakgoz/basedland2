@@ -6,6 +6,7 @@ import {
   WORLD_HEIGHT_TILES,
   WORLD_SEED,
   WORLD_WIDTH_TILES,
+  sqrDistance,
   type StaticObject
 } from "./protocol";
 import {
@@ -82,13 +83,28 @@ function isVillageAnimalLot(tileX: number, tileY: number): boolean {
   return (Math.floor(tileX / 4) + Math.floor(tileY / 4)) % 3 === 0;
 }
 
+function requiresRoadAccess(type: ObjectType): boolean {
+  switch (type) {
+    case ObjectType.Tree:
+    case ObjectType.Stone:
+    case ObjectType.GrassTuft:
+    case ObjectType.Sheep:
+    case ObjectType.Horse:
+    case ObjectType.Dog:
+    case ObjectType.Cat:
+      return false;
+    default:
+      return true;
+  }
+}
+
 export function getTileType(tileX: number, tileY: number): TileType {
   if (tileX < 0 || tileY < 0 || tileX >= WORLD_WIDTH_TILES || tileY >= WORLD_HEIGHT_TILES) {
     return TileType.Water;
   }
 
   if (hasBridgeTile(tileX, tileY)) {
-    return (tileX + tileY) % 2 === 0 ? TileType.Stone : TileType.Dirt;
+    return TileType.Water;
   }
 
   const biome = getMacroBiome(tileX, tileY);
@@ -106,19 +122,22 @@ export function getTileType(tileX: number, tileY: number): TileType {
   const shoreline = isNearWater(tileX, tileY, 2);
 
   if (plaza) {
-    return (Math.floor(tileX / 2) + Math.floor(tileY / 2)) % 2 === 0 ? TileType.Stone : TileType.Dirt;
+    return TileType.Stone;
   }
 
   if (road) {
-    return (tileX + tileY) % 7 === 0 ? TileType.Stone : TileType.Dirt;
+    if (biome === MacroBiome.Forest) {
+      return TileType.Forest;
+    }
+    return TileType.Grass;
   }
 
   if (housing) {
-    return patch > 0.88 ? TileType.Dirt : TileType.Grass;
+    return patch > 0.94 ? TileType.Dirt : TileType.Grass;
   }
 
   if (field) {
-    return Math.floor(tileY / 3) % 2 === 0 ? TileType.Dirt : TileType.Grass;
+    return TileType.Dirt;
   }
 
   switch (biome) {
@@ -180,14 +199,185 @@ function pushObject(
   localIndex: number,
   type: ObjectType,
   tileX: number,
-  tileY: number
+  tileY: number,
+  variant?: number
 ): void {
   objects.push({
     id: objectIdFor(cx, cy, localIndex),
     type,
     x: tileX * TILE_SIZE + TILE_SIZE / 2,
-    y: tileY * TILE_SIZE + TILE_SIZE / 2
+    y: tileY * TILE_SIZE + TILE_SIZE / 2,
+    variant
   });
+}
+
+interface VillageStructurePlan {
+  type: ObjectType;
+  tileX: number;
+  tileY: number;
+  variant?: number;
+}
+
+const HOUSE_VARIANT_COUNT = 20;
+const SPECIAL_BUILDINGS: ObjectType[] = [
+  ObjectType.Pub,
+  ObjectType.Inn,
+  ObjectType.Blacksmith,
+  ObjectType.Chapel,
+  ObjectType.Barn,
+  ObjectType.Stable,
+  ObjectType.Windmill,
+  ObjectType.Market,
+  ObjectType.Manor,
+  ObjectType.TownHall
+];
+
+function structureRadius(type: ObjectType): number {
+  switch (type) {
+    case ObjectType.Windmill:
+      return 4;
+    case ObjectType.House:
+      return 3;
+    case ObjectType.Well:
+    case ObjectType.Sign:
+    case ObjectType.Crate:
+    case ObjectType.Chest:
+      return 1;
+    default:
+      return 4;
+  }
+}
+
+function isBuildableVillageTile(tileX: number, tileY: number): boolean {
+  if (!isWalkableTile(getTileType(tileX, tileY))) {
+    return false;
+  }
+  if (hasGeneratedRoad(tileX, tileY) || hasBridgeTile(tileX, tileY) || isPlazaTile(tileX, tileY)) {
+    return false;
+  }
+  const biome = getMacroBiome(tileX, tileY);
+  return biome !== MacroBiome.Water && biome !== MacroBiome.Mountain;
+}
+
+function canPlaceStructure(tileX: number, tileY: number, type: ObjectType, existing: VillageStructurePlan[]): boolean {
+  if (!isBuildableVillageTile(tileX, tileY)) {
+    return false;
+  }
+
+  const radius = structureRadius(type);
+  for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
+    for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+      const px = tileX + offsetX;
+      const py = tileY + offsetY;
+      if (!isWalkableTile(getTileType(px, py)) || hasGeneratedRoad(px, py) || hasBridgeTile(px, py)) {
+        return false;
+      }
+    }
+  }
+
+  return existing.every((item) => {
+    const minDistance = structureRadius(item.type) + radius + 1;
+    return sqrDistance(item.tileX, item.tileY, tileX, tileY) > minDistance * minDistance;
+  });
+}
+
+function findLotPosition(
+  centerX: number,
+  centerY: number,
+  preferredX: number,
+  preferredY: number,
+  type: ObjectType,
+  existing: VillageStructurePlan[]
+): [number, number] | null {
+  for (let radius = 0; radius <= 6; radius += 1) {
+    for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
+      for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+        const tileX = preferredX + offsetX;
+        const tileY = preferredY + offsetY;
+        if (sqrDistance(tileX, tileY, centerX, centerY) > 42 * 42) {
+          continue;
+        }
+        if (!isVillageTile(tileX, tileY) && !isHousingTile(tileX, tileY) && !isFieldTile(tileX, tileY)) {
+          continue;
+        }
+        if (requiresRoadAccess(type) && !isNearRoad(tileX, tileY, type === ObjectType.House ? 5 : 7)) {
+          continue;
+        }
+        if (canPlaceStructure(tileX, tileY, type, existing)) {
+          return [tileX, tileY];
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function buildVillageStructurePlans(): VillageStructurePlan[] {
+  const plans: VillageStructurePlan[] = [];
+
+  for (const center of getVillageCenters()) {
+    const local: VillageStructurePlan[] = [];
+    const seed = hash2d(WORLD_SEED + 4001, center.tileX, center.tileY);
+
+    const core: Array<{ type: ObjectType; x: number; y: number; variant?: number }> = [
+      { type: ObjectType.Well, x: center.tileX, y: center.tileY },
+      { type: ObjectType.Market, x: center.tileX + 8, y: center.tileY - 4 },
+      { type: ObjectType.Sign, x: center.tileX + center.radius - 4, y: center.tileY + 1 }
+    ];
+
+    const specialOffsets = [
+      [-14, -12],
+      [14, -12],
+      [-14, 12],
+      [14, 12],
+      [0, -16],
+      [0, 16]
+    ];
+
+    const specialCount = center.radius >= 30 ? 5 : 4;
+    for (let index = 0; index < specialCount; index += 1) {
+      const type = SPECIAL_BUILDINGS[(index + (seed % SPECIAL_BUILDINGS.length)) % SPECIAL_BUILDINGS.length];
+      const [offsetX, offsetY] = specialOffsets[index % specialOffsets.length];
+      core.push({ type, x: center.tileX + offsetX, y: center.tileY + offsetY });
+    }
+
+    for (const item of core) {
+      const resolved = findLotPosition(center.tileX, center.tileY, item.x, item.y, item.type, local);
+      if (resolved) {
+        local.push({ type: item.type, tileX: resolved[0], tileY: resolved[1], variant: item.variant });
+      }
+    }
+
+    const houseOffsets = [
+      [-18, -14], [-10, -14], [-2, -14], [6, -14], [14, -14],
+      [-18, -4], [14, -4],
+      [-18, 4], [14, 4],
+      [-18, 14], [-10, 14], [-2, 14], [6, 14], [14, 14],
+      [-8, -20], [0, -20], [8, -20], [-8, 20], [0, 20], [8, 20]
+    ];
+
+    for (let index = 0; index < houseOffsets.length; index += 1) {
+      const [offsetX, offsetY] = houseOffsets[index];
+      const resolved = findLotPosition(center.tileX, center.tileY, center.tileX + offsetX, center.tileY + offsetY, ObjectType.House, local);
+      if (!resolved) {
+        continue;
+      }
+      const variant = hash2d(seed + 900 + index, resolved[0], resolved[1]) % HOUSE_VARIANT_COUNT;
+      local.push({ type: ObjectType.House, tileX: resolved[0], tileY: resolved[1], variant });
+    }
+
+    plans.push(...local);
+  }
+
+  plans.sort((a, b) => (a.tileY - b.tileY) || (a.tileX - b.tileX) || (a.type - b.type));
+  return plans;
+}
+
+const plannedVillageStructures = buildVillageStructurePlans();
+
+function isNearPlannedStructure(tileX: number, tileY: number, radius: number): boolean {
+  return plannedVillageStructures.some((item) => sqrDistance(item.tileX, item.tileY, tileX, tileY) <= radius * radius);
 }
 
 export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
@@ -195,6 +385,23 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
   let localIndex = 0;
   const baseTileX = cx * CHUNK_SIZE_TILES;
   const baseTileY = cy * CHUNK_SIZE_TILES;
+  const chunkMinX = baseTileX;
+  const chunkMinY = baseTileY;
+  const chunkMaxX = baseTileX + CHUNK_SIZE_TILES - 1;
+  const chunkMaxY = baseTileY + CHUNK_SIZE_TILES - 1;
+
+  for (const structure of plannedVillageStructures) {
+    if (
+      structure.tileX < chunkMinX ||
+      structure.tileX > chunkMaxX ||
+      structure.tileY < chunkMinY ||
+      structure.tileY > chunkMaxY
+    ) {
+      continue;
+    }
+    pushObject(objects, cx, cy, localIndex, structure.type, structure.tileX, structure.tileY, structure.variant);
+    localIndex += 1;
+  }
 
   for (let cellY = 0; cellY < CHUNK_SIZE_TILES; cellY += 2) {
     for (let cellX = 0; cellX < CHUNK_SIZE_TILES; cellX += 2) {
@@ -211,6 +418,10 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       const nearRoad = isNearRoad(tileX, tileY, 3);
 
       if (!isWalkableTile(tile) || onRoad || onBridge) {
+        continue;
+      }
+
+      if (isNearPlannedStructure(tileX, tileY, 5)) {
         continue;
       }
 
@@ -249,9 +460,7 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
           type = ObjectType.Sign;
         }
       } else if (housing) {
-        if (isHouseLot(tileX, tileY)) {
-          type = ObjectType.House;
-        } else if (nearRoad && roll > 0.986 && roll < 0.992) {
+        if (nearRoad && roll > 0.986 && roll < 0.992) {
           type = ObjectType.Crate;
         } else if (nearRoad && roll > 0.992 && roll < 0.996) {
           type = ObjectType.Sign;
@@ -279,25 +488,6 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
         localIndex += 1;
       }
     }
-  }
-
-  const chunkMinX = baseTileX;
-  const chunkMinY = baseTileY;
-  const chunkMaxX = baseTileX + CHUNK_SIZE_TILES - 1;
-  const chunkMaxY = baseTileY + CHUNK_SIZE_TILES - 1;
-
-  for (const center of getVillageCenters()) {
-    if (center.tileX < chunkMinX || center.tileX > chunkMaxX || center.tileY < chunkMinY || center.tileY > chunkMaxY) {
-      continue;
-    }
-
-    pushObject(objects, cx, cy, localIndex, ObjectType.Well, center.tileX, center.tileY);
-    localIndex += 1;
-
-    const signTileX = Math.min(chunkMaxX, center.tileX + 3);
-    const signTileY = center.tileY + 1 <= chunkMaxY ? center.tileY + 1 : center.tileY;
-    pushObject(objects, cx, cy, localIndex, ObjectType.Sign, signTileX, signTileY);
-    localIndex += 1;
   }
 
   return objects;
@@ -360,6 +550,26 @@ export function describeInteraction(type: ObjectType): { action: number; text: s
       return { action: 1, text: "You pocket a smooth pebble." };
     case ObjectType.House:
       return { action: 2, text: "You knock on the house door." };
+    case ObjectType.Pub:
+      return { action: 13, text: "The pub smells like hearth smoke and cider." };
+    case ObjectType.Inn:
+      return { action: 14, text: "The innkeeper has rooms, but not yet for players." };
+    case ObjectType.Barn:
+      return { action: 15, text: "Hay and old tools fill the barn." };
+    case ObjectType.Stable:
+      return { action: 16, text: "The stable is warm and full of saddle leather." };
+    case ObjectType.Blacksmith:
+      return { action: 17, text: "A hammer rings somewhere inside the smithy." };
+    case ObjectType.Windmill:
+      return { action: 18, text: "The windmill creaks over the fields." };
+    case ObjectType.Chapel:
+      return { action: 19, text: "The chapel is quiet and cool." };
+    case ObjectType.Market:
+      return { action: 20, text: "Stalls are stacked with bread, apples, and cloth." };
+    case ObjectType.Manor:
+      return { action: 21, text: "The manor keeps its curtains drawn." };
+    case ObjectType.TownHall:
+      return { action: 22, text: "Village notices are pinned to the hall door." };
     case ObjectType.Crate:
       return { action: 3, text: "The crate is full of dusty tools." };
     case ObjectType.Well:
