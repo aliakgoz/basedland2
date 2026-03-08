@@ -24,8 +24,10 @@ const editor = new MapEditor(assets, world, renderer, canvas, () => network.loca
 
 renderer.setMessage("Loading pixel assets...");
 assets.loadGeneratedOverrides().then(() => {
-  editor.refreshPalette();
-  renderer.setMessage("Assets ready. Connecting...");
+  void editor.initialize().then(() => {
+    editor.refreshPalette();
+    renderer.setMessage("Assets ready. Connecting...");
+  });
 });
 
 network.onMessage = (text) => renderer.setMessage(text);

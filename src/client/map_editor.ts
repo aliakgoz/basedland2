@@ -1,9 +1,11 @@
 import type { AssetArchiveEntry, AssetArchiveGroup, AssetManager } from "./assets";
+import { EMPTY_EDITOR_MAP, type EditorMapData, type PersistedEditorMap } from "../shared/editor_map";
 import type { PlayerEntity } from "./entity";
 import { Renderer } from "./renderer";
-import { type EditorMapData, WorldState } from "./world";
+import { WorldState } from "./world";
 
 const LOCAL_STORAGE_KEY = "basedland.map-editor.v1";
+const SAVE_DEBOUNCE_MS = 500;
 
 function makeThumb(source: CanvasImageSource): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -38,11 +40,16 @@ export class MapEditor {
   private readonly dock: HTMLElement;
   private readonly groups: HTMLElement;
   private readonly exportButton: HTMLButtonElement;
+  private readonly saveOnlineButton: HTMLButtonElement;
+  private readonly loadOnlineButton: HTMLButtonElement;
   private readonly importButton: HTMLButtonElement;
   private readonly importInput: HTMLInputElement;
   private readonly saveLocalButton: HTMLButtonElement;
   private readonly loadLocalButton: HTMLButtonElement;
   private readonly clearButton: HTMLButtonElement;
+  private remoteRevision = 0;
+  private saveTimer: number | null = null;
+  private saveInFlight = false;
 
   constructor(
     private readonly assets: AssetManager,
@@ -55,18 +62,22 @@ export class MapEditor {
     const dock = document.querySelector<HTMLElement>("#editor-dock");
     const groups = document.querySelector<HTMLElement>("#editor-groups");
     const exportButton = document.querySelector<HTMLButtonElement>("#editor-export");
+    const saveOnlineButton = document.querySelector<HTMLButtonElement>("#editor-save-online");
+    const loadOnlineButton = document.querySelector<HTMLButtonElement>("#editor-load-online");
     const importButton = document.querySelector<HTMLButtonElement>("#editor-import-button");
     const importInput = document.querySelector<HTMLInputElement>("#editor-import-input");
     const saveLocalButton = document.querySelector<HTMLButtonElement>("#editor-save-local");
     const loadLocalButton = document.querySelector<HTMLButtonElement>("#editor-load-local");
     const clearButton = document.querySelector<HTMLButtonElement>("#editor-clear");
-    if (!toggleButton || !dock || !groups || !exportButton || !importButton || !importInput || !saveLocalButton || !loadLocalButton || !clearButton) {
+    if (!toggleButton || !dock || !groups || !exportButton || !saveOnlineButton || !loadOnlineButton || !importButton || !importInput || !saveLocalButton || !loadLocalButton || !clearButton) {
       throw new Error("Map editor UI missing");
     }
     this.toggleButton = toggleButton;
     this.dock = dock;
     this.groups = groups;
     this.exportButton = exportButton;
+    this.saveOnlineButton = saveOnlineButton;
+    this.loadOnlineButton = loadOnlineButton;
     this.importButton = importButton;
     this.importInput = importInput;
     this.saveLocalButton = saveLocalButton;
@@ -75,7 +86,15 @@ export class MapEditor {
 
     this.selectedBrush = this.assets.getArchiveGroups()[0]?.entries[0] ?? null;
     this.bindUI();
-    this.loadLocal();
+  }
+
+  async initialize(): Promise<void> {
+    const loadedRemote = await this.loadOnline(false);
+    if (!loadedRemote) {
+      this.loadLocal();
+    } else {
+      this.saveLocal();
+    }
     this.renderPalette();
   }
 
@@ -90,6 +109,8 @@ export class MapEditor {
   private bindUI(): void {
     this.toggleButton.addEventListener("click", () => this.setEnabled(!this.enabled));
     this.exportButton.addEventListener("click", () => this.exportJson());
+    this.saveOnlineButton.addEventListener("click", () => void this.flushRemoteSave(true));
+    this.loadOnlineButton.addEventListener("click", () => void this.loadOnline(true));
     this.importButton.addEventListener("click", () => this.importInput.click());
     this.importInput.addEventListener("change", () => this.importJsonFile());
     this.saveLocalButton.addEventListener("click", () => this.saveLocal());
@@ -233,7 +254,7 @@ export class MapEditor {
 
     if (this.eraseMode || this.selectedBrush?.kind === "erase") {
       this.world.eraseAtTile(tileX, tileY);
-      this.saveLocal();
+      this.persistEditorState();
       return;
     }
 
@@ -243,19 +264,19 @@ export class MapEditor {
 
     if (this.selectedBrush.kind === "ground" && this.selectedBrush.tileType !== undefined) {
       this.world.setGroundOverride(tileX, tileY, this.selectedBrush.tileType);
-      this.saveLocal();
+      this.persistEditorState();
       return;
     }
 
     if (this.selectedBrush.kind === "road" && this.selectedBrush.roadVariant !== undefined) {
       this.world.setRoadVariant(tileX, tileY, this.selectedBrush.roadVariant);
-      this.saveLocal();
+      this.persistEditorState();
       return;
     }
 
     if (this.selectedBrush.kind === "object" && this.selectedBrush.objectType !== undefined) {
       this.world.placeEditorObject(tileX, tileY, this.selectedBrush.objectType, this.selectedBrush.objectVariant);
-      this.saveLocal();
+      this.persistEditorState();
     }
   }
 
@@ -280,7 +301,9 @@ export class MapEditor {
       const text = await file.text();
       const data = JSON.parse(text) as EditorMapData;
       this.world.importEditorLayer(data);
-      this.saveLocal();
+      this.persistEditorState();
+      void this.flushRemoteSave(true);
+      this.renderer.setMessage("Backup JSON restored.");
     } catch (error) {
       console.error("Failed to import map json", error);
     } finally {
@@ -303,6 +326,7 @@ export class MapEditor {
         return;
       }
       this.world.importEditorLayer(JSON.parse(raw) as EditorMapData);
+      this.renderer.setMessage("Loaded local map backup.");
     } catch (error) {
       console.error("Failed to load local map", error);
     }
@@ -310,6 +334,82 @@ export class MapEditor {
 
   private clearAll(): void {
     this.world.clearEditorLayer();
+    this.persistEditorState();
+    void this.flushRemoteSave(true);
+  }
+
+  private persistEditorState(): void {
     this.saveLocal();
+    if (this.saveTimer !== null) {
+      window.clearTimeout(this.saveTimer);
+    }
+    this.saveTimer = window.setTimeout(() => {
+      this.saveTimer = null;
+      void this.flushRemoteSave(false);
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  private async flushRemoteSave(announce: boolean): Promise<void> {
+    if (this.saveInFlight) {
+      return;
+    }
+
+    this.saveInFlight = true;
+    try {
+      const response = await fetch("/api/editor-map", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          data: this.world.exportEditorLayer()
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`Save failed with ${response.status}`);
+      }
+      const persisted = (await response.json()) as PersistedEditorMap;
+      this.remoteRevision = persisted.revision;
+      if (announce) {
+        this.renderer.setMessage(`Online map saved. Revision ${persisted.revision}.`);
+      }
+    } catch (error) {
+      console.error("Failed to save remote map", error);
+      if (announce) {
+        this.renderer.setMessage("Online map save failed. Local backup still exists.");
+      }
+    } finally {
+      this.saveInFlight = false;
+    }
+  }
+
+  private async loadOnline(announce: boolean): Promise<boolean> {
+    try {
+      const response = await fetch("/api/editor-map", { cache: "no-store" });
+      if (!response.ok) {
+        return false;
+      }
+      const persisted = (await response.json()) as PersistedEditorMap;
+      this.remoteRevision = persisted.revision;
+      const hasRemoteData =
+        persisted.data.ground.length > 0 || persisted.data.roads.length > 0 || persisted.data.objects.length > 0;
+      if (!hasRemoteData) {
+        if (announce) {
+          this.renderer.setMessage("Online map is empty.");
+        }
+        return false;
+      }
+      this.world.importEditorLayer(persisted.data ?? EMPTY_EDITOR_MAP);
+      if (announce) {
+        this.renderer.setMessage(`Loaded online map. Revision ${persisted.revision}.`);
+      }
+      return true;
+    } catch (error) {
+      console.error("Failed to load remote map", error);
+      if (announce) {
+        this.renderer.setMessage("Online map load failed.");
+      }
+      return false;
+    }
   }
 }

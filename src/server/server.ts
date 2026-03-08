@@ -1,7 +1,8 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import { readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer } from "ws";
+import { EMPTY_EDITOR_MAP, type EditorMapData } from "../shared/editor_map";
 import {
   CHUNK_RADIUS,
   CHUNK_SIZE_TILES,
@@ -27,6 +28,7 @@ import {
   isInteractPacket,
   parseInputPacket
 } from "./network";
+import { loadEditorMap, saveEditorMap } from "./map_store";
 import { PlayerManager, type ServerPlayer } from "./player_manager";
 
 const clientRoot = resolve(__dirname, "../client");
@@ -34,11 +36,61 @@ const serverPort = Number(process.env.PORT ?? 3000);
 const mimeTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8"
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8"
 };
 
-const httpServer = createServer((req, res) => {
+function readJsonBody<T>(req: IncomingMessage): Promise<T> {
+  return new Promise((resolveBody, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer | string) => chunks.push(Buffer.from(chunk)));
+    req.on("end", () => {
+      try {
+        const body = chunks.length === 0 ? "{}" : Buffer.concat(chunks).toString("utf8");
+        resolveBody(JSON.parse(body) as T);
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+const httpServer = createServer(async (req, res) => {
   const pathname = req.url === "/" ? "/index.html" : req.url ?? "/index.html";
+
+  if (pathname.startsWith("/api/editor-map")) {
+    if (req.method === "GET") {
+      const persisted = await loadEditorMap();
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store"
+      });
+      res.end(`${JSON.stringify(persisted)}\n`);
+      return;
+    }
+
+    if (req.method === "PUT" || req.method === "POST") {
+      try {
+        const payload = await readJsonBody<{ data?: EditorMapData }>(req);
+        const next = await saveEditorMap(payload.data ?? EMPTY_EDITOR_MAP);
+        res.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store"
+        });
+        res.end(`${JSON.stringify(next)}\n`);
+      } catch {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Invalid editor map payload." }));
+      }
+      return;
+    }
+
+    res.writeHead(405, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "Method not allowed." }));
+    return;
+  }
+
   const filePath = join(clientRoot, pathname.replace(/\?.*$/, ""));
 
   try {

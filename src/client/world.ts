@@ -1,20 +1,15 @@
 import { TILE_SIZE, TileType, chunkKey, type StaticObject } from "../shared/protocol";
+import type { EditorMapData } from "../shared/editor_map";
 import { getTileType } from "../shared/worldgen";
 import { getGeneratedRoadVariant } from "../shared/world-layout";
 import type { StaticProp } from "./entity";
-
-export interface EditorMapData {
-  version: 1;
-  ground: Array<{ x: number; y: number; type: number }>;
-  roads: Array<{ x: number; y: number; variant: number }>;
-  objects: Array<{ x: number; y: number; type: number; variant?: number }>;
-}
 
 export class WorldState {
   readonly chunkObjects = new Map<string, StaticProp[]>();
   private readonly groundOverrides = new Map<string, TileType>();
   private readonly roadOverrides = new Map<string, number>();
   private readonly editorObjects = new Map<string, StaticProp>();
+  private readonly hiddenObjectIds = new Set<number>();
 
   private tileKey(tileX: number, tileY: number): string {
     return `${tileX},${tileY}`;
@@ -61,6 +56,9 @@ export class WorldState {
 
   placeEditorObject(tileX: number, tileY: number, type: StaticProp["type"], variant?: number): void {
     const key = this.tileKey(tileX, tileY);
+    for (const object of this.getBaseObjectsAtTile(tileX, tileY)) {
+      this.hiddenObjectIds.add(object.id);
+    }
     this.editorObjects.set(key, {
       id: -Math.abs(hashCode(key)),
       type,
@@ -75,19 +73,26 @@ export class WorldState {
     const key = this.tileKey(tileX, tileY);
     this.groundOverrides.delete(key);
     this.roadOverrides.delete(key);
-    this.editorObjects.delete(key);
+    if (this.editorObjects.delete(key)) {
+      return;
+    }
+    for (const object of this.getBaseObjectsAtTile(tileX, tileY)) {
+      this.hiddenObjectIds.add(object.id);
+    }
   }
 
   clearEditorLayer(): void {
     this.groundOverrides.clear();
     this.roadOverrides.clear();
     this.editorObjects.clear();
+    this.hiddenObjectIds.clear();
   }
 
   exportEditorLayer(): EditorMapData {
     const ground: EditorMapData["ground"] = [];
     const roads: EditorMapData["roads"] = [];
     const objects: EditorMapData["objects"] = [];
+    const hiddenObjects = [...this.hiddenObjectIds].sort((a, b) => a - b);
 
     for (const [key, type] of this.groundOverrides) {
       const [x, y] = key.split(",").map(Number);
@@ -113,10 +118,11 @@ export class WorldState {
     objects.sort((a, b) => (a.y - b.y) || (a.x - b.x));
 
     return {
-      version: 1,
+      version: 2,
       ground,
       roads,
-      objects
+      objects,
+      hiddenObjects
     };
   }
 
@@ -134,6 +140,10 @@ export class WorldState {
     for (const item of data.objects ?? []) {
       this.placeEditorObject(item.x, item.y, item.type as StaticProp["type"], item.variant);
     }
+
+    for (const id of data.hiddenObjects ?? []) {
+      this.hiddenObjectIds.add(id);
+    }
   }
 
   getVisibleObjects(cameraX: number, cameraY: number, viewportWidth: number, viewportHeight: number): StaticProp[] {
@@ -141,6 +151,9 @@ export class WorldState {
     const objects: StaticProp[] = [];
     for (const chunk of this.chunkObjects.values()) {
       for (const object of chunk) {
+        if (this.hiddenObjectIds.has(object.id)) {
+          continue;
+        }
         if (
           object.x >= cameraX - viewportWidth / 2 - padding &&
           object.x <= cameraX + viewportWidth / 2 + padding &&
@@ -164,6 +177,27 @@ export class WorldState {
     }
 
     return objects;
+  }
+
+  private getBaseObjectsAtTile(tileX: number, tileY: number): StaticProp[] {
+    const minX = tileX * TILE_SIZE;
+    const minY = tileY * TILE_SIZE;
+    const maxX = minX + TILE_SIZE;
+    const maxY = minY + TILE_SIZE;
+    const matches: StaticProp[] = [];
+
+    for (const chunk of this.chunkObjects.values()) {
+      for (const object of chunk) {
+        if (this.hiddenObjectIds.has(object.id)) {
+          continue;
+        }
+        if (object.x >= minX && object.x < maxX && object.y >= minY && object.y < maxY) {
+          matches.push(object);
+        }
+      }
+    }
+
+    return matches;
   }
 }
 

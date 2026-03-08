@@ -177,9 +177,8 @@
         right: 18px;
         bottom: 64px;
         padding: 12px;
-        max-height: 180px;
-        overflow-x: auto;
-        overflow-y: hidden;
+        max-height: 320px;
+        overflow: hidden;
         display: none;
       }
 
@@ -215,6 +214,9 @@
 
       .editor-group {
         min-width: 100%;
+        max-height: 210px;
+        overflow-y: auto;
+        padding-right: 6px;
       }
 
       .editor-group h3 {
@@ -308,8 +310,10 @@
       <div id="message" class="panel">Connecting...</div>
       <div id="editor-dock" class="panel interactive">
         <div class="editor-tools">
-          <button id="editor-export" class="editor-action" type="button">Export JSON</button>
-          <button id="editor-import-button" class="editor-action" type="button">Import JSON</button>
+          <button id="editor-save-online" class="editor-action" type="button">Save Online</button>
+          <button id="editor-load-online" class="editor-action" type="button">Load Online</button>
+          <button id="editor-export" class="editor-action" type="button">Backup JSON</button>
+          <button id="editor-import-button" class="editor-action" type="button">Restore JSON</button>
           <button id="editor-save-local" class="editor-action" type="button">Save Local</button>
           <button id="editor-load-local" class="editor-action" type="button">Load Local</button>
           <button id="editor-clear" class="editor-action" type="button">Clear</button>

@@ -108,6 +108,7 @@ Editor:
 - left click: paint/place selected brush
 - right click: erase
 - bottom dock: select grouped archive items such as `Ground`, `Roads`, `Trees`, `Buildings`, `Props`
+- editor open while moving with `W A S D`: pan the camera very quickly instead of moving the player
 
 ## 6. Build Scripts
 
@@ -133,6 +134,43 @@ Meaning:
   Generates a new macro world layout and supporting preview files.
 - `npm start`
   Starts the built Node.js server from `dist/server/server.js`.
+
+### 6.2 Map Save Model
+
+Map maker changes now save in three ways:
+
+- automatic local browser backup
+- automatic online save to the Node server
+- manual JSON backup/restore for the full editor layer
+
+Server-side persistent file:
+
+- `data/editor-map.json`
+
+How it works:
+
+1. when you paint in the editor, the full editor layer is saved to browser local storage
+2. the same layer is also autosaved to the Node backend after a short debounce
+3. when the game starts, it tries to load the online map first
+4. if no online map exists, it falls back to the local browser backup
+
+Editor buttons:
+
+- `Save Online`
+- `Load Online`
+- `Backup JSON`
+- `Restore JSON`
+- `Save Local`
+- `Load Local`
+
+Meaning:
+
+- `Save Online`: push the current full editor layer to the server immediately
+- `Load Online`: pull the latest server copy
+- `Backup JSON`: download the full editor layer as a file
+- `Restore JSON`: restore a backup file
+- `Save Local`: save the current editor layer into browser local storage
+- `Load Local`: load the browser-local backup
 
 ### 6.1 Vercel Deploy
 
