@@ -28,6 +28,8 @@ export class Renderer {
   private worldMapOpen = false;
   private manualCameraX: number | null = null;
   private manualCameraY: number | null = null;
+  private currentCameraX = 0;
+  private currentCameraY = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -101,6 +103,21 @@ export class Renderer {
     this.manualCameraY = null;
   }
 
+  setManualCamera(x: number, y: number): void {
+    this.manualCameraX = Math.max(0, Math.min(WORLD_WIDTH_TILES * TILE_SIZE, x));
+    this.manualCameraY = Math.max(0, Math.min(WORLD_HEIGHT_TILES * TILE_SIZE, y));
+  }
+
+  nudgeManualCamera(dx: number, dy: number): void {
+    const baseX = this.manualCameraX ?? this.currentCameraX;
+    const baseY = this.manualCameraY ?? this.currentCameraY;
+    this.setManualCamera(baseX + dx, baseY + dy);
+  }
+
+  getViewCenter(): { x: number; y: number } {
+    return { x: this.currentCameraX, y: this.currentCameraY };
+  }
+
   render(world: WorldState, localPlayer: PlayerEntity | null, remotePlayers: PlayerEntity[]): void {
     this.ctx.clearRect(0, 0, this.width, this.height);
 
@@ -110,6 +127,8 @@ export class Renderer {
 
     const cameraX = this.manualCameraX ?? localPlayer.renderX;
     const cameraY = this.manualCameraY ?? localPlayer.renderY;
+    this.currentCameraX = cameraX;
+    this.currentCameraY = cameraY;
     this.drawTiles(world, cameraX, cameraY);
     this.drawScene(
       world.getVisibleObjects(cameraX, cameraY, this.width / this.zoom, this.height / this.zoom),

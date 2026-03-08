@@ -33,7 +33,7 @@
         font-family: "Trebuchet MS", "Verdana", sans-serif;
       }
 
-      canvas {
+      #game {
         display: block;
         width: 100vw;
         height: 100vh;
@@ -188,13 +188,33 @@
       }
 
       #editor-groups {
+        min-width: 100%;
+      }
+
+      .editor-tabs {
         display: flex;
-        gap: 14px;
-        min-width: max-content;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+
+      .editor-tab {
+        border: 1px solid rgba(173, 194, 147, 0.2);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .editor-tab.active {
+        color: var(--text);
+        border-color: rgba(217, 169, 75, 0.9);
+        box-shadow: 0 0 0 1px rgba(217, 169, 75, 0.35);
       }
 
       .editor-group {
-        min-width: 180px;
+        min-width: 100%;
       }
 
       .editor-group h3 {
@@ -207,7 +227,7 @@
 
       .editor-grid {
         display: grid;
-        grid-template-columns: repeat(4, 44px);
+        grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
         gap: 8px;
       }
 
@@ -228,17 +248,40 @@
       }
 
       .editor-item {
-        width: 44px;
-        height: 44px;
+        min-height: 84px;
         border: 1px solid rgba(173, 194, 147, 0.18);
         background: rgba(255, 255, 255, 0.03);
-        padding: 0;
+        padding: 6px;
         cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 4px;
       }
 
       .editor-item.active {
         border-color: rgba(217, 169, 75, 0.9);
         box-shadow: 0 0 0 1px rgba(217, 169, 75, 0.5);
+      }
+
+      .editor-item canvas {
+        width: 40px;
+        height: 40px;
+        display: block;
+        image-rendering: pixelated;
+      }
+
+      .editor-item-label {
+        display: block;
+        width: 100%;
+        font-size: 10px;
+        line-height: 1.1;
+        color: var(--muted);
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     </style>
   </head>
@@ -250,7 +293,7 @@
         <p id="online">Players online: 0</p>
       </div>
       <button id="editor-toggle" class="panel interactive" type="button">Map Maker: Off</button>
-      <div id="minimap" class="panel">
+      <div id="minimap" class="panel interactive">
         <h2>World Map</h2>
         <canvas id="minimap-canvas" width="200" height="200"></canvas>
       </div>
@@ -261,7 +304,7 @@
         </div>
         <canvas id="worldmap-canvas" width="960" height="720"></canvas>
       </div>
-      <div id="hint" class="panel">WASD move, E interact, wheel zoom, click minimap for full world map, M map maker.</div>
+      <div id="hint" class="panel">WASD move, E interact, wheel zoom, click minimap to pan, M map maker.</div>
       <div id="message" class="panel">Connecting...</div>
       <div id="editor-dock" class="panel interactive">
         <div class="editor-tools">

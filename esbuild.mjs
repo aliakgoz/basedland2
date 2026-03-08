@@ -1,5 +1,13 @@
 import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+
+const localImport = spawnSync(process.execPath, ["scripts/import-local-assets.mjs"], {
+  stdio: "inherit"
+});
+if (localImport.status !== 0) {
+  process.exit(localImport.status ?? 1);
+}
 
 rmSync("dist", { force: true, recursive: true });
 mkdirSync("dist/client", { recursive: true });

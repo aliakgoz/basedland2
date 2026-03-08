@@ -945,9 +945,10 @@ export function sizeForObject(type: ObjectType): { width: number; height: number
 export class AssetManager {
   private readonly tileSprites = new Map<TileType, SpriteSource[]>();
   private readonly objectSprites = new Map<ObjectType, SpriteSource>();
+  private readonly objectArchives = new Map<ObjectType, SpriteSource[]>();
   private readonly houseArchive: SpriteSource[] = Array.from({ length: HOUSE_VARIANTS }, (_, index) => makeHouseVariantSprite(index));
-  private readonly treeArchive = Array.from({ length: 20 }, (_, index) => makeTreeVariantSprite(index));
-  private readonly roadArchive = Array.from({ length: 20 }, (_, index) => makeRoadSprite(index));
+  private readonly treeArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeTreeVariantSprite(index));
+  private readonly roadArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeRoadSprite(index));
   private readonly bridgeSprites = new Map<string, SpriteSource>();
   private localPlayerSprite: SpriteSource = makePlayerSprite("#d49442", "#355d78", "#f1d4b3");
   private remotePlayerSprite: SpriteSource = makePlayerSprite("#8771c1", "#5b4c8e", "#ead5bf");
@@ -987,7 +988,9 @@ export class AssetManager {
       ObjectType.Cat,
       ObjectType.SparkMouse
     ]) {
-      this.objectSprites.set(type, makeFallbackObjectSprite(type));
+      const fallback = makeFallbackObjectSprite(type);
+      this.objectSprites.set(type, fallback);
+      this.objectArchives.set(type, [fallback]);
     }
 
     for (const slug of BRIDGE_SLUGS) {
@@ -1041,6 +1044,49 @@ export class AssetManager {
           })
           .catch(() => undefined)
       );
+    }
+
+    for (const type of this.objectSprites.keys()) {
+      if (type === ObjectType.House) {
+        continue;
+      }
+      const archiveFiles = manifest.objectArchive?.[objectSlug(type)] ?? [];
+      if (archiveFiles.length === 0) {
+        continue;
+      }
+
+      if (type === ObjectType.Tree) {
+        for (let index = 0; index < archiveFiles.length; index += 1) {
+          const file = archiveFiles[index];
+          work.push(
+            loadImage(`./assets/generated/${file}`)
+              .then((image) => {
+                if (index < this.treeArchive.length) {
+                  this.treeArchive[index] = image;
+                } else {
+                  this.treeArchive.push(image);
+                }
+                this.objectSprites.set(type, this.treeArchive[0]);
+                this.objectArchives.set(type, [...this.treeArchive]);
+              })
+              .catch(() => undefined)
+          );
+        }
+        continue;
+      }
+
+      const loadedArchive: SpriteSource[] = [];
+      for (const file of archiveFiles) {
+        work.push(
+          loadImage(`./assets/generated/${file}`)
+            .then((image) => {
+              loadedArchive.push(image);
+              this.objectArchives.set(type, [...loadedArchive]);
+              this.objectSprites.set(type, loadedArchive[loadedArchive.length - 1]);
+            })
+            .catch(() => undefined)
+        );
+      }
     }
 
     const generatedHouseVariants = manifest.objectArchive?.house ?? [];
@@ -1138,11 +1184,58 @@ export class AssetManager {
       const index = Math.max(0, Math.min(this.treeArchive.length - 1, variant));
       return index === 0 ? this.objectSprites.get(type) ?? this.treeArchive[0] : this.treeArchive[index];
     }
+    const archive = this.objectArchives.get(type);
+    if (archive && archive.length > 0) {
+      const index = Math.max(0, Math.min(archive.length - 1, variant ?? archive.length - 1));
+      return archive[index];
+    }
     return this.objectSprites.get(type) ?? makeFallbackObjectSprite(type);
   }
 
   getPlayerSprite(isLocal: boolean): SpriteSource {
     return isLocal ? this.localPlayerSprite : this.remotePlayerSprite;
+  }
+
+  private getObjectArchive(type: ObjectType): SpriteSource[] {
+    if (type === ObjectType.House) {
+      return this.houseArchive;
+    }
+    if (type === ObjectType.Tree) {
+      return this.treeArchive;
+    }
+    return this.objectArchives.get(type) ?? [this.getObjectSprite(type)];
+  }
+
+  private buildObjectEntries(
+    type: ObjectType,
+    label: string,
+    group: string,
+    idPrefix: string
+  ): AssetArchiveEntry[] {
+    const archive = this.getObjectArchive(type);
+    if (archive.length <= 1) {
+      return [
+        {
+          id: idPrefix,
+          label,
+          group,
+          kind: "object",
+          preview: archive[0] ?? this.getObjectSprite(type),
+          objectType: type,
+          objectVariant: 0
+        }
+      ];
+    }
+
+    return archive.map((preview, index) => ({
+      id: `${idPrefix}-${index}`,
+      label: `${label} ${index + 1}`,
+      group,
+      kind: "object",
+      preview,
+      objectType: type,
+      objectVariant: index
+    }));
   }
 
   getArchiveGroups(): AssetArchiveGroup[] {
@@ -1183,28 +1276,28 @@ export class AssetManager {
         objectType: ObjectType.House,
         objectVariant: index
       })),
-      { id: "building-pub", label: "Pub", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Pub), objectType: ObjectType.Pub },
-      { id: "building-inn", label: "Inn", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Inn), objectType: ObjectType.Inn },
-      { id: "building-barn", label: "Barn", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Barn), objectType: ObjectType.Barn },
-      { id: "building-stable", label: "Stable", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Stable), objectType: ObjectType.Stable },
-      { id: "building-blacksmith", label: "Smith", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Blacksmith), objectType: ObjectType.Blacksmith },
-      { id: "building-windmill", label: "Mill", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Windmill), objectType: ObjectType.Windmill },
-      { id: "building-chapel", label: "Chapel", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Chapel), objectType: ObjectType.Chapel },
-      { id: "building-market", label: "Market", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Market), objectType: ObjectType.Market },
-      { id: "building-manor", label: "Manor", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Manor), objectType: ObjectType.Manor },
-      { id: "building-townhall", label: "Hall", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.TownHall), objectType: ObjectType.TownHall },
-      { id: "building-well", label: "Well", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Well), objectType: ObjectType.Well },
-      { id: "building-sign", label: "Sign", group: "buildings", kind: "object", preview: this.getObjectSprite(ObjectType.Sign), objectType: ObjectType.Sign }
+      ...this.buildObjectEntries(ObjectType.Pub, "Pub", "buildings", "building-pub"),
+      ...this.buildObjectEntries(ObjectType.Inn, "Inn", "buildings", "building-inn"),
+      ...this.buildObjectEntries(ObjectType.Barn, "Barn", "buildings", "building-barn"),
+      ...this.buildObjectEntries(ObjectType.Stable, "Stable", "buildings", "building-stable"),
+      ...this.buildObjectEntries(ObjectType.Blacksmith, "Smith", "buildings", "building-blacksmith"),
+      ...this.buildObjectEntries(ObjectType.Windmill, "Mill", "buildings", "building-windmill"),
+      ...this.buildObjectEntries(ObjectType.Chapel, "Chapel", "buildings", "building-chapel"),
+      ...this.buildObjectEntries(ObjectType.Market, "Market", "buildings", "building-market"),
+      ...this.buildObjectEntries(ObjectType.Manor, "Manor", "buildings", "building-manor"),
+      ...this.buildObjectEntries(ObjectType.TownHall, "Hall", "buildings", "building-townhall"),
+      ...this.buildObjectEntries(ObjectType.Well, "Well", "buildings", "building-well"),
+      ...this.buildObjectEntries(ObjectType.Sign, "Sign", "buildings", "building-sign")
     ];
 
     const props: AssetArchiveEntry[] = [
-      { id: "prop-horse", label: "Horse", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Horse), objectType: ObjectType.Horse },
-      { id: "prop-sheep", label: "Sheep", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Sheep), objectType: ObjectType.Sheep },
-      { id: "prop-dog", label: "Dog", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Dog), objectType: ObjectType.Dog },
-      { id: "prop-cat", label: "Cat", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Cat), objectType: ObjectType.Cat },
-      { id: "prop-sparkmouse", label: "Spark", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.SparkMouse), objectType: ObjectType.SparkMouse },
-      { id: "prop-stone", label: "Stone", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Stone), objectType: ObjectType.Stone },
-      { id: "prop-crate", label: "Crate", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Crate), objectType: ObjectType.Crate }
+      ...this.buildObjectEntries(ObjectType.Horse, "Horse", "props", "prop-horse"),
+      ...this.buildObjectEntries(ObjectType.Sheep, "Sheep", "props", "prop-sheep"),
+      ...this.buildObjectEntries(ObjectType.Dog, "Dog", "props", "prop-dog"),
+      ...this.buildObjectEntries(ObjectType.Cat, "Cat", "props", "prop-cat"),
+      ...this.buildObjectEntries(ObjectType.SparkMouse, "Spark", "props", "prop-sparkmouse"),
+      ...this.buildObjectEntries(ObjectType.Stone, "Stone", "props", "prop-stone"),
+      ...this.buildObjectEntries(ObjectType.Crate, "Crate", "props", "prop-crate")
     ];
 
     return [

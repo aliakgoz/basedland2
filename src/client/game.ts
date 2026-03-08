@@ -46,6 +46,7 @@ let inputSeq = 0;
 let lastInputSend = 0;
 let lastInputMask = -1;
 let previousFrame = performance.now();
+const EDITOR_CAMERA_MULTIPLIER = 20;
 
 function applyLocalMovement(dt: number): void {
   const player = network.localPlayer;
@@ -72,6 +73,21 @@ function applyLocalMovement(dt: number): void {
   if ((mask & InputFlag.Right) !== 0) {
     dx += 1;
     player.dir = Direction.Right;
+  }
+
+  if (editor.isEnabled()) {
+    if (dx !== 0 || dy !== 0) {
+      if (dx !== 0 && dy !== 0) {
+        dx *= Math.SQRT1_2;
+        dy *= Math.SQRT1_2;
+      }
+      renderer.nudgeManualCamera(dx * PLAYER_SPEED * EDITOR_CAMERA_MULTIPLIER * dt, dy * PLAYER_SPEED * EDITOR_CAMERA_MULTIPLIER * dt);
+    }
+    player.animation = AnimationState.Idle;
+    if (input.consumeInteract()) {
+      return;
+    }
+    return;
   }
 
   player.animation = dx === 0 && dy === 0 ? AnimationState.Idle : AnimationState.Walk;

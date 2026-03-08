@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "assets:generate": "node scripts/generate-assets.mjs",
+    "assets:import-local": "node scripts/import-local-assets.mjs",
     "world:generate": "node scripts/generate-world-layout.mjs",
     "start": "node dist/server/server.js",
     "dev": "npm run build && npm run start"

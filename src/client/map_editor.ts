@@ -29,6 +29,7 @@ function makeThumb(source: CanvasImageSource): HTMLCanvasElement {
 
 export class MapEditor {
   private enabled = false;
+  private activeGroupId = "ground";
   private selectedBrush: AssetArchiveEntry | null = null;
   private painting = false;
   private eraseMode = false;
@@ -73,12 +74,17 @@ export class MapEditor {
     this.clearButton = clearButton;
 
     this.selectedBrush = this.assets.getArchiveGroups()[0]?.entries[0] ?? null;
-    this.renderPalette();
     this.bindUI();
+    this.loadLocal();
+    this.renderPalette();
   }
 
   refreshPalette(): void {
     this.renderPalette();
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
   }
 
   private bindUI(): void {
@@ -128,14 +134,44 @@ export class MapEditor {
     this.enabled = next;
     this.toggleButton.textContent = `Map Maker: ${next ? "On" : "Off"}`;
     this.dock.classList.toggle("active", next);
+    if (!next) {
+      this.renderer.clearManualCamera();
+    } else {
+      const localPlayer = this.getLocalPlayer();
+      if (localPlayer) {
+        this.renderer.setManualCamera(localPlayer.renderX, localPlayer.renderY);
+      }
+    }
   }
 
   private renderPalette(): void {
     const groups = this.assets.getArchiveGroups();
     this.groups.innerHTML = "";
+    if (!groups.some((group) => group.id === this.activeGroupId)) {
+      this.activeGroupId = groups[0]?.id ?? "ground";
+    }
 
+    const tabs = document.createElement("div");
+    tabs.className = "editor-tabs";
     for (const group of groups) {
-      this.groups.appendChild(this.renderGroup(group));
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "editor-tab";
+      if (group.id === this.activeGroupId) {
+        tab.classList.add("active");
+      }
+      tab.textContent = group.label;
+      tab.addEventListener("click", () => {
+        this.activeGroupId = group.id;
+        this.renderPalette();
+      });
+      tabs.appendChild(tab);
+    }
+    this.groups.appendChild(tabs);
+
+    const activeGroup = groups.find((group) => group.id === this.activeGroupId);
+    if (activeGroup) {
+      this.groups.appendChild(this.renderGroup(activeGroup));
     }
   }
 
@@ -157,7 +193,11 @@ export class MapEditor {
         button.classList.add("active");
       }
       button.title = entry.label;
+      const label = document.createElement("span");
+      label.className = "editor-item-label";
+      label.textContent = entry.label;
       button.appendChild(makeThumb(entry.preview));
+      button.appendChild(label);
       button.addEventListener("click", () => {
         this.selectedBrush = entry;
         this.renderPalette();
@@ -179,8 +219,9 @@ export class MapEditor {
     const screenX = clientX - rect.left;
     const screenY = clientY - rect.top;
     const zoom = this.renderer.getZoom();
-    const worldX = localPlayer.renderX + (screenX - this.canvas.width / 2) / zoom;
-    const worldY = localPlayer.renderY + (screenY - this.canvas.height / 2) / zoom;
+    const viewCenter = this.renderer.getViewCenter();
+    const worldX = viewCenter.x + (screenX - this.canvas.width / 2) / zoom;
+    const worldY = viewCenter.y + (screenY - this.canvas.height / 2) / zoom;
     const tileX = Math.floor(worldX / 32);
     const tileY = Math.floor(worldY / 32);
     const tileKey = `${tileX},${tileY}`;
@@ -192,6 +233,7 @@ export class MapEditor {
 
     if (this.eraseMode || this.selectedBrush?.kind === "erase") {
       this.world.eraseAtTile(tileX, tileY);
+      this.saveLocal();
       return;
     }
 
@@ -201,16 +243,19 @@ export class MapEditor {
 
     if (this.selectedBrush.kind === "ground" && this.selectedBrush.tileType !== undefined) {
       this.world.setGroundOverride(tileX, tileY, this.selectedBrush.tileType);
+      this.saveLocal();
       return;
     }
 
     if (this.selectedBrush.kind === "road" && this.selectedBrush.roadVariant !== undefined) {
       this.world.setRoadVariant(tileX, tileY, this.selectedBrush.roadVariant);
+      this.saveLocal();
       return;
     }
 
     if (this.selectedBrush.kind === "object" && this.selectedBrush.objectType !== undefined) {
       this.world.placeEditorObject(tileX, tileY, this.selectedBrush.objectType, this.selectedBrush.objectVariant);
+      this.saveLocal();
     }
   }
 
@@ -235,6 +280,7 @@ export class MapEditor {
       const text = await file.text();
       const data = JSON.parse(text) as EditorMapData;
       this.world.importEditorLayer(data);
+      this.saveLocal();
     } catch (error) {
       console.error("Failed to import map json", error);
     } finally {
@@ -264,5 +310,6 @@ export class MapEditor {
 
   private clearAll(): void {
     this.world.clearEditorLayer();
+    this.saveLocal();
   }
 }

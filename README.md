@@ -116,6 +116,7 @@ Available npm scripts:
 ```bash
 npm run build
 npm run assets:generate
+npm run assets:import-local
 npm run world:generate
 npm start
 ```
@@ -126,6 +127,8 @@ Meaning:
   Bundles the client and server into `dist/`.
 - `npm run assets:generate`
   Generates or grows the sprite/tile archive using OpenAI image generation.
+- `npm run assets:import-local`
+  Imports local image files from `asset-drop/`, checks for visually similar existing assets, and appends only new variants.
 - `npm run world:generate`
   Generates a new macro world layout and supporting preview files.
 - `npm start`
@@ -211,6 +214,28 @@ Use:
 ```bash
 npm run assets:generate
 ```
+
+### 7.4 Import Local Images Into The Library
+
+If you want to add your own image files manually, do not copy them directly into `src/client/assets/generated/`.
+
+Instead, drop them into:
+
+- [asset-drop/README.txt](c:/Genel/99_Python/basedland/asset-drop/README.txt)
+
+Workflow:
+
+1. put image files into the matching folder under `asset-drop/`
+2. run `npm run build` or `npm run assets:import-local`
+3. the importer pixelates/resizes them into the runtime archive
+4. very similar images are skipped using a local perceptual hash check
+5. imported source files move into `asset-drop/_imported/...`
+6. similar skipped files move into `asset-drop/_similar/...`
+
+Important:
+
+- this importer works for supported known slugs only
+- imported object variants are now also visible in the map editor palette, not just stored on disk
 
 Required env:
 
