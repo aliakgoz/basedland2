@@ -159,7 +159,7 @@ export class Renderer {
         this.ctx.drawImage(sprite, screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
 
         const roadVariant = world.getRoadVariant(tileX, tileY);
-        const bridge = hasBridgeTile(tileX, tileY);
+        const bridge = world.hasBridgeAtTile(tileX, tileY);
         if (roadVariant !== null && !bridge) {
           this.drawRoadOverlay(screenX, screenY, scaledTileSize, roadVariant);
         }
@@ -168,20 +168,20 @@ export class Renderer {
           this.ctx.drawImage(this.assets.getBridgeSprite(roadVariant), screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
         }
 
-        this.drawFieldFence(tileX, tileY, screenX, screenY, scaledTileSize);
+        this.drawFieldFence(world, tileX, tileY, screenX, screenY, scaledTileSize);
       }
     }
   }
 
-  private drawFieldFence(tileX: number, tileY: number, screenX: number, screenY: number, scaledTileSize: number): void {
-    if (!isFieldTile(tileX, tileY)) {
+  private drawFieldFence(world: WorldState, tileX: number, tileY: number, screenX: number, screenY: number, scaledTileSize: number): void {
+    if (!world.hasFieldAtTile(tileX, tileY)) {
       return;
     }
 
-    const top = !isFieldTile(tileX, tileY - 1);
-    const bottom = !isFieldTile(tileX, tileY + 1);
-    const left = !isFieldTile(tileX - 1, tileY);
-    const right = !isFieldTile(tileX + 1, tileY);
+    const top = !world.hasFieldAtTile(tileX, tileY - 1);
+    const bottom = !world.hasFieldAtTile(tileX, tileY + 1);
+    const left = !world.hasFieldAtTile(tileX - 1, tileY);
+    const right = !world.hasFieldAtTile(tileX + 1, tileY);
     if (!top && !bottom && !left && !right) {
       return;
     }

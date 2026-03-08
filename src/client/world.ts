@@ -1,7 +1,7 @@
 import { TILE_SIZE, TileType, chunkKey, type StaticObject } from "../shared/protocol";
 import type { EditorMapData, EditorPatch } from "../shared/editor_map";
 import { getTileType } from "../shared/worldgen";
-import { getGeneratedRoadVariant } from "../shared/world-layout";
+import { getGeneratedRoadVariant, hasBridgeTile, isFieldTile } from "../shared/world-layout";
 import type { StaticProp } from "./entity";
 
 export class WorldState {
@@ -42,7 +42,14 @@ export class WorldState {
   }
 
   getRoadVariant(tileX: number, tileY: number): number | null {
-    return this.roadOverrides.get(this.tileKey(tileX, tileY)) ?? getGeneratedRoadVariant(tileX, tileY);
+    const key = this.tileKey(tileX, tileY);
+    if (this.roadOverrides.has(key)) {
+      return this.roadOverrides.get(key) ?? null;
+    }
+    if (this.hiddenBaseObjectTiles.has(key)) {
+      return null;
+    }
+    return getGeneratedRoadVariant(tileX, tileY);
   }
 
   setRoadVariant(tileX: number, tileY: number, variant: number | null): void {
@@ -69,14 +76,10 @@ export class WorldState {
 
   eraseAtTile(tileX: number, tileY: number): void {
     const key = this.tileKey(tileX, tileY);
-    this.groundOverrides.delete(key);
+    this.groundOverrides.set(key, TileType.Grass);
     this.roadOverrides.delete(key);
-    if (this.editorObjects.delete(key)) {
-      return;
-    }
-    if (this.hasBaseObjectAtTile(tileX, tileY)) {
-      this.hiddenBaseObjectTiles.add(key);
-    }
+    this.editorObjects.delete(key);
+    this.hiddenBaseObjectTiles.add(key);
   }
 
   clearEditorLayer(): void {
@@ -95,9 +98,11 @@ export class WorldState {
         this.eraseAtTile(patch.x, patch.y);
         break;
       case "ground":
+        this.hiddenBaseObjectTiles.add(this.tileKey(patch.x, patch.y));
         this.setGroundOverride(patch.x, patch.y, patch.tileType as TileType);
         break;
       case "road":
+        this.hiddenBaseObjectTiles.add(this.tileKey(patch.x, patch.y));
         this.setRoadVariant(patch.x, patch.y, patch.variant);
         break;
       case "object":
@@ -200,6 +205,14 @@ export class WorldState {
     }
 
     return objects;
+  }
+
+  hasBridgeAtTile(tileX: number, tileY: number): boolean {
+    return !this.hiddenBaseObjectTiles.has(this.tileKey(tileX, tileY)) && hasBridgeTile(tileX, tileY);
+  }
+
+  hasFieldAtTile(tileX: number, tileY: number): boolean {
+    return !this.hiddenBaseObjectTiles.has(this.tileKey(tileX, tileY)) && isFieldTile(tileX, tileY);
   }
 
   private getBaseObjectsAtTile(tileX: number, tileY: number): StaticProp[] {

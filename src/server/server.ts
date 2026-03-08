@@ -10,6 +10,7 @@ import {
   NETWORK_RATE,
   SIMULATION_RATE,
   TILE_SIZE,
+  TileType,
   WORLD_HEIGHT_TILES,
   WORLD_SEED,
   WORLD_WIDTH_TILES,
@@ -169,16 +170,17 @@ function applyPatchToEditorData(data: EditorMapData, patch: EditorPatch): Editor
       data.hiddenTiles = [];
       break;
     case "erase":
-      removeByTile(data.ground, patch.x, patch.y);
+      upsertByTile(data.ground, { x: patch.x, y: patch.y, type: TileType.Grass });
       removeByTile(data.roads, patch.x, patch.y);
-      if (!removeByTile(data.objects, patch.x, patch.y)) {
-        upsertByTile(data.hiddenTiles, { x: patch.x, y: patch.y });
-      }
+      removeByTile(data.objects, patch.x, patch.y);
+      upsertByTile(data.hiddenTiles, { x: patch.x, y: patch.y });
       break;
     case "ground":
+      upsertByTile(data.hiddenTiles, { x: patch.x, y: patch.y });
       upsertByTile(data.ground, { x: patch.x, y: patch.y, type: patch.tileType });
       break;
     case "road":
+      upsertByTile(data.hiddenTiles, { x: patch.x, y: patch.y });
       upsertByTile(data.roads, { x: patch.x, y: patch.y, variant: patch.variant });
       break;
     case "object":
