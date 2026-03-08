@@ -9,6 +9,9 @@ interface Hud {
   message: HTMLElement;
 }
 
+const PLAYER_RENDER_WIDTH = 64;
+const PLAYER_RENDER_HEIGHT = 80;
+
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -114,6 +117,7 @@ export class Renderer {
       cameraX,
       cameraY
     );
+    this.drawManualCameraMarker(cameraX, cameraY);
     this.drawVillageLabels(cameraX, cameraY);
     this.drawMinimap(localPlayer);
     this.drawWorldMap(localPlayer);
@@ -309,15 +313,47 @@ export class Renderer {
   }
 
   private drawPlayer(player: PlayerEntity, cameraX: number, cameraY: number): void {
-    const scaledWidth = 16 * this.zoom;
-    const scaledHeight = 20 * this.zoom;
+    const scaledWidth = PLAYER_RENDER_WIDTH * this.zoom;
+    const scaledHeight = PLAYER_RENDER_HEIGHT * this.zoom;
     const screenX = Math.floor((player.renderX - cameraX) * this.zoom + this.width / 2 - scaledWidth / 2);
     const bob = player.animation === 1 ? Math.sin(performance.now() / 90) * 1.5 : 0;
-    const screenY = Math.floor((player.renderY - cameraY) * this.zoom + this.height / 2 - scaledHeight / 2 + bob * this.zoom);
+    const screenY = Math.floor((player.renderY - cameraY) * this.zoom + this.height / 2 - scaledHeight * 0.72 + bob * this.zoom);
     const sprite = this.assets.getPlayerSprite(player.isLocal);
     this.ctx.drawImage(sprite, screenX, screenY, scaledWidth, scaledHeight);
     this.ctx.fillStyle = "rgba(0,0,0,0.25)";
     this.ctx.fillRect(screenX + 2 * this.zoom, screenY + scaledHeight, 12 * this.zoom, Math.max(2, 3 * this.zoom));
+  }
+
+  private drawManualCameraMarker(cameraX: number, cameraY: number): void {
+    if (this.manualCameraX === null || this.manualCameraY === null) {
+      return;
+    }
+
+    const screenX = Math.floor((this.manualCameraX - cameraX) * this.zoom + this.width / 2);
+    const screenY = Math.floor((this.manualCameraY - cameraY) * this.zoom + this.height / 2);
+    const radius = Math.max(10, Math.floor(14 * this.zoom));
+    const gap = Math.max(5, Math.floor(6 * this.zoom));
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "rgba(255, 231, 146, 0.95)";
+    this.ctx.lineWidth = Math.max(2, Math.floor(this.zoom * 2));
+    this.ctx.beginPath();
+    this.ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+    this.ctx.stroke();
+
+    this.ctx.strokeStyle = "rgba(80, 40, 14, 0.95)";
+    this.ctx.lineWidth = Math.max(1, Math.floor(this.zoom));
+    this.ctx.beginPath();
+    this.ctx.moveTo(screenX - radius - gap, screenY);
+    this.ctx.lineTo(screenX - gap, screenY);
+    this.ctx.moveTo(screenX + gap, screenY);
+    this.ctx.lineTo(screenX + radius + gap, screenY);
+    this.ctx.moveTo(screenX, screenY - radius - gap);
+    this.ctx.lineTo(screenX, screenY - gap);
+    this.ctx.moveTo(screenX, screenY + gap);
+    this.ctx.lineTo(screenX, screenY + radius + gap);
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 
   private drawVillageLabels(cameraX: number, cameraY: number): void {
@@ -414,6 +450,22 @@ export class Renderer {
     this.minimapCtx.fillRect(px - 2, py - 2, 5, 5);
     this.minimapCtx.strokeStyle = "rgba(255,255,255,0.8)";
     this.minimapCtx.strokeRect(Math.max(0, px - 3), Math.max(0, py - 3), 7, 7);
+
+    if (this.manualCameraX !== null && this.manualCameraY !== null) {
+      const markerX = Math.floor((this.manualCameraX / TILE_SIZE / WORLD_WIDTH_TILES) * this.minimapCanvas.width);
+      const markerY = Math.floor((this.manualCameraY / TILE_SIZE / WORLD_HEIGHT_TILES) * this.minimapCanvas.height);
+      this.minimapCtx.strokeStyle = "rgba(255, 225, 122, 0.95)";
+      this.minimapCtx.lineWidth = 2;
+      this.minimapCtx.beginPath();
+      this.minimapCtx.arc(markerX, markerY, 6, 0, Math.PI * 2);
+      this.minimapCtx.stroke();
+      this.minimapCtx.beginPath();
+      this.minimapCtx.moveTo(markerX - 8, markerY);
+      this.minimapCtx.lineTo(markerX + 8, markerY);
+      this.minimapCtx.moveTo(markerX, markerY - 8);
+      this.minimapCtx.lineTo(markerX, markerY + 8);
+      this.minimapCtx.stroke();
+    }
   }
 
   private drawWorldMap(localPlayer: PlayerEntity): void {
