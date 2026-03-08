@@ -12,7 +12,8 @@ export const INTERACTION_RANGE = 56;
 
 export const enum ClientOpcode {
   Input = 1,
-  Interact = 2
+  Interact = 2,
+  EditorPatch = 3
 }
 
 export const enum ServerOpcode {
@@ -22,7 +23,8 @@ export const enum ServerOpcode {
   PlayerLeave = 4,
   Snapshot = 5,
   Interaction = 6,
-  Stats = 7
+  Stats = 7,
+  EditorPatch = 8
 }
 
 export const enum InputFlag {

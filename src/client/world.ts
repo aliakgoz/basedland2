@@ -1,5 +1,5 @@
 import { TILE_SIZE, TileType, chunkKey, type StaticObject } from "../shared/protocol";
-import type { EditorMapData } from "../shared/editor_map";
+import type { EditorMapData, EditorPatch } from "../shared/editor_map";
 import { getTileType } from "../shared/worldgen";
 import { getGeneratedRoadVariant } from "../shared/world-layout";
 import type { StaticProp } from "./entity";
@@ -9,7 +9,7 @@ export class WorldState {
   private readonly groundOverrides = new Map<string, TileType>();
   private readonly roadOverrides = new Map<string, number>();
   private readonly editorObjects = new Map<string, StaticProp>();
-  private readonly hiddenObjectIds = new Set<number>();
+  private readonly hiddenBaseObjectTiles = new Set<string>();
 
   private tileKey(tileX: number, tileY: number): string {
     return `${tileX},${tileY}`;
@@ -56,9 +56,7 @@ export class WorldState {
 
   placeEditorObject(tileX: number, tileY: number, type: StaticProp["type"], variant?: number): void {
     const key = this.tileKey(tileX, tileY);
-    for (const object of this.getBaseObjectsAtTile(tileX, tileY)) {
-      this.hiddenObjectIds.add(object.id);
-    }
+    this.hiddenBaseObjectTiles.add(key);
     this.editorObjects.set(key, {
       id: -Math.abs(hashCode(key)),
       type,
@@ -76,8 +74,8 @@ export class WorldState {
     if (this.editorObjects.delete(key)) {
       return;
     }
-    for (const object of this.getBaseObjectsAtTile(tileX, tileY)) {
-      this.hiddenObjectIds.add(object.id);
+    if (this.hasBaseObjectAtTile(tileX, tileY)) {
+      this.hiddenBaseObjectTiles.add(key);
     }
   }
 
@@ -85,14 +83,39 @@ export class WorldState {
     this.groundOverrides.clear();
     this.roadOverrides.clear();
     this.editorObjects.clear();
-    this.hiddenObjectIds.clear();
+    this.hiddenBaseObjectTiles.clear();
+  }
+
+  applyEditorPatch(patch: EditorPatch): void {
+    switch (patch.kind) {
+      case "clear":
+        this.clearEditorLayer();
+        break;
+      case "erase":
+        this.eraseAtTile(patch.x, patch.y);
+        break;
+      case "ground":
+        this.setGroundOverride(patch.x, patch.y, patch.tileType as TileType);
+        break;
+      case "road":
+        this.setRoadVariant(patch.x, patch.y, patch.variant);
+        break;
+      case "object":
+        this.placeEditorObject(patch.x, patch.y, patch.objectType as StaticProp["type"], patch.variant);
+        break;
+    }
   }
 
   exportEditorLayer(): EditorMapData {
     const ground: EditorMapData["ground"] = [];
     const roads: EditorMapData["roads"] = [];
     const objects: EditorMapData["objects"] = [];
-    const hiddenObjects = [...this.hiddenObjectIds].sort((a, b) => a - b);
+    const hiddenTiles = [...this.hiddenBaseObjectTiles]
+      .map((key) => {
+        const [x, y] = key.split(",").map(Number);
+        return { x, y };
+      })
+      .sort((a, b) => (a.y - b.y) || (a.x - b.x));
 
     for (const [key, type] of this.groundOverrides) {
       const [x, y] = key.split(",").map(Number);
@@ -118,11 +141,11 @@ export class WorldState {
     objects.sort((a, b) => (a.y - b.y) || (a.x - b.x));
 
     return {
-      version: 2,
+      version: 3,
       ground,
       roads,
       objects,
-      hiddenObjects
+      hiddenTiles
     };
   }
 
@@ -141,8 +164,8 @@ export class WorldState {
       this.placeEditorObject(item.x, item.y, item.type as StaticProp["type"], item.variant);
     }
 
-    for (const id of data.hiddenObjects ?? []) {
-      this.hiddenObjectIds.add(id);
+    for (const item of data.hiddenTiles ?? []) {
+      this.hiddenBaseObjectTiles.add(this.tileKey(item.x, item.y));
     }
   }
 
@@ -151,7 +174,7 @@ export class WorldState {
     const objects: StaticProp[] = [];
     for (const chunk of this.chunkObjects.values()) {
       for (const object of chunk) {
-        if (this.hiddenObjectIds.has(object.id)) {
+        if (this.hiddenBaseObjectTiles.has(this.tileKeyFromWorldPosition(object.x, object.y))) {
           continue;
         }
         if (
@@ -188,7 +211,7 @@ export class WorldState {
 
     for (const chunk of this.chunkObjects.values()) {
       for (const object of chunk) {
-        if (this.hiddenObjectIds.has(object.id)) {
+        if (this.hiddenBaseObjectTiles.has(this.tileKeyFromWorldPosition(object.x, object.y))) {
           continue;
         }
         if (object.x >= minX && object.x < maxX && object.y >= minY && object.y < maxY) {
@@ -198,6 +221,14 @@ export class WorldState {
     }
 
     return matches;
+  }
+
+  private hasBaseObjectAtTile(tileX: number, tileY: number): boolean {
+    return this.getBaseObjectsAtTile(tileX, tileY).length > 0;
+  }
+
+  private tileKeyFromWorldPosition(worldX: number, worldY: number): string {
+    return this.tileKey(Math.floor(worldX / TILE_SIZE), Math.floor(worldY / TILE_SIZE));
   }
 }
 

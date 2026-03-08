@@ -1,5 +1,5 @@
 import type { AssetArchiveEntry, AssetArchiveGroup, AssetManager } from "./assets";
-import { EMPTY_EDITOR_MAP, type EditorMapData, type PersistedEditorMap } from "../shared/editor_map";
+import { EMPTY_EDITOR_MAP, type EditorMapData, type EditorPatch, type PersistedEditorMap } from "../shared/editor_map";
 import type { PlayerEntity } from "./entity";
 import { Renderer } from "./renderer";
 import { WorldState } from "./world";
@@ -56,7 +56,8 @@ export class MapEditor {
     private readonly world: WorldState,
     private readonly renderer: Renderer,
     private readonly canvas: HTMLCanvasElement,
-    private readonly getLocalPlayer: () => PlayerEntity | null
+    private readonly getLocalPlayer: () => PlayerEntity | null,
+    private readonly sendPatch: (patch: EditorPatch) => void
   ) {
     const toggleButton = document.querySelector<HTMLButtonElement>("#editor-toggle");
     const dock = document.querySelector<HTMLElement>("#editor-dock");
@@ -253,7 +254,9 @@ export class MapEditor {
     this.lastPaintedTile = tileKey;
 
     if (this.eraseMode || this.selectedBrush?.kind === "erase") {
-      this.world.eraseAtTile(tileX, tileY);
+      const patch = { kind: "erase", x: tileX, y: tileY } as const;
+      this.world.applyEditorPatch(patch);
+      this.sendPatch(patch);
       this.persistEditorState();
       return;
     }
@@ -263,19 +266,31 @@ export class MapEditor {
     }
 
     if (this.selectedBrush.kind === "ground" && this.selectedBrush.tileType !== undefined) {
-      this.world.setGroundOverride(tileX, tileY, this.selectedBrush.tileType);
+      const patch = { kind: "ground", x: tileX, y: tileY, tileType: this.selectedBrush.tileType } as const;
+      this.world.applyEditorPatch(patch);
+      this.sendPatch(patch);
       this.persistEditorState();
       return;
     }
 
     if (this.selectedBrush.kind === "road" && this.selectedBrush.roadVariant !== undefined) {
-      this.world.setRoadVariant(tileX, tileY, this.selectedBrush.roadVariant);
+      const patch = { kind: "road", x: tileX, y: tileY, variant: this.selectedBrush.roadVariant } as const;
+      this.world.applyEditorPatch(patch);
+      this.sendPatch(patch);
       this.persistEditorState();
       return;
     }
 
     if (this.selectedBrush.kind === "object" && this.selectedBrush.objectType !== undefined) {
-      this.world.placeEditorObject(tileX, tileY, this.selectedBrush.objectType, this.selectedBrush.objectVariant);
+      const patch = {
+        kind: "object",
+        x: tileX,
+        y: tileY,
+        objectType: this.selectedBrush.objectType,
+        variant: this.selectedBrush.objectVariant
+      } as const;
+      this.world.applyEditorPatch(patch);
+      this.sendPatch(patch);
       this.persistEditorState();
     }
   }
@@ -301,6 +316,7 @@ export class MapEditor {
       const text = await file.text();
       const data = JSON.parse(text) as EditorMapData;
       this.world.importEditorLayer(data);
+      this.broadcastCurrentState();
       this.persistEditorState();
       void this.flushRemoteSave(true);
       this.renderer.setMessage("Backup JSON restored.");
@@ -333,9 +349,38 @@ export class MapEditor {
   }
 
   private clearAll(): void {
-    this.world.clearEditorLayer();
+    const patch = { kind: "clear" } as const;
+    this.world.applyEditorPatch(patch);
+    this.sendPatch(patch);
     this.persistEditorState();
     void this.flushRemoteSave(true);
+  }
+
+  private broadcastCurrentState(): void {
+    const data = this.world.exportEditorLayer();
+    this.sendPatch({ kind: "clear" });
+
+    for (const item of data.ground) {
+      this.sendPatch({ kind: "ground", x: item.x, y: item.y, tileType: item.type });
+    }
+
+    for (const item of data.roads) {
+      this.sendPatch({ kind: "road", x: item.x, y: item.y, variant: item.variant });
+    }
+
+    for (const item of data.hiddenTiles) {
+      this.sendPatch({ kind: "erase", x: item.x, y: item.y });
+    }
+
+    for (const item of data.objects) {
+      this.sendPatch({
+        kind: "object",
+        x: item.x,
+        y: item.y,
+        objectType: item.type,
+        variant: item.variant
+      });
+    }
   }
 
   private persistEditorState(): void {

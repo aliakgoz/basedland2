@@ -20,7 +20,7 @@ const renderer = new Renderer(canvas, { online, message }, assets);
 const input = new InputController();
 const world = new WorldState();
 const network = new NetworkClient();
-const editor = new MapEditor(assets, world, renderer, canvas, () => network.localPlayer);
+const editor = new MapEditor(assets, world, renderer, canvas, () => network.localPlayer, (patch) => network.sendEditorPatch(patch));
 
 renderer.setMessage("Loading pixel assets...");
 assets.loadGeneratedOverrides().then(() => {

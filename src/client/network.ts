@@ -1,5 +1,6 @@
 import {
   AnimationState,
+  ClientOpcode,
   Direction,
   InputFlag,
   ObjectType,
@@ -8,6 +9,7 @@ import {
   SnapshotFlag,
   TILE_SIZE
 } from "../shared/protocol";
+import type { EditorPatch } from "../shared/editor_map";
 import { getTileType, isWalkableTile } from "../shared/worldgen";
 import type { PlayerEntity } from "./entity";
 import { createPlayerEntity } from "./entity";
@@ -90,6 +92,69 @@ function stepLocalMask(x: number, y: number, mask: number, dt: number): { x: num
   return { x: nextX, y: nextY, dir };
 }
 
+function encodeEditorPatch(patch: EditorPatch): ArrayBuffer {
+  const buffer = new ArrayBuffer(8);
+  const view = new DataView(buffer);
+  view.setUint8(0, ClientOpcode.EditorPatch);
+  switch (patch.kind) {
+    case "erase":
+      view.setUint8(1, 0);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      break;
+    case "ground":
+      view.setUint8(1, 1);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      view.setUint8(6, patch.tileType);
+      break;
+    case "road":
+      view.setUint8(1, 2);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      view.setUint8(6, patch.variant);
+      break;
+    case "object":
+      view.setUint8(1, 3);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      view.setUint8(6, patch.objectType);
+      view.setUint8(7, patch.variant ?? 255);
+      break;
+    case "clear":
+      view.setUint8(1, 4);
+      break;
+  }
+  return buffer;
+}
+
+function parseEditorPatch(view: DataView, opcode: number): EditorPatch | null {
+  if (opcode !== ServerOpcode.EditorPatch || view.byteLength < 8) {
+    return null;
+  }
+
+  const kind = view.getUint8(1);
+  const x = view.getUint16(2, true);
+  const y = view.getUint16(4, true);
+  const a = view.getUint8(6);
+  const b = view.getUint8(7);
+
+  switch (kind) {
+    case 0:
+      return { kind: "erase", x, y };
+    case 1:
+      return { kind: "ground", x, y, tileType: a };
+    case 2:
+      return { kind: "road", x, y, variant: a };
+    case 3:
+      return { kind: "object", x, y, objectType: a, variant: b === 255 ? undefined : b };
+    case 4:
+      return { kind: "clear" };
+    default:
+      return null;
+  }
+}
+
 export class NetworkClient {
   socket: WebSocket | null = null;
   playerId = 0;
@@ -159,6 +224,14 @@ export class NetworkClient {
     this.socket.send(buffer);
   }
 
+  sendEditorPatch(patch: EditorPatch): void {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    this.socket.send(encodeEditorPatch(patch));
+  }
+
   private handlePacket(data: ArrayBuffer, world: WorldState): void {
     const view = new DataView(data);
     const opcode = view.getUint8(0);
@@ -186,6 +259,13 @@ export class NetworkClient {
         this.onlineCount = view.getUint16(1, true);
         this.onOnline(this.onlineCount);
         break;
+      case ServerOpcode.EditorPatch: {
+        const patch = parseEditorPatch(view, opcode);
+        if (patch) {
+          world.applyEditorPatch(patch);
+        }
+        break;
+      }
       default:
         break;
     }

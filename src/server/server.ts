@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import { readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer } from "ws";
-import { EMPTY_EDITOR_MAP, type EditorMapData } from "../shared/editor_map";
+import { EMPTY_EDITOR_MAP, type EditorMapData, type EditorPatch, type PersistedEditorMap } from "../shared/editor_map";
 import {
   CHUNK_RADIUS,
   CHUNK_SIZE_TILES,
@@ -19,6 +19,7 @@ import { ChunkManager } from "./chunk_manager";
 import { EntitySystem } from "./entity_system";
 import {
   encodeChunkData,
+  encodeEditorPatch,
   encodeInteraction,
   encodePlayerEnter,
   encodePlayerLeave,
@@ -26,6 +27,7 @@ import {
   encodeStats,
   encodeWelcome,
   isInteractPacket,
+  parseEditorPatchPacket,
   parseInputPacket
 } from "./network";
 import { loadEditorMap, saveEditorMap } from "./map_store";
@@ -60,20 +62,26 @@ const httpServer = createServer(async (req, res) => {
   const pathname = req.url === "/" ? "/index.html" : req.url ?? "/index.html";
 
   if (pathname.startsWith("/api/editor-map")) {
+    await editorMapReady;
     if (req.method === "GET") {
-      const persisted = await loadEditorMap();
       res.writeHead(200, {
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store"
       });
-      res.end(`${JSON.stringify(persisted)}\n`);
+      res.end(`${JSON.stringify(liveEditorMap)}\n`);
       return;
     }
 
     if (req.method === "PUT" || req.method === "POST") {
       try {
         const payload = await readJsonBody<{ data?: EditorMapData }>(req);
-        const next = await saveEditorMap(payload.data ?? EMPTY_EDITOR_MAP);
+        const nextData: EditorMapData = {
+          ...EMPTY_EDITOR_MAP,
+          ...(payload.data ?? EMPTY_EDITOR_MAP),
+          hiddenTiles: payload.data?.hiddenTiles ?? []
+        };
+        const next = await saveEditorMap(nextData);
+        liveEditorMap = next;
         res.writeHead(200, {
           "Content-Type": "application/json; charset=utf-8",
           "Cache-Control": "no-store"
@@ -115,8 +123,91 @@ const wss = new WebSocketServer({ server: httpServer });
 const chunkManager = new ChunkManager();
 const entitySystem = new EntitySystem();
 const playerManager = new PlayerManager(chunkManager);
+let liveEditorMap: PersistedEditorMap = {
+  revision: 0,
+  updatedAt: new Date(0).toISOString(),
+  data: EMPTY_EDITOR_MAP
+};
+const editorMapReady = loadEditorMap().then((persisted) => {
+  liveEditorMap = persisted;
+});
+let editorMapSaveTimer: NodeJS.Timeout | null = null;
 
 let serverTick = 0;
+
+function upsertByTile<T extends { x: number; y: number }>(items: T[], next: T): void {
+  const index = items.findIndex((item) => item.x === next.x && item.y === next.y);
+  if (index >= 0) {
+    items[index] = next;
+  } else {
+    items.push(next);
+  }
+}
+
+function removeByTile<T extends { x: number; y: number }>(items: T[], x: number, y: number): boolean {
+  const index = items.findIndex((item) => item.x === x && item.y === y);
+  if (index >= 0) {
+    items.splice(index, 1);
+    return true;
+  }
+  return false;
+}
+
+function sortEditorData(data: EditorMapData): void {
+  data.ground.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  data.roads.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  data.objects.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  data.hiddenTiles.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+}
+
+function applyPatchToEditorData(data: EditorMapData, patch: EditorPatch): EditorMapData {
+  switch (patch.kind) {
+    case "clear":
+      data.ground = [];
+      data.roads = [];
+      data.objects = [];
+      data.hiddenTiles = [];
+      break;
+    case "erase":
+      removeByTile(data.ground, patch.x, patch.y);
+      removeByTile(data.roads, patch.x, patch.y);
+      if (!removeByTile(data.objects, patch.x, patch.y)) {
+        upsertByTile(data.hiddenTiles, { x: patch.x, y: patch.y });
+      }
+      break;
+    case "ground":
+      upsertByTile(data.ground, { x: patch.x, y: patch.y, type: patch.tileType });
+      break;
+    case "road":
+      upsertByTile(data.roads, { x: patch.x, y: patch.y, variant: patch.variant });
+      break;
+    case "object":
+      upsertByTile(data.hiddenTiles, { x: patch.x, y: patch.y });
+      upsertByTile(data.objects, { x: patch.x, y: patch.y, type: patch.objectType, variant: patch.variant });
+      break;
+  }
+
+  sortEditorData(data);
+  return data;
+}
+
+function touchLiveEditorMap(patch: EditorPatch): void {
+  liveEditorMap = {
+    revision: liveEditorMap.revision + 1,
+    updatedAt: new Date().toISOString(),
+    data: applyPatchToEditorData(liveEditorMap.data, patch)
+  };
+}
+
+function queueEditorMapSave(): void {
+  if (editorMapSaveTimer) {
+    clearTimeout(editorMapSaveTimer);
+  }
+  editorMapSaveTimer = setTimeout(async () => {
+    editorMapSaveTimer = null;
+    liveEditorMap = await saveEditorMap(liveEditorMap.data);
+  }, 400);
+}
 
 function sendVisibleChunks(player: ServerPlayer, keys: ChunkKey[]): void {
   if (keys.length === 0) {
@@ -200,7 +291,7 @@ wss.on("connection", (socket) => {
 
   refreshVisibility(player);
 
-  socket.on("message", (raw) => {
+  socket.on("message", async (raw) => {
     const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
     const input = parseInputPacket(buffer);
     if (input) {
@@ -226,6 +317,20 @@ wss.on("connection", (socket) => {
 
       const interaction = entitySystem.describeObjectInteraction(object.type);
       socket.send(encodeInteraction(object.id, object.type, interaction.action));
+      return;
+    }
+
+    const patch = parseEditorPatchPacket(buffer);
+    if (patch) {
+      await editorMapReady;
+      touchLiveEditorMap(patch);
+      queueEditorMapSave();
+      const packet = encodeEditorPatch(patch);
+      for (const client of wss.clients) {
+        if (client.readyState === 1) {
+          client.send(packet);
+        }
+      }
     }
   });
 

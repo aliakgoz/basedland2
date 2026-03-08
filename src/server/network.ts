@@ -1,4 +1,5 @@
-import { AnimationState, Direction, ServerOpcode, SnapshotFlag, type ChunkKey, type StaticObject } from "../shared/protocol";
+import { type EditorPatch } from "../shared/editor_map";
+import { AnimationState, ClientOpcode, Direction, ServerOpcode, SnapshotFlag, type ChunkKey, type StaticObject } from "../shared/protocol";
 import type { ServerPlayer } from "./player_manager";
 
 function writeUint16(view: DataView, offset: number, value: number): number {
@@ -24,6 +25,71 @@ export function parseInputPacket(buffer: Buffer): { seq: number; mask: number } 
 
 export function isInteractPacket(buffer: Buffer): boolean {
   return buffer.length >= 1 && buffer.readUInt8(0) === 2;
+}
+
+export function parseEditorPatchPacket(buffer: Buffer): EditorPatch | null {
+  if (buffer.length < 8 || buffer.readUInt8(0) !== ClientOpcode.EditorPatch) {
+    return null;
+  }
+
+  const kind = buffer.readUInt8(1);
+  const x = buffer.readUInt16LE(2);
+  const y = buffer.readUInt16LE(4);
+  const a = buffer.readUInt8(6);
+  const b = buffer.readUInt8(7);
+
+  switch (kind) {
+    case 0:
+      return { kind: "erase", x, y };
+    case 1:
+      return { kind: "ground", x, y, tileType: a };
+    case 2:
+      return { kind: "road", x, y, variant: a };
+    case 3:
+      return { kind: "object", x, y, objectType: a, variant: b === 255 ? undefined : b };
+    case 4:
+      return { kind: "clear" };
+    default:
+      return null;
+  }
+}
+
+export function encodeEditorPatch(patch: EditorPatch): ArrayBuffer {
+  const buffer = new ArrayBuffer(8);
+  const view = new DataView(buffer);
+  view.setUint8(0, ServerOpcode.EditorPatch);
+
+  switch (patch.kind) {
+    case "erase":
+      view.setUint8(1, 0);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      break;
+    case "ground":
+      view.setUint8(1, 1);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      view.setUint8(6, patch.tileType);
+      break;
+    case "road":
+      view.setUint8(1, 2);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      view.setUint8(6, patch.variant);
+      break;
+    case "object":
+      view.setUint8(1, 3);
+      view.setUint16(2, patch.x, true);
+      view.setUint16(4, patch.y, true);
+      view.setUint8(6, patch.objectType);
+      view.setUint8(7, patch.variant ?? 255);
+      break;
+    case "clear":
+      view.setUint8(1, 4);
+      break;
+  }
+
+  return buffer;
 }
 
 export function encodeWelcome(options: {
