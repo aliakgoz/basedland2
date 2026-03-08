@@ -240,6 +240,22 @@
         flex-wrap: wrap;
       }
 
+      .editor-brushes {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        padding: 4px 6px;
+        border: 1px solid rgba(173, 194, 147, 0.2);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .editor-brush-label {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
       .editor-action {
         border: 1px solid rgba(173, 194, 147, 0.2);
         background: rgba(255, 255, 255, 0.04);
@@ -247,6 +263,16 @@
         padding: 6px 10px;
         font-size: 12px;
         cursor: pointer;
+      }
+
+      .editor-brush {
+        min-width: 42px;
+        text-align: center;
+      }
+
+      .editor-brush.active {
+        border-color: rgba(217, 169, 75, 0.9);
+        box-shadow: 0 0 0 1px rgba(217, 169, 75, 0.5);
       }
 
       .editor-item {
@@ -310,6 +336,13 @@
       <div id="message" class="panel">Connecting...</div>
       <div id="editor-dock" class="panel interactive">
         <div class="editor-tools">
+          <div class="editor-brushes">
+            <span class="editor-brush-label">Brush</span>
+            <button id="editor-brush-1" class="editor-action editor-brush" type="button">1x1</button>
+            <button id="editor-brush-2" class="editor-action editor-brush" type="button">2x2</button>
+            <button id="editor-brush-4" class="editor-action editor-brush" type="button">4x4</button>
+            <button id="editor-brush-8" class="editor-action editor-brush" type="button">8x8</button>
+          </div>
           <button id="editor-save-online" class="editor-action" type="button">Save Online</button>
           <button id="editor-load-online" class="editor-action" type="button">Load Online</button>
           <button id="editor-export" class="editor-action" type="button">Backup JSON</button>

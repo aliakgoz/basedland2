@@ -30,9 +30,11 @@ function makeThumb(source: CanvasImageSource): HTMLCanvasElement {
 }
 
 export class MapEditor {
+  private static readonly BRUSH_SIZES = [1, 2, 4, 8] as const;
   private enabled = false;
   private activeGroupId = "ground";
   private selectedBrush: AssetArchiveEntry | null = null;
+  private brushSize = 1;
   private painting = false;
   private eraseMode = false;
   private lastPaintedTile = "";
@@ -47,6 +49,7 @@ export class MapEditor {
   private readonly saveLocalButton: HTMLButtonElement;
   private readonly loadLocalButton: HTMLButtonElement;
   private readonly clearButton: HTMLButtonElement;
+  private readonly brushButtons = new Map<number, HTMLButtonElement>();
   private remoteRevision = 0;
   private saveTimer: number | null = null;
   private saveInFlight = false;
@@ -70,6 +73,13 @@ export class MapEditor {
     const saveLocalButton = document.querySelector<HTMLButtonElement>("#editor-save-local");
     const loadLocalButton = document.querySelector<HTMLButtonElement>("#editor-load-local");
     const clearButton = document.querySelector<HTMLButtonElement>("#editor-clear");
+    for (const size of MapEditor.BRUSH_SIZES) {
+      const button = document.querySelector<HTMLButtonElement>(`#editor-brush-${size}`);
+      if (!button) {
+        throw new Error(`Map editor brush ${size}x${size} missing`);
+      }
+      this.brushButtons.set(size, button);
+    }
     if (!toggleButton || !dock || !groups || !exportButton || !saveOnlineButton || !loadOnlineButton || !importButton || !importInput || !saveLocalButton || !loadLocalButton || !clearButton) {
       throw new Error("Map editor UI missing");
     }
@@ -109,6 +119,12 @@ export class MapEditor {
 
   private bindUI(): void {
     this.toggleButton.addEventListener("click", () => this.setEnabled(!this.enabled));
+    for (const [size, button] of this.brushButtons) {
+      button.addEventListener("click", () => {
+        this.brushSize = size;
+        this.syncBrushButtons();
+      });
+    }
     this.exportButton.addEventListener("click", () => this.exportJson());
     this.saveOnlineButton.addEventListener("click", () => void this.flushRemoteSave(true));
     this.loadOnlineButton.addEventListener("click", () => void this.loadOnline(true));
@@ -150,6 +166,8 @@ export class MapEditor {
       this.painting = false;
       this.lastPaintedTile = "";
     });
+
+    this.syncBrushButtons();
   }
 
   private setEnabled(next: boolean): void {
@@ -232,8 +250,7 @@ export class MapEditor {
   }
 
   private applyAtPointer(clientX: number, clientY: number): void {
-    const localPlayer = this.getLocalPlayer();
-    if (!localPlayer) {
+    if (!this.getLocalPlayer()) {
       return;
     }
 
@@ -246,52 +263,72 @@ export class MapEditor {
     const worldY = viewCenter.y + (screenY - this.canvas.height / 2) / zoom;
     const tileX = Math.floor(worldX / 32);
     const tileY = Math.floor(worldY / 32);
-    const tileKey = `${tileX},${tileY}`;
+    const tileKey = `${tileX},${tileY},${this.brushSize},${this.eraseMode ? "erase" : this.selectedBrush?.id ?? "none"}`;
 
     if (tileKey === this.lastPaintedTile) {
       return;
     }
     this.lastPaintedTile = tileKey;
 
-    if (this.eraseMode || this.selectedBrush?.kind === "erase") {
-      const patch = { kind: "erase", x: tileX, y: tileY } as const;
+    const patches: EditorPatch[] = [];
+    const startX = tileX;
+    const startY = tileY;
+
+    for (let offsetY = 0; offsetY < this.brushSize; offsetY += 1) {
+      for (let offsetX = 0; offsetX < this.brushSize; offsetX += 1) {
+        const currentX = startX + offsetX;
+        const currentY = startY + offsetY;
+        const patch = this.buildPatchForTile(currentX, currentY);
+        if (patch) {
+          patches.push(patch);
+        }
+      }
+    }
+
+    if (patches.length === 0) {
+      return;
+    }
+
+    for (const patch of patches) {
       this.world.applyEditorPatch(patch);
       this.sendPatch(patch);
-      this.persistEditorState();
-      return;
+    }
+    this.persistEditorState();
+  }
+
+  private buildPatchForTile(tileX: number, tileY: number): EditorPatch | null {
+    if (this.eraseMode || this.selectedBrush?.kind === "erase") {
+      return { kind: "erase", x: tileX, y: tileY };
     }
 
     if (!this.selectedBrush) {
-      return;
+      return null;
     }
 
     if (this.selectedBrush.kind === "ground" && this.selectedBrush.tileType !== undefined) {
-      const patch = { kind: "ground", x: tileX, y: tileY, tileType: this.selectedBrush.tileType } as const;
-      this.world.applyEditorPatch(patch);
-      this.sendPatch(patch);
-      this.persistEditorState();
-      return;
+      return { kind: "ground", x: tileX, y: tileY, tileType: this.selectedBrush.tileType };
     }
 
     if (this.selectedBrush.kind === "road" && this.selectedBrush.roadVariant !== undefined) {
-      const patch = { kind: "road", x: tileX, y: tileY, variant: this.selectedBrush.roadVariant } as const;
-      this.world.applyEditorPatch(patch);
-      this.sendPatch(patch);
-      this.persistEditorState();
-      return;
+      return { kind: "road", x: tileX, y: tileY, variant: this.selectedBrush.roadVariant };
     }
 
     if (this.selectedBrush.kind === "object" && this.selectedBrush.objectType !== undefined) {
-      const patch = {
+      return {
         kind: "object",
         x: tileX,
         y: tileY,
         objectType: this.selectedBrush.objectType,
         variant: this.selectedBrush.objectVariant
-      } as const;
-      this.world.applyEditorPatch(patch);
-      this.sendPatch(patch);
-      this.persistEditorState();
+      };
+    }
+
+    return null;
+  }
+
+  private syncBrushButtons(): void {
+    for (const [size, button] of this.brushButtons) {
+      button.classList.toggle("active", size === this.brushSize);
     }
   }
 
