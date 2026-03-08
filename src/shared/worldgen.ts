@@ -92,6 +92,7 @@ function requiresRoadAccess(type: ObjectType): boolean {
     case ObjectType.Horse:
     case ObjectType.Dog:
     case ObjectType.Cat:
+    case ObjectType.SparkMouse:
       return false;
     default:
       return true;
@@ -462,6 +463,8 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       } else if (housing) {
         if (nearRoad && roll > 0.986 && roll < 0.992) {
           type = ObjectType.Crate;
+        } else if (!nearRoad && roll > 0.9952 && roll < 0.9964) {
+          type = ObjectType.SparkMouse;
         } else if (nearRoad && roll > 0.992 && roll < 0.996) {
           type = ObjectType.Sign;
         } else if (roll > 0.996 && roll < 0.9985) {
@@ -474,12 +477,16 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
           type = ObjectType.Tree;
         } else if (roll > 0.995 && roll < 0.9975) {
           type = ObjectType.Chest;
+        } else if (roll > 0.9975 && roll < 0.9983) {
+          type = ObjectType.SparkMouse;
         }
       } else if (biome === MacroBiome.Plains) {
         if (!nearRoad && cluster > 0.58 && roll < 0.04) {
           type = ObjectType.GrassTuft;
         } else if (nearRoad && roll > 0.996) {
           type = ObjectType.Sign;
+        } else if (!nearRoad && cluster > 0.5 && roll > 0.9988) {
+          type = ObjectType.SparkMouse;
         }
       }
 
@@ -590,6 +597,8 @@ export function describeInteraction(type: ObjectType): { action: number; text: s
       return { action: 11, text: "The dog circles your boots happily." };
     case ObjectType.Cat:
       return { action: 12, text: "The cat watches you with royal judgment." };
+    case ObjectType.SparkMouse:
+      return { action: 23, text: "The little spark beast crackles and darts away." };
     default:
       return { action: 0, text: "Nothing interesting happens." };
   }

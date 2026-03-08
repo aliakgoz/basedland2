@@ -63,7 +63,8 @@ export const enum ObjectType {
   Chapel = 19,
   Market = 20,
   Manor = 21,
-  TownHall = 22
+  TownHall = 22,
+  SparkMouse = 23
 }
 
 export const enum Direction {

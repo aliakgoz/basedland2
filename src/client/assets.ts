@@ -700,6 +700,29 @@ function makeCatSprite(): HTMLCanvasElement {
   return canvas;
 }
 
+function makeSparkMouseSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+  const s = 2;
+  drawRectPx(ctx, 6, 8, 5, 4, s, "#f0d445");
+  drawRectPx(ctx, 7, 7, 4, 1, s, "#f6e275");
+  drawRectPx(ctx, 6, 6, 1, 2, s, "#202020");
+  drawRectPx(ctx, 10, 6, 1, 2, s, "#202020");
+  drawRectPx(ctx, 7, 8, 1, 1, s, "#1b1b1b");
+  drawRectPx(ctx, 9, 8, 1, 1, s, "#1b1b1b");
+  paintPixel(ctx, 7, 9, s, "#d64537");
+  paintPixel(ctx, 9, 9, s, "#d64537");
+  drawRectPx(ctx, 5, 9, 1, 3, s, "#f0d445");
+  drawRectPx(ctx, 11, 9, 1, 2, s, "#f0d445");
+  drawRectPx(ctx, 11, 11, 2, 1, s, "#7f4a25");
+  drawRectPx(ctx, 13, 11, 1, 1, s, "#f0d445");
+  drawRectPx(ctx, 14, 10, 1, 1, s, "#7f4a25");
+  return canvas;
+}
+
 function makeGrassTuftSprite(): HTMLCanvasElement {
   const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
   const ctx = canvas.getContext("2d");
@@ -780,6 +803,8 @@ function makeFallbackObjectSprite(type: ObjectType): HTMLCanvasElement {
       return makeDogSprite();
     case ObjectType.Cat:
       return makeCatSprite();
+    case ObjectType.SparkMouse:
+      return makeSparkMouseSprite();
     default:
       return makeStoneSprite();
   }
@@ -833,6 +858,8 @@ function objectSlug(type: ObjectType): string {
       return "dog";
     case ObjectType.Cat:
       return "cat";
+    case ObjectType.SparkMouse:
+      return "sparkmouse";
     default:
       return "stone";
   }
@@ -903,6 +930,8 @@ export function sizeForObject(type: ObjectType): { width: number; height: number
       return { width: TILE_SIZE * 0.8, height: TILE_SIZE * 0.7 };
     case ObjectType.Cat:
       return { width: TILE_SIZE * 0.7, height: TILE_SIZE * 0.65 };
+    case ObjectType.SparkMouse:
+      return { width: TILE_SIZE * 0.9, height: TILE_SIZE * 0.85 };
     case ObjectType.Well:
     case ObjectType.Ruins:
       return { width: TILE_SIZE * 1.75, height: TILE_SIZE * 1.75 };
@@ -955,7 +984,8 @@ export class AssetManager {
       ObjectType.Sheep,
       ObjectType.GrassTuft,
       ObjectType.Dog,
-      ObjectType.Cat
+      ObjectType.Cat,
+      ObjectType.SparkMouse
     ]) {
       this.objectSprites.set(type, makeFallbackObjectSprite(type));
     }
@@ -1172,6 +1202,7 @@ export class AssetManager {
       { id: "prop-sheep", label: "Sheep", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Sheep), objectType: ObjectType.Sheep },
       { id: "prop-dog", label: "Dog", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Dog), objectType: ObjectType.Dog },
       { id: "prop-cat", label: "Cat", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Cat), objectType: ObjectType.Cat },
+      { id: "prop-sparkmouse", label: "Spark", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.SparkMouse), objectType: ObjectType.SparkMouse },
       { id: "prop-stone", label: "Stone", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Stone), objectType: ObjectType.Stone },
       { id: "prop-crate", label: "Crate", group: "props", kind: "object", preview: this.getObjectSprite(ObjectType.Crate), objectType: ObjectType.Crate }
     ];

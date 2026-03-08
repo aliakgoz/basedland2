@@ -45,7 +45,8 @@ function interactionText(objectType: ObjectType, action: number): string {
     19: "The chapel is quiet and cool.",
     20: "Stalls are stacked with bread, apples, and cloth.",
     21: "The manor keeps its curtains drawn.",
-    22: "Village notices are pinned to the hall door."
+    22: "Village notices are pinned to the hall door.",
+    23: "The little spark beast crackles and darts away."
   };
   return map[action] ?? `You inspect object ${objectType}.`;
 }

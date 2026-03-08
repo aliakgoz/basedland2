@@ -227,6 +227,12 @@ const objectEntries = [
     prompt: "Top-down cozy pixel-art cat sprite, isolated, transparent background, nostalgic MMO style. Very small creature scale."
   },
   {
+    slug: "sparkmouse",
+    logicalWidth: 24,
+    logicalHeight: 22,
+    prompt: "Top-down cozy pixel-art tiny yellow electric mouse creature sprite, isolated, transparent background, nostalgic MMO style. Bright ears, red cheeks, lightning tail, very small animal scale."
+  },
+  {
     slug: "grass-tuft",
     logicalWidth: 24,
     logicalHeight: 24,
