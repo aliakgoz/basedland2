@@ -345,6 +345,20 @@ export class Renderer {
     const now = performance.now();
     const bob = player.animation === 1 ? Math.sin(now / 120) * 0.35 : 0;
     const screenY = Math.floor((player.renderY - cameraY) * this.zoom + this.height / 2 - scaledHeight * PLAYER_FEET_ANCHOR + bob * this.zoom);
+    if (player.mountedHorseVariant !== null) {
+      const horseWidth = scaledWidth * 1.55;
+      const horseHeight = scaledHeight * 1.18;
+      const horseX = Math.floor((player.renderX - cameraX) * this.zoom + this.width / 2 - horseWidth / 2);
+      const horseY = Math.floor((player.renderY - cameraY) * this.zoom + this.height / 2 - horseHeight * 0.88 + bob * this.zoom);
+      const horseSprite = this.assets.getMountedHorseFrame(player.mountedHorseVariant, player.dir, player.animation, now);
+      this.ctx.drawImage(horseSprite, horseX, horseY, horseWidth, horseHeight);
+      const riderSprite = this.assets.getPlayerFrame(player, now);
+      this.ctx.drawImage(riderSprite, screenX, screenY - 14 * this.zoom, scaledWidth, scaledHeight);
+      this.ctx.fillStyle = "rgba(0,0,0,0.22)";
+      this.ctx.fillRect(horseX + 18 * this.zoom, horseY + horseHeight * 0.9, horseWidth - 36 * this.zoom, Math.max(3, 4 * this.zoom));
+      return;
+    }
+
     const sprite = this.assets.getPlayerFrame(player, now);
     this.ctx.drawImage(sprite, screenX, screenY, scaledWidth, scaledHeight);
     this.ctx.fillStyle = "rgba(0,0,0,0.25)";

@@ -1,4 +1,4 @@
-import { AnimationState, Direction, InputFlag, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
+import { AnimationState, Direction, InputFlag, MOUNT_SPEED_MULTIPLIER, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { pruneExpiredOverheadMessages } from "./entity";
@@ -104,6 +104,10 @@ function applyLocalMovement(dt: number): void {
     return;
   }
 
+  if (input.consumeMountToggle()) {
+    network.sendToggleMount();
+  }
+
   const mask = input.getMask();
   let dx = 0;
   let dy = 0;
@@ -151,8 +155,9 @@ function applyLocalMovement(dt: number): void {
     dy *= Math.SQRT1_2;
   }
 
-  const nextX = player.x + dx * PLAYER_SPEED * dt;
-  const nextY = player.y + dy * PLAYER_SPEED * dt;
+  const speed = PLAYER_SPEED * (player.mountedHorseVariant === null ? 1 : MOUNT_SPEED_MULTIPLIER);
+  const nextX = player.x + dx * speed * dt;
+  const nextY = player.y + dy * speed * dt;
   const tileX = Math.floor(nextX / TILE_SIZE);
   const tileY = Math.floor(nextY / TILE_SIZE);
 

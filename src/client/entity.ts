@@ -26,6 +26,7 @@ export interface PlayerEntity {
   isLocal: boolean;
   appearance: PlayerAppearance;
   overheadMessages: OverheadMessage[];
+  mountedHorseVariant: number | null;
 }
 
 export interface OverheadMessage {
@@ -55,7 +56,8 @@ export function createPlayerEntity(id: number, x: number, y: number, isLocal: bo
     animation: AnimationState.Idle,
     isLocal,
     appearance: {},
-    overheadMessages: []
+    overheadMessages: [],
+    mountedHorseVariant: null
   };
 }
 

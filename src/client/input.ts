@@ -11,6 +11,7 @@ export class InputController {
   private pressed = new Set<string>();
   private interactQueued = false;
   private chatToggleQueued = false;
+  private mountToggleQueued = false;
   private textEntryActive = false;
 
   constructor() {
@@ -36,6 +37,9 @@ export class InputController {
       }
       if (event.code === "KeyE" && !event.repeat) {
         this.interactQueued = true;
+      }
+      if (event.code === "KeyH" && !event.repeat) {
+        this.mountToggleQueued = true;
       }
     });
 
@@ -70,6 +74,12 @@ export class InputController {
   consumeChatToggle(): boolean {
     const queued = this.chatToggleQueued;
     this.chatToggleQueued = false;
+    return queued;
+  }
+
+  consumeMountToggle(): boolean {
+    const queued = this.mountToggleQueued;
+    this.mountToggleQueued = false;
     return queued;
   }
 

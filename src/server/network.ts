@@ -36,6 +36,10 @@ export function isInteractPacket(buffer: Buffer): boolean {
   return buffer.length >= 1 && buffer.readUInt8(0) === 2;
 }
 
+export function isToggleMountPacket(buffer: Buffer): boolean {
+  return buffer.length >= 1 && buffer.readUInt8(0) === ClientOpcode.ToggleMount;
+}
+
 export function parseEditorPatchPacket(buffer: Buffer): EditorPatch | null {
   if (buffer.length < 8 || buffer.readUInt8(0) !== ClientOpcode.EditorPatch) {
     return null;
@@ -191,7 +195,7 @@ export function encodeChunkData(chunks: Array<{ key: ChunkKey; objects: StaticOb
 }
 
 export function encodePlayerEnter(players: ServerPlayer[]): ArrayBuffer {
-  const size = 3 + players.length * 8;
+  const size = 3 + players.length * 9;
   const buffer = new ArrayBuffer(size);
   const view = new DataView(buffer);
   let offset = 0;
@@ -206,6 +210,8 @@ export function encodePlayerEnter(players: ServerPlayer[]): ArrayBuffer {
     view.setUint8(offset, player.dir ?? Direction.Down);
     offset += 1;
     view.setUint8(offset, player.animation ?? AnimationState.Idle);
+    offset += 1;
+    view.setUint8(offset, player.mountedHorseVariant ?? 255);
     offset += 1;
   }
 
@@ -236,6 +242,7 @@ export function encodeSnapshot(player: ServerPlayer, visiblePlayers: ServerPlaye
     dy: number;
     dir: number;
     animation: number;
+    mountedHorseVariant: number | null;
   }> = [];
 
   for (const remote of visiblePlayers) {
@@ -251,6 +258,7 @@ export function encodeSnapshot(player: ServerPlayer, visiblePlayers: ServerPlaye
       previous.y === nextY &&
       previous.dir === dir &&
       previous.animation === animation
+      && previous.mountedHorseVariant === remote.mountedHorseVariant
     ) {
       continue;
     }
@@ -274,13 +282,14 @@ export function encodeSnapshot(player: ServerPlayer, visiblePlayers: ServerPlaye
       dx,
       dy,
       dir,
-      animation
+      animation,
+      mountedHorseVariant: remote.mountedHorseVariant
     });
-    player.lastSentStates.set(remote.id, { x: nextX, y: nextY, dir, animation });
+    player.lastSentStates.set(remote.id, { x: nextX, y: nextY, dir, animation, mountedHorseVariant: remote.mountedHorseVariant });
   }
 
-  const baseSize = 13;
-  const entrySize = entries.reduce((total, entry) => total + (entry.absolute ? 9 : 7), 0);
+  const baseSize = 14;
+  const entrySize = entries.reduce((total, entry) => total + (entry.absolute ? 10 : 8), 0);
   const buffer = new ArrayBuffer(baseSize + entrySize);
   const view = new DataView(buffer);
   let offset = 0;
@@ -293,6 +302,8 @@ export function encodeSnapshot(player: ServerPlayer, visiblePlayers: ServerPlaye
   view.setUint8(offset, player.dir);
   offset += 1;
   view.setUint8(offset, player.animation);
+  offset += 1;
+  view.setUint8(offset, player.mountedHorseVariant ?? 255);
   offset += 1;
   offset = writeUint16(view, offset, entries.length);
 
@@ -312,6 +323,8 @@ export function encodeSnapshot(player: ServerPlayer, visiblePlayers: ServerPlaye
     view.setUint8(offset, entry.dir);
     offset += 1;
     view.setUint8(offset, entry.animation);
+    offset += 1;
+    view.setUint8(offset, entry.mountedHorseVariant ?? 255);
     offset += 1;
   }
 

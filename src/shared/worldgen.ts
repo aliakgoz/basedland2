@@ -447,6 +447,7 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       const field = isFieldTile(tileX, tileY);
       const onRoad = hasGeneratedRoad(tileX, tileY);
       const onBridge = hasBridgeTile(tileX, tileY);
+      const horseVariant = hash2d(WORLD_SEED + 551, tileX, tileY) % 3;
       const nearRoad = isNearRoad(tileX, tileY, 3);
 
       if (!isWalkableTile(tile) || onRoad || onBridge) {
@@ -522,7 +523,7 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       }
 
       if (type !== null) {
-        pushObject(objects, cx, cy, localIndex, type, tileX, tileY);
+        pushObject(objects, cx, cy, localIndex, type, tileX, tileY, type === ObjectType.Horse ? horseVariant : undefined);
         localIndex += 1;
       }
     }

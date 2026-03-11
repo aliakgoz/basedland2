@@ -67,6 +67,7 @@ const LARGE_BUILDING_TYPES = new Set<ObjectType>([
   ObjectType.Manor,
   ObjectType.TownHall
 ]);
+const HORSE_VARIANTS = 3;
 
 type Rgb = [number, number, number];
 type PlayerPaletteRole = "hair" | "primary" | "secondary" | "accent" | "skin" | "boots";
@@ -78,6 +79,15 @@ interface PlayerPalette {
   accent: [string, string, string];
   skin: [string, string, string];
   boots: [string, string, string];
+}
+
+interface HorsePalette {
+  coat: [string, string, string];
+  mane: [string, string, string];
+  tack: [string, string, string];
+  muzzle: string;
+  hoof: string;
+  eye: string;
 }
 
 interface PlayerBuild {
@@ -190,6 +200,33 @@ const PLAYER_SKIN_RAMPS: [string, string, string][] = [
   ["#e9be9c", "#bd8867", "#7d513b"],
   ["#d59c75", "#a26d4d", "#693f2d"],
   ["#8d6247", "#6d4735", "#472c20"]
+];
+
+const HORSE_PALETTES: HorsePalette[] = [
+  {
+    coat: ["#9c6742", "#7b4e2f", "#513219"],
+    mane: ["#4a2a18", "#30180f", "#1c0d09"],
+    tack: ["#916d3e", "#6a4c26", "#3a2714"],
+    muzzle: "#c9a17f",
+    hoof: "#2c2017",
+    eye: "#130f0d"
+  },
+  {
+    coat: ["#a8aab2", "#7f828b", "#595d66"],
+    mane: ["#585a63", "#3d3f48", "#23252d"],
+    tack: ["#6f5a46", "#4a3828", "#291d14"],
+    muzzle: "#ddd4c8",
+    hoof: "#262220",
+    eye: "#121212"
+  },
+  {
+    coat: ["#444247", "#2f2d31", "#18171a"],
+    mane: ["#1d1c1f", "#101013", "#050506"],
+    tack: ["#8f6b3b", "#614824", "#332512"],
+    muzzle: "#8d7d74",
+    hoof: "#090909",
+    eye: "#f1efe9"
+  }
 ];
 
 function hash(value: number): number {
@@ -789,17 +826,39 @@ function makeChestSprite(): HTMLCanvasElement {
 }
 
 function makeHorseSprite(): HTMLCanvasElement {
-  const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
+  return makeHorseVariantSprite(0);
+}
+
+function horsePaletteForVariant(variant: number): HorsePalette {
+  return HORSE_PALETTES[Math.abs(variant) % HORSE_PALETTES.length];
+}
+
+function makeHorseVariantSprite(variant: number): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE * 2, OBJECT_SIZE * 2);
   const ctx = canvas.getContext("2d");
   if (!ctx) {
     return canvas;
   }
   const s = 2;
-  drawRectPx(ctx, 4, 8, 7, 4, s, "#9c6742");
-  drawRectPx(ctx, 10, 7, 2, 3, s, "#7b4e2f");
-  drawRectPx(ctx, 5, 12, 1, 3, s, "#513219");
-  drawRectPx(ctx, 9, 12, 1, 3, s, "#513219");
-  drawRectPx(ctx, 3, 9, 1, 4, s, "#513219");
+  const palette = horsePaletteForVariant(variant);
+  drawRectPx(ctx, 8, 15, 12, 6, s, palette.coat[0]);
+  drawRectPx(ctx, 8, 19, 12, 2, s, palette.coat[1]);
+  drawRectPx(ctx, 19, 13, 4, 5, s, palette.coat[1]);
+  drawRectPx(ctx, 21, 12, 2, 3, s, palette.mane[1]);
+  drawRectPx(ctx, 11, 12, 6, 3, s, palette.mane[0]);
+  drawRectPx(ctx, 20, 15, 2, 2, s, palette.muzzle);
+  drawRectPx(ctx, 9, 21, 2, 7, s, palette.coat[2]);
+  drawRectPx(ctx, 13, 21, 2, 7, s, palette.coat[2]);
+  drawRectPx(ctx, 17, 21, 2, 7, s, palette.coat[2]);
+  drawRectPx(ctx, 21, 21, 2, 7, s, palette.coat[2]);
+  drawRectPx(ctx, 9, 27, 2, 1, s, palette.hoof);
+  drawRectPx(ctx, 13, 27, 2, 1, s, palette.hoof);
+  drawRectPx(ctx, 17, 27, 2, 1, s, palette.hoof);
+  drawRectPx(ctx, 21, 27, 2, 1, s, palette.hoof);
+  drawRectPx(ctx, 6, 16, 2, 6, s, palette.mane[2]);
+  drawRectPx(ctx, 8, 17, 1, 2, s, palette.tack[1]);
+  drawRectPx(ctx, 13, 16, 1, 5, s, palette.tack[0]);
+  paintPixel(ctx, 21, 14, s, palette.eye);
   return canvas;
 }
 
@@ -1239,6 +1298,84 @@ function animationColumn(animation: AnimationState, nowMs: number): number {
   return PLAYER_WALK_SEQUENCE[index];
 }
 
+function makeMountedHorseFrame(direction: Direction, frame: number, variant: number): HTMLCanvasElement {
+  const canvas = createCanvas(PLAYER_FRAME_SIZE, PLAYER_FRAME_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const palette = horsePaletteForVariant(variant);
+  const s = PLAYER_GRID_SCALE;
+  const gait = [
+    { front: 0, back: 0, bob: 0 },
+    { front: -2, back: 1, bob: -0.4 },
+    { front: -1, back: -1, bob: -0.2 },
+    { front: 1, back: -2, bob: -0.4 }
+  ][frame];
+
+  if (direction === Direction.Left || direction === Direction.Right) {
+    const facingRight = direction === Direction.Right;
+    const frontX = facingRight ? 21 : 9;
+    const bodyX = facingRight ? 9 : 11;
+    const headX = facingRight ? 21 : 7;
+    const tailX = facingRight ? 7 : 23;
+
+    drawRectPx(ctx, bodyX, 15 + gait.bob, 12, 6, s, palette.coat[0]);
+    drawRectPx(ctx, bodyX, 19 + gait.bob, 12, 2, s, palette.coat[1]);
+    drawRectPx(ctx, headX, 13 + gait.bob, 4, 5, s, palette.coat[1]);
+    drawRectPx(ctx, headX + (facingRight ? 2 : 0), 12 + gait.bob, 2, 3, s, palette.mane[1]);
+    drawRectPx(ctx, facingRight ? bodyX + 3 : bodyX + 4, 12 + gait.bob, 6, 3, s, palette.mane[0]);
+    drawRectPx(ctx, facingRight ? headX + 1 : headX + 1, 15 + gait.bob, 2, 2, s, palette.muzzle);
+    drawRectPx(ctx, tailX, 16 + gait.bob, 2, 6, s, palette.mane[2]);
+    drawRectPx(ctx, bodyX + 1, 21 + gait.back, 2, 7, s, palette.coat[2]);
+    drawRectPx(ctx, bodyX + 5, 21 + gait.front, 2, 7, s, palette.coat[2]);
+    drawRectPx(ctx, bodyX + 8, 21 - gait.front, 2, 7, s, palette.coat[2]);
+    drawRectPx(ctx, bodyX + 11, 21 - gait.back, 2, 7, s, palette.coat[2]);
+    drawRectPx(ctx, bodyX + 1, 27 + gait.back, 2, 1, s, palette.hoof);
+    drawRectPx(ctx, bodyX + 5, 27 + gait.front, 2, 1, s, palette.hoof);
+    drawRectPx(ctx, bodyX + 8, 27 - gait.front, 2, 1, s, palette.hoof);
+    drawRectPx(ctx, bodyX + 11, 27 - gait.back, 2, 1, s, palette.hoof);
+    drawRectPx(ctx, bodyX + 5, 15 + gait.bob, 1, 6, s, palette.tack[0]);
+    drawRectPx(ctx, bodyX + 9, 16 + gait.bob, 1, 4, s, palette.tack[1]);
+    paintPixel(ctx, facingRight ? headX + 2 : headX + 1, 14 + gait.bob, s, palette.eye);
+    return canvas;
+  }
+
+  const bodyY = 14 + gait.bob;
+  drawRectPx(ctx, 11, bodyY, 10, 8, s, palette.coat[0]);
+  drawRectPx(ctx, 11, bodyY + 5, 10, 3, s, palette.coat[1]);
+  drawRectPx(ctx, 13, bodyY - 3, 6, 4, s, palette.mane[0]);
+  if (direction === Direction.Down) {
+    drawRectPx(ctx, 13, bodyY + 8, 6, 5, s, palette.coat[1]);
+    drawRectPx(ctx, 14, bodyY + 11, 4, 2, s, palette.muzzle);
+    paintPixel(ctx, 15, bodyY + 10, s, palette.eye);
+    paintPixel(ctx, 17, bodyY + 10, s, palette.eye);
+  } else {
+    drawRectPx(ctx, 13, bodyY - 5, 6, 5, s, palette.coat[1]);
+    drawRectPx(ctx, 14, bodyY - 5, 4, 2, s, palette.muzzle);
+  }
+  drawRectPx(ctx, 10, bodyY + 1, 1, 6, s, palette.mane[2]);
+  drawRectPx(ctx, 12, bodyY + 2, 8, 1, s, palette.tack[0]);
+  drawRectPx(ctx, 13, bodyY + 4, 6, 1, s, palette.tack[1]);
+  drawRectPx(ctx, 12, 22 + gait.front, 2, 6, s, palette.coat[2]);
+  drawRectPx(ctx, 16, 22 + gait.back, 2, 6, s, palette.coat[2]);
+  drawRectPx(ctx, 11, 22 - gait.back, 2, 6, s, palette.coat[2]);
+  drawRectPx(ctx, 17, 22 - gait.front, 2, 6, s, palette.coat[2]);
+  drawRectPx(ctx, 12, 27 + gait.front, 2, 1, s, palette.hoof);
+  drawRectPx(ctx, 16, 27 + gait.back, 2, 1, s, palette.hoof);
+  drawRectPx(ctx, 11, 27 - gait.back, 2, 1, s, palette.hoof);
+  drawRectPx(ctx, 17, 27 - gait.front, 2, 1, s, palette.hoof);
+  return canvas;
+}
+
+function buildMountedHorseFrames(variant: number): SpriteSource[] {
+  const directions = [Direction.Down, Direction.Left, Direction.Right, Direction.Up];
+  return directions.flatMap((direction) =>
+    Array.from({ length: PLAYER_SHEET_COLUMNS }, (_, frame) => makeMountedHorseFrame(direction, frame, variant))
+  );
+}
+
 function makeFallbackPlayerFrame(
   direction: Direction,
   frame: number,
@@ -1645,12 +1782,14 @@ export class AssetManager {
   private readonly objectSprites = new Map<ObjectType, SpriteSource>();
   private readonly objectArchives = new Map<ObjectType, SpriteSource[]>();
   private readonly houseArchive: SpriteSource[] = Array.from({ length: HOUSE_VARIANTS }, (_, index) => makeHouseVariantSprite(index));
+  private readonly horseArchive: SpriteSource[] = Array.from({ length: HORSE_VARIANTS }, (_, index) => makeHorseVariantSprite(index));
   private readonly treeArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeTreeVariantSprite(index));
   private readonly roadArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeRoadSprite(index));
   private readonly bridgeSprites = new Map<string, SpriteSource>();
   private localPlayerSheet: SpriteSource = makeFallbackPlayerSheet();
   private remotePlayerSheet: SpriteSource = makeFallbackPlayerSheet();
   private readonly playerFrameCache = new Map<string, SpriteSource[]>();
+  private readonly mountedHorseFrameCache = new Map<number, SpriteSource[]>();
   private worldSurface: SpriteSource | null = null;
 
   constructor() {
@@ -1695,6 +1834,9 @@ export class AssetManager {
     for (const slug of BRIDGE_SLUGS) {
       this.bridgeSprites.set(slug, makeBridgeSprite(slug));
     }
+
+    this.objectSprites.set(ObjectType.Horse, this.horseArchive[0]);
+    this.objectArchives.set(ObjectType.Horse, [...this.horseArchive]);
   }
 
   async loadGeneratedOverrides(): Promise<void> {
@@ -1746,7 +1888,7 @@ export class AssetManager {
     }
 
     for (const type of this.objectSprites.keys()) {
-      if (type === ObjectType.House) {
+      if (type === ObjectType.House || type === ObjectType.Horse) {
         continue;
       }
       const archiveFiles = manifest.objectArchive?.[objectSlug(type)] ?? [];
@@ -1883,6 +2025,10 @@ export class AssetManager {
       const index = Math.max(0, Math.min(this.houseArchive.length - 1, variant ?? 0));
       return this.houseArchive[index];
     }
+    if (type === ObjectType.Horse) {
+      const index = Math.max(0, Math.min(this.horseArchive.length - 1, variant ?? 0));
+      return this.horseArchive[index];
+    }
     if (type === ObjectType.Tree && variant !== undefined) {
       const index = Math.max(0, Math.min(this.treeArchive.length - 1, variant));
       return index === 0 ? this.objectSprites.get(type) ?? this.treeArchive[0] : this.treeArchive[index];
@@ -1921,9 +2067,23 @@ export class AssetManager {
     return frames[row * PLAYER_SHEET_COLUMNS + col] ?? frames[0];
   }
 
+  getMountedHorseFrame(variant: number, direction: Direction, animation: AnimationState, nowMs: number): SpriteSource {
+    let frames = this.mountedHorseFrameCache.get(variant);
+    if (!frames) {
+      frames = buildMountedHorseFrames(variant);
+      this.mountedHorseFrameCache.set(variant, frames);
+    }
+    const row = rowForDirection(direction);
+    const col = animationColumn(animation, nowMs);
+    return frames[row * PLAYER_SHEET_COLUMNS + col] ?? frames[0];
+  }
+
   private getObjectArchive(type: ObjectType): SpriteSource[] {
     if (type === ObjectType.House) {
       return this.houseArchive;
+    }
+    if (type === ObjectType.Horse) {
+      return this.horseArchive;
     }
     if (type === ObjectType.Tree) {
       return this.treeArchive;

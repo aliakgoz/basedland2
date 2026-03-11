@@ -8,7 +8,9 @@ export const CHUNK_PIXEL_SIZE = CHUNK_SIZE_TILES * TILE_SIZE;
 export const SIMULATION_RATE = 20;
 export const NETWORK_RATE = 10;
 export const PLAYER_SPEED = 120;
+export const MOUNT_SPEED_MULTIPLIER = 4;
 export const INTERACTION_RANGE = 56;
+export const MOUNT_RANGE = 72;
 export const CHAT_MESSAGE_TTL_MS = 5000;
 export const CHAT_MESSAGE_MAX_LENGTH = 80;
 
@@ -16,7 +18,8 @@ export const enum ClientOpcode {
   Input = 1,
   Interact = 2,
   EditorPatch = 3,
-  Chat = 4
+  Chat = 4,
+  ToggleMount = 5
 }
 
 export const enum ServerOpcode {

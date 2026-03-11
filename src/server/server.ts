@@ -7,6 +7,7 @@ import {
   CHUNK_RADIUS,
   CHUNK_SIZE_TILES,
   INTERACTION_RANGE,
+  MOUNT_RANGE,
   NETWORK_RATE,
   SIMULATION_RATE,
   TILE_SIZE,
@@ -18,6 +19,7 @@ import {
 } from "../shared/protocol";
 import { ChunkManager } from "./chunk_manager";
 import { EntitySystem } from "./entity_system";
+import { HorseManager } from "./horse_manager";
 import {
   encodeChat,
   encodeChunkData,
@@ -29,6 +31,7 @@ import {
   encodeStats,
   encodeWelcome,
   isInteractPacket,
+  isToggleMountPacket,
   parseChatPacket,
   parseEditorPatchPacket,
   parseInputPacket
@@ -127,6 +130,7 @@ const httpServer = createServer(async (req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 const chunkManager = new ChunkManager();
 const entitySystem = new EntitySystem();
+const horseManager = new HorseManager();
 const worldState = new ServerWorldState();
 const playerManager = new PlayerManager(chunkManager, (tileX, tileY) => worldState.getTileType(tileX, tileY));
 let liveEditorMap: PersistedEditorMap = {
@@ -222,8 +226,27 @@ function sendVisibleChunks(player: ServerPlayer, keys: ChunkKey[]): void {
   if (keys.length === 0) {
     return;
   }
+  const payload = keys.map((key) => {
+    const staticChunk = entitySystem.getChunkObjects(key);
+    const horses = horseManager.getChunkObjects(key);
+    return { key, objects: [...staticChunk, ...horses].sort((a, b) => a.id - b.id) };
+  });
+  player.socket.send(encodeChunkData(payload));
+}
 
-  player.socket.send(encodeChunkData(entitySystem.collectChunkPayload(keys)));
+function broadcastChunkUpdates(keys: ChunkKey[]): void {
+  const uniqueKeys = [...new Set(keys)];
+  for (const player of playerManager.players.values()) {
+    const relevant = uniqueKeys.filter((key) => player.visibleChunks.has(key));
+    if (relevant.length > 0) {
+      sendVisibleChunks(player, relevant);
+    }
+  }
+}
+
+function sendImmediateSnapshot(player: ServerPlayer): void {
+  const visiblePlayers = refreshVisibility(player);
+  player.socket.send(encodeSnapshot(player, visiblePlayers, serverTick));
 }
 
 function sendActiveChatMessages(viewer: ServerPlayer, targets: ServerPlayer[], now = Date.now()): void {
@@ -339,6 +362,45 @@ wss.on("connection", (socket) => {
       return;
     }
 
+    if (isToggleMountPacket(buffer)) {
+      const currentChunk = chunkManager.getChunkKeyForPlayer(player.id);
+      if (!currentChunk) {
+        return;
+      }
+
+      if (player.mountedHorseId !== null) {
+        const updatedChunks = horseManager.placeHorse(
+          player.mountedHorseId,
+          player.x,
+          player.y,
+          player.mountedHorseVariant ?? 0
+        );
+        player.mountedHorseId = null;
+        player.mountedHorseVariant = null;
+        broadcastChunkUpdates(updatedChunks);
+        sendImmediateSnapshot(player);
+        return;
+      }
+
+      const horse = horseManager.takeNearestHorse(
+        player.x,
+        player.y,
+        chunkManager.getNearbyChunkKeys(currentChunk, 1),
+        MOUNT_RANGE * MOUNT_RANGE
+      );
+      if (!horse) {
+        player.mountedHorseId = horseManager.allocateDynamicHorseId();
+        player.mountedHorseVariant = player.id % 3;
+        sendImmediateSnapshot(player);
+        return;
+      }
+      player.mountedHorseId = horse.id;
+      player.mountedHorseVariant = horse.variant ?? 0;
+      broadcastChunkUpdates([horse.chunk]);
+      sendImmediateSnapshot(player);
+      return;
+    }
+
     const patch = parseEditorPatchPacket(buffer);
     if (patch) {
       await editorMapReady;
@@ -372,6 +434,15 @@ wss.on("connection", (socket) => {
   });
 
   socket.on("close", () => {
+    if (player.mountedHorseId !== null) {
+      const updatedChunks = horseManager.placeHorse(
+        player.mountedHorseId,
+        player.x,
+        player.y,
+        player.mountedHorseVariant ?? 0
+      );
+      broadcastChunkUpdates(updatedChunks);
+    }
     playerManager.removePlayer(player.id);
     for (const other of playerManager.players.values()) {
       if (other.visiblePlayers.delete(player.id)) {

@@ -4,6 +4,7 @@ import {
   ClientOpcode,
   Direction,
   InputFlag,
+  MOUNT_SPEED_MULTIPLIER,
   ObjectType,
   PLAYER_SPEED,
   ServerOpcode,
@@ -63,7 +64,8 @@ function stepLocalMask(
   y: number,
   mask: number,
   dt: number,
-  getTileTypeAt: (tileX: number, tileY: number) => TileType
+  getTileTypeAt: (tileX: number, tileY: number) => TileType,
+  mounted: boolean
 ): { x: number; y: number; dir: Direction } {
   let dx = 0;
   let dy = 0;
@@ -91,8 +93,9 @@ function stepLocalMask(
     dy *= Math.SQRT1_2;
   }
 
-  const nextX = x + dx * PLAYER_SPEED * dt;
-  const nextY = y + dy * PLAYER_SPEED * dt;
+  const speed = PLAYER_SPEED * (mounted ? MOUNT_SPEED_MULTIPLIER : 1);
+  const nextX = x + dx * speed * dt;
+  const nextY = y + dy * speed * dt;
   const tileX = Math.floor(nextX / TILE_SIZE);
   const tileY = Math.floor(nextY / TILE_SIZE);
 
@@ -243,6 +246,16 @@ export class NetworkClient {
     this.socket.send(encodeEditorPatch(patch));
   }
 
+  sendToggleMount(): void {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const buffer = new ArrayBuffer(1);
+    new DataView(buffer).setUint8(0, ClientOpcode.ToggleMount);
+    this.socket.send(buffer);
+  }
+
   isConnected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
@@ -366,6 +379,8 @@ export class NetworkClient {
       offset += 1;
       const animation = view.getUint8(offset) as AnimationState;
       offset += 1;
+      const mountedHorseVariant = view.getUint8(offset);
+      offset += 1;
 
       if (id === this.playerId) {
         continue;
@@ -380,6 +395,7 @@ export class NetworkClient {
       entity.renderY = y;
       entity.dir = dir;
       entity.animation = animation;
+      entity.mountedHorseVariant = mountedHorseVariant === 255 ? null : mountedHorseVariant;
       this.remotePlayers.set(id, entity);
     }
   }
@@ -412,6 +428,8 @@ export class NetworkClient {
     offset += 1;
     const authAnimation = view.getUint8(offset) as AnimationState;
     offset += 1;
+    const authMountedHorseVariant = view.getUint8(offset);
+    offset += 1;
     const updateCount = view.getUint16(offset, true);
     offset += 2;
 
@@ -421,6 +439,7 @@ export class NetworkClient {
 
     this.localPlayer.dir = authDir;
     this.localPlayer.animation = authAnimation;
+    this.localPlayer.mountedHorseVariant = authMountedHorseVariant === 255 ? null : authMountedHorseVariant;
     this.reconcileLocalPlayer(authX, authY);
 
     for (let i = 0; i < updateCount; i += 1) {
@@ -452,6 +471,9 @@ export class NetworkClient {
       offset += 1;
       entity.animation = view.getUint8(offset) as AnimationState;
       offset += 1;
+      const mountedHorseVariant = view.getUint8(offset);
+      offset += 1;
+      entity.mountedHorseVariant = mountedHorseVariant === 255 ? null : mountedHorseVariant;
       if (id !== this.playerId) {
         this.remotePlayers.set(id, entity);
       }
@@ -478,7 +500,8 @@ export class NetworkClient {
         predictedY,
         current.mask,
         dt,
-        (tileX, tileY) => this.world?.getTileType(tileX, tileY) ?? TileType.Grass
+        (tileX, tileY) => this.world?.getTileType(tileX, tileY) ?? TileType.Grass,
+        this.localPlayer.mountedHorseVariant !== null
       );
       predictedX = state.x;
       predictedY = state.y;

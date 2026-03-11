@@ -11,7 +11,7 @@ export class EntitySystem {
     }
 
     const [cx, cy] = key.split(",").map(Number);
-    const objects = generateChunkObjects(cx, cy);
+    const objects = generateChunkObjects(cx, cy).filter((object) => object.type !== ObjectType.Horse);
     this.chunkCache.set(key, objects);
     return objects;
   }

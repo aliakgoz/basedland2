@@ -4,6 +4,7 @@ import {
   CHAT_MESSAGE_TTL_MS,
   Direction,
   InputFlag,
+  MOUNT_SPEED_MULTIPLIER,
   PLAYER_SPEED,
   TILE_SIZE,
   WORLD_HEIGHT_TILES,
@@ -24,8 +25,10 @@ export interface ServerPlayer {
   lastProcessedInput: number;
   visiblePlayers: Set<number>;
   visibleChunks: Set<string>;
-  lastSentStates: Map<number, { x: number; y: number; dir: number; animation: number }>;
+  lastSentStates: Map<number, { x: number; y: number; dir: number; animation: number; mountedHorseVariant: number | null }>;
   activeChatMessages: ServerChatMessage[];
+  mountedHorseId: number | null;
+  mountedHorseVariant: number | null;
 }
 
 export interface ServerChatMessage {
@@ -57,7 +60,9 @@ export class PlayerManager {
       visiblePlayers: new Set<number>(),
       visibleChunks: new Set<string>(),
       lastSentStates: new Map(),
-      activeChatMessages: []
+      activeChatMessages: [],
+      mountedHorseId: null,
+      mountedHorseVariant: null
     };
 
     this.players.set(id, player);
@@ -142,8 +147,9 @@ export class PlayerManager {
         dy *= Math.SQRT1_2;
       }
 
-      const nextX = Math.max(TILE_SIZE / 2, Math.min(maxX, player.x + dx * PLAYER_SPEED * dtSeconds));
-      const nextY = Math.max(TILE_SIZE / 2, Math.min(maxY, player.y + dy * PLAYER_SPEED * dtSeconds));
+      const speed = PLAYER_SPEED * (player.mountedHorseVariant === null ? 1 : MOUNT_SPEED_MULTIPLIER);
+      const nextX = Math.max(TILE_SIZE / 2, Math.min(maxX, player.x + dx * speed * dtSeconds));
+      const nextY = Math.max(TILE_SIZE / 2, Math.min(maxY, player.y + dy * speed * dtSeconds));
       const tileX = Math.floor(nextX / TILE_SIZE);
       const tileY = Math.floor(nextY / TILE_SIZE);
 
