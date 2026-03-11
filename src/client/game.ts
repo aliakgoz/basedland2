@@ -1,6 +1,7 @@
 import { AnimationState, Direction, InputFlag, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
-import { getTileType, isWalkableTile } from "../shared/worldgen";
+import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
+import { pruneExpiredOverheadMessages } from "./entity";
 import { InputController } from "./input";
 import { MapEditor } from "./map_editor";
 import { NetworkClient } from "./network";
@@ -10,8 +11,11 @@ import { WorldState } from "./world";
 const canvas = document.querySelector<HTMLCanvasElement>("#game");
 const online = document.querySelector<HTMLElement>("#online");
 const message = document.querySelector<HTMLElement>("#message");
+const chatPanel = document.querySelector<HTMLElement>("#chat-panel");
+const chatForm = document.querySelector<HTMLFormElement>("#chat-form");
+const chatInput = document.querySelector<HTMLInputElement>("#chat-input");
 
-if (!canvas || !online || !message) {
+if (!canvas || !online || !message || !chatPanel || !chatForm || !chatInput) {
   throw new Error("HUD elements missing");
 }
 
@@ -26,7 +30,9 @@ renderer.setMessage("Loading pixel assets...");
 assets.loadGeneratedOverrides().then(() => {
   void editor.initialize().then(() => {
     editor.refreshPalette();
-    renderer.setMessage("Assets ready. Connecting...");
+    if (!network.isConnected()) {
+      renderer.setMessage("Assets ready. Connecting...");
+    }
   });
 });
 
@@ -49,9 +55,51 @@ let lastInputSend = 0;
 let lastInputMask = -1;
 let previousFrame = performance.now();
 const EDITOR_CAMERA_MULTIPLIER = 20;
+let chatOpen = false;
+
+function setChatOpen(next: boolean): void {
+  chatOpen = next;
+  chatPanel.classList.toggle("active", next);
+  input.setTextEntryActive(next);
+  if (next) {
+    chatInput.focus();
+    chatInput.select();
+  } else {
+    chatInput.blur();
+    chatInput.value = "";
+  }
+}
+
+chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = chatInput.value.trim();
+  if (text.length === 0) {
+    setChatOpen(false);
+    return;
+  }
+  network.sendChat(text);
+  setChatOpen(false);
+});
+
+chatInput.addEventListener("keydown", (event) => {
+  if (event.code === "Escape") {
+    event.preventDefault();
+    setChatOpen(false);
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.code === "Escape" && chatOpen) {
+    event.preventDefault();
+    setChatOpen(false);
+  }
+});
 
 function applyLocalMovement(dt: number): void {
   const player = network.localPlayer;
+  if (input.consumeChatToggle()) {
+    setChatOpen(!chatOpen);
+  }
   if (!player) {
     return;
   }
@@ -108,7 +156,7 @@ function applyLocalMovement(dt: number): void {
   const tileX = Math.floor(nextX / TILE_SIZE);
   const tileY = Math.floor(nextY / TILE_SIZE);
 
-  if (isWalkableTile(getTileType(tileX, tileY))) {
+  if (isWalkableTile(world.getTileType(tileX, tileY))) {
     player.x = nextX;
     player.y = nextY;
     player.targetX = nextX;
@@ -132,7 +180,12 @@ function applyLocalMovement(dt: number): void {
 }
 
 function updateRemotePlayers(): void {
+  const now = performance.now();
+  if (network.localPlayer) {
+    pruneExpiredOverheadMessages(network.localPlayer, now);
+  }
   for (const player of network.remotePlayers.values()) {
+    pruneExpiredOverheadMessages(player, now);
     player.renderX += (player.targetX - player.renderX) * 0.22;
     player.renderY += (player.targetY - player.renderY) * 0.22;
   }

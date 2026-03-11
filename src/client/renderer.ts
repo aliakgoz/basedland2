@@ -1,4 +1,4 @@
-import { TILE_SIZE, WORLD_HEIGHT_TILES, WORLD_WIDTH_TILES } from "../shared/protocol";
+import { CHAT_MESSAGE_TTL_MS, TILE_SIZE, WORLD_HEIGHT_TILES, WORLD_WIDTH_TILES } from "../shared/protocol";
 import { getMacroBiome, getVillageCenters, hasBridgeTile, hasGeneratedRoad, isFieldTile } from "../shared/world-layout";
 import { AssetManager, sizeForObject } from "./assets";
 import type { PlayerEntity, StaticProp } from "./entity";
@@ -10,7 +10,8 @@ interface Hud {
 }
 
 const PLAYER_RENDER_WIDTH = 64;
-const PLAYER_RENDER_HEIGHT = 80;
+const PLAYER_RENDER_HEIGHT = 64;
+const PLAYER_FEET_ANCHOR = 0.91;
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -298,6 +299,7 @@ export class Renderer {
       | { kind: "object"; y: number; object: StaticProp }
       | { kind: "player"; y: number; player: PlayerEntity }
     > = [];
+    const chatPlayers: PlayerEntity[] = [];
 
     for (const object of objects) {
       scene.push({ kind: "object", y: object.y, object });
@@ -327,7 +329,12 @@ export class Renderer {
         );
       } else {
         this.drawPlayer(item.player, cameraX, cameraY);
+        chatPlayers.push(item.player);
       }
+    }
+
+    for (const player of chatPlayers) {
+      this.drawPlayerChat(player, cameraX, cameraY);
     }
   }
 
@@ -335,12 +342,55 @@ export class Renderer {
     const scaledWidth = PLAYER_RENDER_WIDTH * this.zoom;
     const scaledHeight = PLAYER_RENDER_HEIGHT * this.zoom;
     const screenX = Math.floor((player.renderX - cameraX) * this.zoom + this.width / 2 - scaledWidth / 2);
-    const bob = player.animation === 1 ? Math.sin(performance.now() / 90) * 1.5 : 0;
-    const screenY = Math.floor((player.renderY - cameraY) * this.zoom + this.height / 2 - scaledHeight * 0.72 + bob * this.zoom);
-    const sprite = this.assets.getPlayerSprite(player.isLocal);
+    const now = performance.now();
+    const bob = player.animation === 1 ? Math.sin(now / 120) * 0.35 : 0;
+    const screenY = Math.floor((player.renderY - cameraY) * this.zoom + this.height / 2 - scaledHeight * PLAYER_FEET_ANCHOR + bob * this.zoom);
+    const sprite = this.assets.getPlayerFrame(player, now);
     this.ctx.drawImage(sprite, screenX, screenY, scaledWidth, scaledHeight);
     this.ctx.fillStyle = "rgba(0,0,0,0.25)";
-    this.ctx.fillRect(screenX + 2 * this.zoom, screenY + scaledHeight, 12 * this.zoom, Math.max(2, 3 * this.zoom));
+    this.ctx.fillRect(screenX + 14 * this.zoom, screenY + scaledHeight * 0.9, 20 * this.zoom, Math.max(2, 3 * this.zoom));
+  }
+
+  private drawPlayerChat(player: PlayerEntity, cameraX: number, cameraY: number): void {
+    const activeMessages = player.overheadMessages.filter((message) => message.expiresAt > performance.now()).slice(0, 2);
+    if (activeMessages.length === 0) {
+      return;
+    }
+
+    const scaledWidth = PLAYER_RENDER_WIDTH * this.zoom;
+    const scaledHeight = PLAYER_RENDER_HEIGHT * this.zoom;
+    const screenX = Math.floor((player.renderX - cameraX) * this.zoom + this.width / 2 - scaledWidth / 2);
+    const screenY = Math.floor((player.renderY - cameraY) * this.zoom + this.height / 2 - scaledHeight * PLAYER_FEET_ANCHOR);
+    const fontSize = Math.max(10, Math.min(15, Math.floor(11 * this.zoom)));
+    const lineHeight = fontSize + 6;
+    const bubbleGap = Math.max(4, Math.floor(5 * this.zoom));
+    const paddingX = 8;
+    const paddingY = 5;
+
+    this.ctx.save();
+    this.ctx.font = `${fontSize}px Verdana`;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+
+    let topY = screenY - bubbleGap;
+    for (let index = activeMessages.length - 1; index >= 0; index -= 1) {
+      const message = activeMessages[index];
+      const width = Math.min(180, Math.max(46, Math.ceil(this.ctx.measureText(message.text).width + paddingX * 2)));
+      const boxHeight = lineHeight + paddingY * 2;
+      topY -= boxHeight;
+      const boxX = Math.floor(screenX + scaledWidth / 2 - width / 2);
+      const alpha = Math.max(
+        0.32,
+        Math.min(0.62, ((message.expiresAt - performance.now()) / CHAT_MESSAGE_TTL_MS) * 0.5 + 0.12)
+      );
+      this.ctx.fillStyle = `rgba(10, 16, 14, ${alpha.toFixed(3)})`;
+      this.ctx.fillRect(boxX, topY, width, boxHeight);
+      this.ctx.fillStyle = "rgba(248, 244, 226, 0.96)";
+      this.ctx.fillText(message.text, boxX + width / 2, topY + boxHeight / 2 + 0.5);
+      topY -= bubbleGap;
+    }
+
+    this.ctx.restore();
   }
 
   private drawManualCameraMarker(cameraX: number, cameraY: number): void {

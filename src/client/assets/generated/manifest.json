@@ -43,7 +43,7 @@
     ]
   },
   "objects": {
-    "house": "objects/house.png",
+    "house": "objects/house/house-v020.png",
     "tree": "objects/tree.png",
     "stone": "objects/stone.png",
     "crate": "objects/crate.png",
@@ -56,20 +56,20 @@
     "dog": "objects/dog.png",
     "cat": "objects/cat.png",
     "grass-tuft": "objects/grass-tuft.png",
-    "pub": "objects/pub/pub-v001.png",
-    "inn": "objects/inn/inn-v001.png",
-    "barn": "objects/barn/barn-v001.png",
-    "stable": "objects/stable/stable-v001.png",
-    "blacksmith": "objects/blacksmith/blacksmith-v001.png",
-    "windmill": "objects/windmill/windmill-v001.png",
-    "chapel": "objects/chapel/chapel-v001.png",
-    "market": "objects/market/market-v001.png",
-    "manor": "objects/manor/manor-v001.png",
-    "townhall": "objects/townhall/townhall-v001.png"
+    "pub": "objects/pub/pub-classic.png",
+    "inn": "objects/inn/inn-classic.png",
+    "barn": "objects/barn/barn-classic.png",
+    "stable": "objects/stable/stable-classic.png",
+    "blacksmith": "objects/blacksmith/blacksmith-classic.png",
+    "windmill": "objects/windmill/windmill-classic.png",
+    "chapel": "objects/chapel/chapel-classic.png",
+    "market": "objects/market/market-classic.png",
+    "manor": "objects/manor/manor-classic.png",
+    "townhall": "objects/townhall/townhall-classic.png"
   },
   "players": {
-    "local-player": "players/local-player.png",
-    "remote-player": "players/remote-player.png"
+    "local-player": "players/player-base/player-base-v005.png",
+    "remote-player": "players/player-base/player-base-v005.png"
   },
   "bridges": {
     "bridge-v": "bridges/bridge-v/bridge-v-v001.png",
@@ -128,7 +128,26 @@
   },
   "objectArchive": {
     "house": [
-      "objects/house.png"
+      "objects/house/house-v001.png",
+      "objects/house/house-v002.png",
+      "objects/house/house-v003.png",
+      "objects/house/house-v004.png",
+      "objects/house/house-v005.png",
+      "objects/house/house-v006.png",
+      "objects/house/house-v007.png",
+      "objects/house/house-v008.png",
+      "objects/house/house-v009.png",
+      "objects/house/house-v010.png",
+      "objects/house/house-v011.png",
+      "objects/house/house-v012.png",
+      "objects/house/house-v013.png",
+      "objects/house/house-v014.png",
+      "objects/house/house-v015.png",
+      "objects/house/house-v016.png",
+      "objects/house/house-v017.png",
+      "objects/house/house-v018.png",
+      "objects/house/house-v019.png",
+      "objects/house/house-v020.png"
     ],
     "tree": [
       "objects/tree.png"
@@ -167,42 +186,89 @@
       "objects/grass-tuft.png"
     ],
     "pub": [
-      "objects/pub/pub-v001.png"
+      "objects/pub/pub-classic.png",
+      "objects/pub/pub-v001.png",
+      "objects/pub/pub-v002.png",
+      "objects/pub/pub-v003.png"
     ],
     "inn": [
-      "objects/inn/inn-v001.png"
+      "objects/inn/inn-classic.png",
+      "objects/inn/inn-v001.png",
+      "objects/inn/inn-v002.png",
+      "objects/inn/inn-v003.png"
     ],
     "barn": [
-      "objects/barn/barn-v001.png"
+      "objects/barn/barn-classic.png",
+      "objects/barn/barn-v001.png",
+      "objects/barn/barn-v002.png",
+      "objects/barn/barn-v003.png"
     ],
     "stable": [
-      "objects/stable/stable-v001.png"
+      "objects/stable/stable-classic.png",
+      "objects/stable/stable-v001.png",
+      "objects/stable/stable-v002.png",
+      "objects/stable/stable-v003.png"
     ],
     "blacksmith": [
-      "objects/blacksmith/blacksmith-v001.png"
+      "objects/blacksmith/blacksmith-classic.png",
+      "objects/blacksmith/blacksmith-v001.png",
+      "objects/blacksmith/blacksmith-v002.png",
+      "objects/blacksmith/blacksmith-v003.png"
     ],
     "windmill": [
-      "objects/windmill/windmill-v001.png"
+      "objects/windmill/windmill-classic.png",
+      "objects/windmill/windmill-v001.png",
+      "objects/windmill/windmill-v002.png",
+      "objects/windmill/windmill-v003.png"
     ],
     "chapel": [
-      "objects/chapel/chapel-v001.png"
+      "objects/chapel/chapel-classic.png",
+      "objects/chapel/chapel-v001.png",
+      "objects/chapel/chapel-v002.png",
+      "objects/chapel/chapel-v003.png"
     ],
     "market": [
-      "objects/market/market-v001.png"
+      "objects/market/market-classic.png",
+      "objects/market/market-v001.png",
+      "objects/market/market-v002.png",
+      "objects/market/market-v003.png"
     ],
     "manor": [
-      "objects/manor/manor-v001.png"
+      "objects/manor/manor-classic.png",
+      "objects/manor/manor-v001.png",
+      "objects/manor/manor-v002.png",
+      "objects/manor/manor-v003.png"
     ],
     "townhall": [
-      "objects/townhall/townhall-v001.png"
+      "objects/townhall/townhall-classic.png",
+      "objects/townhall/townhall-v001.png",
+      "objects/townhall/townhall-v002.png",
+      "objects/townhall/townhall-v003.png"
     ]
   },
   "playerArchive": {
     "local-player": [
-      "players/local-player.png"
+      "players/local-player.png",
+      "players/player-base/player-base-v001.png",
+      "players/player-base/player-base-v002.png",
+      "players/player-base/player-base-v003.png",
+      "players/player-base/player-base-v004.png",
+      "players/player-base/player-base-v005.png"
     ],
     "remote-player": [
-      "players/remote-player.png"
+      "players/remote-player.png",
+      "players/player-base/player-base-v001.png",
+      "players/player-base/player-base-v002.png",
+      "players/player-base/player-base-v003.png",
+      "players/player-base/player-base-v004.png",
+      "players/player-base/player-base-v005.png"
+    ],
+    "player-base": [
+      "players/player-base/player-base-v001.png",
+      "players/player-base/player-base-v002.png",
+      "players/player-base/player-base-v003.png",
+      "players/player-base/player-base-v004.png",
+      "players/player-base/player-base-v005.png"
     ]
   },
   "bridgeArchive": {

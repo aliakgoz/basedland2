@@ -10,9 +10,27 @@ const KEY_TO_FLAG: Record<string, number> = {
 export class InputController {
   private pressed = new Set<string>();
   private interactQueued = false;
+  private chatToggleQueued = false;
+  private textEntryActive = false;
 
   constructor() {
     window.addEventListener("keydown", (event) => {
+      const target = event.target;
+      const editingText =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+
+      if (event.code === "KeyY" && !event.repeat && !editingText) {
+        this.chatToggleQueued = true;
+        event.preventDefault();
+        return;
+      }
+
+      if (this.textEntryActive || editingText) {
+        return;
+      }
+
       if (event.code in KEY_TO_FLAG) {
         this.pressed.add(event.code);
       }
@@ -33,6 +51,9 @@ export class InputController {
   }
 
   getMask(): number {
+    if (this.textEntryActive) {
+      return 0;
+    }
     let mask = 0;
     for (const key of this.pressed) {
       mask |= KEY_TO_FLAG[key] ?? 0;
@@ -44,5 +65,18 @@ export class InputController {
     const queued = this.interactQueued;
     this.interactQueued = false;
     return queued;
+  }
+
+  consumeChatToggle(): boolean {
+    const queued = this.chatToggleQueued;
+    this.chatToggleQueued = false;
+    return queued;
+  }
+
+  setTextEntryActive(active: boolean): void {
+    this.textEntryActive = active;
+    if (active) {
+      this.pressed.clear();
+    }
   }
 }

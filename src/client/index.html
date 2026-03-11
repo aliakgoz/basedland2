@@ -88,6 +88,55 @@
         z-index: 30;
       }
 
+      #chat-panel {
+        left: 18px;
+        bottom: 72px;
+        width: min(360px, calc(100vw - 36px));
+        padding: 12px;
+        display: none;
+        z-index: 35;
+      }
+
+      #chat-panel.active {
+        display: block;
+      }
+
+      #chat-panel h2 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      #chat-form {
+        display: flex;
+        gap: 8px;
+      }
+
+      #chat-input {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid rgba(173, 194, 147, 0.26);
+        background: rgba(8, 12, 10, 0.62);
+        color: var(--text);
+        padding: 9px 10px;
+        font: inherit;
+        outline: none;
+      }
+
+      #chat-input::placeholder {
+        color: rgba(184, 199, 159, 0.7);
+      }
+
+      #chat-send {
+        border: 1px solid rgba(217, 169, 75, 0.45);
+        background: rgba(217, 169, 75, 0.16);
+        color: var(--text);
+        padding: 9px 12px;
+        cursor: pointer;
+      }
+
       #message {
         left: 50%;
         bottom: 18px;
@@ -332,7 +381,14 @@
         </div>
         <canvas id="worldmap-canvas" width="960" height="720"></canvas>
       </div>
-      <div id="hint" class="panel">WASD move, E interact, wheel zoom, click minimap to pan, M map maker.</div>
+      <div id="hint" class="panel">WASD move, E interact, Y chat, wheel zoom, click minimap to pan, M map maker.</div>
+      <div id="chat-panel" class="panel interactive">
+        <h2>Local Chat</h2>
+        <form id="chat-form">
+          <input id="chat-input" type="text" maxlength="80" placeholder="Type a short message..." autocomplete="off" />
+          <button id="chat-send" type="submit">Send</button>
+        </form>
+      </div>
       <div id="message" class="panel">Connecting...</div>
       <div id="editor-dock" class="panel interactive">
         <div class="editor-tools">

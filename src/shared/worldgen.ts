@@ -220,6 +220,7 @@ interface VillageStructurePlan {
 }
 
 const HOUSE_VARIANT_COUNT = 20;
+const LARGE_BUILDING_VARIANT_COUNT = 4;
 const SPECIAL_BUILDINGS: ObjectType[] = [
   ObjectType.Pub,
   ObjectType.Inn,
@@ -232,6 +233,26 @@ const SPECIAL_BUILDINGS: ObjectType[] = [
   ObjectType.Manor,
   ObjectType.TownHall
 ];
+
+function structureVariantCount(type: ObjectType): number {
+  switch (type) {
+    case ObjectType.Pub:
+    case ObjectType.Inn:
+    case ObjectType.Blacksmith:
+    case ObjectType.Chapel:
+    case ObjectType.Barn:
+    case ObjectType.Stable:
+    case ObjectType.Windmill:
+    case ObjectType.Market:
+    case ObjectType.Manor:
+    case ObjectType.TownHall:
+      return LARGE_BUILDING_VARIANT_COUNT;
+    case ObjectType.House:
+      return HOUSE_VARIANT_COUNT;
+    default:
+      return 1;
+  }
+}
 
 function structureRadius(type: ObjectType): number {
   switch (type) {
@@ -323,7 +344,12 @@ function buildVillageStructurePlans(): VillageStructurePlan[] {
 
     const core: Array<{ type: ObjectType; x: number; y: number; variant?: number }> = [
       { type: ObjectType.Well, x: center.tileX, y: center.tileY },
-      { type: ObjectType.Market, x: center.tileX + 8, y: center.tileY - 4 },
+      {
+        type: ObjectType.Market,
+        x: center.tileX + 8,
+        y: center.tileY - 4,
+        variant: hash2d(seed + 121, center.tileX + 8, center.tileY - 4) % structureVariantCount(ObjectType.Market)
+      },
       { type: ObjectType.Sign, x: center.tileX + center.radius - 4, y: center.tileY + 1 }
     ];
 
@@ -340,7 +366,12 @@ function buildVillageStructurePlans(): VillageStructurePlan[] {
     for (let index = 0; index < specialCount; index += 1) {
       const type = SPECIAL_BUILDINGS[(index + (seed % SPECIAL_BUILDINGS.length)) % SPECIAL_BUILDINGS.length];
       const [offsetX, offsetY] = specialOffsets[index % specialOffsets.length];
-      core.push({ type, x: center.tileX + offsetX, y: center.tileY + offsetY });
+      core.push({
+        type,
+        x: center.tileX + offsetX,
+        y: center.tileY + offsetY,
+        variant: hash2d(seed + 500 + index, center.tileX + offsetX, center.tileY + offsetY) % structureVariantCount(type)
+      });
     }
 
     for (const item of core) {

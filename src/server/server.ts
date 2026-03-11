@@ -19,6 +19,7 @@ import {
 import { ChunkManager } from "./chunk_manager";
 import { EntitySystem } from "./entity_system";
 import {
+  encodeChat,
   encodeChunkData,
   encodeEditorPatch,
   encodeInteraction,
@@ -28,11 +29,13 @@ import {
   encodeStats,
   encodeWelcome,
   isInteractPacket,
+  parseChatPacket,
   parseEditorPatchPacket,
   parseInputPacket
 } from "./network";
 import { loadEditorMap, saveEditorMap } from "./map_store";
 import { PlayerManager, type ServerPlayer } from "./player_manager";
+import { ServerWorldState } from "./world_state";
 
 const clientRoot = resolve(__dirname, "../client");
 const serverPort = Number(process.env.PORT ?? 3000);
@@ -83,6 +86,7 @@ const httpServer = createServer(async (req, res) => {
         };
         const next = await saveEditorMap(nextData);
         liveEditorMap = next;
+        worldState.importEditorLayer(next.data);
         res.writeHead(200, {
           "Content-Type": "application/json; charset=utf-8",
           "Cache-Control": "no-store"
@@ -123,7 +127,8 @@ const httpServer = createServer(async (req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 const chunkManager = new ChunkManager();
 const entitySystem = new EntitySystem();
-const playerManager = new PlayerManager(chunkManager);
+const worldState = new ServerWorldState();
+const playerManager = new PlayerManager(chunkManager, (tileX, tileY) => worldState.getTileType(tileX, tileY));
 let liveEditorMap: PersistedEditorMap = {
   revision: 0,
   updatedAt: new Date(0).toISOString(),
@@ -131,6 +136,7 @@ let liveEditorMap: PersistedEditorMap = {
 };
 const editorMapReady = loadEditorMap().then((persisted) => {
   liveEditorMap = persisted;
+  worldState.importEditorLayer(persisted.data);
 });
 let editorMapSaveTimer: NodeJS.Timeout | null = null;
 
@@ -199,6 +205,7 @@ function touchLiveEditorMap(patch: EditorPatch): void {
     updatedAt: new Date().toISOString(),
     data: applyPatchToEditorData(liveEditorMap.data, patch)
   };
+  worldState.applyEditorPatch(patch);
 }
 
 function queueEditorMapSave(): void {
@@ -217,6 +224,15 @@ function sendVisibleChunks(player: ServerPlayer, keys: ChunkKey[]): void {
   }
 
   player.socket.send(encodeChunkData(entitySystem.collectChunkPayload(keys)));
+}
+
+function sendActiveChatMessages(viewer: ServerPlayer, targets: ServerPlayer[], now = Date.now()): void {
+  for (const target of targets) {
+    const messages = playerManager.getActiveChatMessages(target.id, now);
+    for (const message of messages) {
+      viewer.socket.send(encodeChat(target.id, message.expiresAt - now, message.text));
+    }
+  }
 }
 
 function refreshVisibility(player: ServerPlayer): ServerPlayer[] {
@@ -250,6 +266,7 @@ function refreshVisibility(player: ServerPlayer): ServerPlayer[] {
       .map((id) => playerManager.players.get(id))
       .filter((candidate): candidate is ServerPlayer => Boolean(candidate));
     player.socket.send(encodePlayerEnter(entities));
+    sendActiveChatMessages(player, entities);
   }
 
   if (leavingPlayers.length > 0) {
@@ -331,6 +348,24 @@ wss.on("connection", (socket) => {
       for (const client of wss.clients) {
         if (client.readyState === 1) {
           client.send(packet);
+        }
+      }
+      return;
+    }
+
+    const chat = parseChatPacket(buffer);
+    if (chat) {
+      const message = playerManager.pushChatMessage(player.id, chat.text);
+      if (!message) {
+        return;
+      }
+
+      const packet = encodeChat(player.id, message.expiresAt - Date.now(), message.text);
+      const recipients = new Set<number>([player.id, ...player.visiblePlayers]);
+      for (const id of recipients) {
+        const recipient = playerManager.players.get(id);
+        if (recipient?.socket.readyState === 1) {
+          recipient.socket.send(packet);
         }
       }
     }

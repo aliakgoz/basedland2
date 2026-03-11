@@ -1,5 +1,14 @@
 import { type EditorPatch } from "../shared/editor_map";
-import { AnimationState, ClientOpcode, Direction, ServerOpcode, SnapshotFlag, type ChunkKey, type StaticObject } from "../shared/protocol";
+import {
+  AnimationState,
+  CHAT_MESSAGE_MAX_LENGTH,
+  ClientOpcode,
+  Direction,
+  ServerOpcode,
+  SnapshotFlag,
+  type ChunkKey,
+  type StaticObject
+} from "../shared/protocol";
 import type { ServerPlayer } from "./player_manager";
 
 function writeUint16(view: DataView, offset: number, value: number): number {
@@ -52,6 +61,24 @@ export function parseEditorPatchPacket(buffer: Buffer): EditorPatch | null {
     default:
       return null;
   }
+}
+
+export function parseChatPacket(buffer: Buffer): { text: string } | null {
+  if (buffer.length < 4 || buffer.readUInt8(0) !== ClientOpcode.Chat) {
+    return null;
+  }
+
+  const length = buffer.readUInt16LE(1);
+  if (buffer.length < 3 + length) {
+    return null;
+  }
+
+  const text = buffer.subarray(3, 3 + length).toString("utf8").trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
+  if (text.length === 0) {
+    return null;
+  }
+
+  return { text };
 }
 
 export function encodeEditorPatch(patch: EditorPatch): ArrayBuffer {
@@ -309,5 +336,19 @@ export function encodeStats(playersOnline: number): ArrayBuffer {
   const view = new DataView(buffer);
   view.setUint8(0, ServerOpcode.Stats);
   view.setUint16(1, playersOnline, true);
+  return buffer;
+}
+
+export function encodeChat(playerId: number, remainingMs: number, text: string): ArrayBuffer {
+  const encodedText = Buffer.from(text, "utf8");
+  const buffer = new ArrayBuffer(7 + encodedText.length);
+  const view = new DataView(buffer);
+  let offset = 0;
+  view.setUint8(offset, ServerOpcode.Chat);
+  offset += 1;
+  offset = writeUint16(view, offset, playerId);
+  offset = writeUint16(view, offset, Math.max(0, Math.min(65535, Math.round(remainingMs))));
+  offset = writeUint16(view, offset, encodedText.length);
+  new Uint8Array(buffer, offset, encodedText.length).set(encodedText);
   return buffer;
 }

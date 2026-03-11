@@ -9,11 +9,14 @@ export const SIMULATION_RATE = 20;
 export const NETWORK_RATE = 10;
 export const PLAYER_SPEED = 120;
 export const INTERACTION_RANGE = 56;
+export const CHAT_MESSAGE_TTL_MS = 5000;
+export const CHAT_MESSAGE_MAX_LENGTH = 80;
 
 export const enum ClientOpcode {
   Input = 1,
   Interact = 2,
-  EditorPatch = 3
+  EditorPatch = 3,
+  Chat = 4
 }
 
 export const enum ServerOpcode {
@@ -24,7 +27,8 @@ export const enum ServerOpcode {
   Snapshot = 5,
   Interaction = 6,
   Stats = 7,
-  EditorPatch = 8
+  EditorPatch = 8,
+  Chat = 9
 }
 
 export const enum InputFlag {

@@ -1,4 +1,5 @@
-import { ObjectType, TILE_SIZE, TileType, WORLD_SEED } from "../shared/protocol";
+import { AnimationState, Direction, ObjectType, TILE_SIZE, TileType, WORLD_SEED } from "../shared/protocol";
+import type { PlayerAppearance, PlayerEntity } from "./entity";
 
 type SpriteSource = HTMLCanvasElement | HTMLImageElement;
 export interface AssetArchiveEntry {
@@ -32,8 +33,14 @@ const TILE_VARIANTS = 6;
 const HOUSE_VARIANTS = 20;
 const TILE_PIXEL_SIZE = 16;
 const OBJECT_SIZE = 32;
+const PLAYER_FRAME_SIZE = 64;
+const PLAYER_SHEET_COLUMNS = 4;
+const PLAYER_SHEET_ROWS = 4;
+const PLAYER_GRID_SIZE = 32;
+const PLAYER_GRID_SCALE = PLAYER_FRAME_SIZE / PLAYER_GRID_SIZE;
 const PLAYER_WIDTH = 16;
 const PLAYER_HEIGHT = 20;
+const OBJECT_WORLD_SCALE = 2;
 const USE_GENERATED_GROUND = false;
 const BRIDGE_SLUGS = [
   "bridge-v",
@@ -48,6 +55,61 @@ const BRIDGE_SLUGS = [
   "bridge-t-north",
   "bridge-t-south"
 ] as const;
+const LARGE_BUILDING_TYPES = new Set<ObjectType>([
+  ObjectType.Pub,
+  ObjectType.Inn,
+  ObjectType.Barn,
+  ObjectType.Stable,
+  ObjectType.Blacksmith,
+  ObjectType.Windmill,
+  ObjectType.Chapel,
+  ObjectType.Market,
+  ObjectType.Manor,
+  ObjectType.TownHall
+]);
+
+type Rgb = [number, number, number];
+type PlayerPaletteRole = "hair" | "primary" | "secondary" | "accent" | "skin" | "boots";
+
+interface PlayerPalette {
+  hair: [string, string, string];
+  primary: [string, string, string];
+  secondary: [string, string, string];
+  accent: [string, string, string];
+  skin: [string, string, string];
+  boots: [string, string, string];
+}
+
+interface PlayerBuild {
+  headWidth: number;
+  headHeight: number;
+  torsoWidth: number;
+  torsoHeight: number;
+  shoulderWidth: number;
+  armLength: number;
+  legLength: number;
+  armThickness: number;
+  legThickness: number;
+  legGap: number;
+  bootHeight: number;
+}
+
+interface PlayerPoint {
+  x: number;
+  y: number;
+}
+
+interface PlayerOutfit {
+  collar: 0 | 1 | 2;
+  shoulderPads: boolean;
+  cape: boolean;
+  coatTail: 0 | 1 | 2;
+  gloves: boolean;
+  bootCuffs: boolean;
+  hairStyle: 0 | 1 | 2 | 3;
+  beltPouch: boolean;
+  trim: 0 | 1 | 2;
+}
 
 const TILE_PALETTES: Record<TileType, string[]> = {
   [TileType.Grass]: ["#6fa84f", "#78b154", "#5d913f", "#8fc76d", "#4f7b33"],
@@ -56,6 +118,79 @@ const TILE_PALETTES: Record<TileType, string[]> = {
   [TileType.Water]: ["#4a7cab", "#5a92c5", "#34648e", "#83b3dd", "#294f70"],
   [TileType.Forest]: ["#456f37", "#50813f", "#345a29", "#6b9d55", "#27461f"]
 };
+
+const PLAYER_WALK_SEQUENCE = [0, 1, 2, 3, 2, 1] as const;
+const PLAYER_PLACEHOLDER_COLORS: Record<PlayerPaletteRole, [Rgb, Rgb, Rgb]> = {
+  hair: [
+    [255, 201, 92],
+    [214, 142, 42],
+    [125, 76, 24]
+  ],
+  primary: [
+    [39, 215, 255],
+    [20, 151, 207],
+    [10, 92, 140]
+  ],
+  secondary: [
+    [255, 105, 200],
+    [196, 58, 143],
+    [127, 30, 89]
+  ],
+  accent: [
+    [164, 255, 101],
+    [93, 191, 62],
+    [46, 111, 34]
+  ],
+  skin: [
+    [244, 198, 160],
+    [214, 154, 114],
+    [157, 103, 74]
+  ],
+  boots: [
+    [138, 92, 54],
+    [94, 61, 37],
+    [44, 28, 20]
+  ]
+};
+
+const PLAYER_HAIR_RAMPS: [string, string, string][] = [
+  ["#f3d36c", "#bc8d34", "#6c4518"],
+  ["#d9a45b", "#996634", "#58361a"],
+  ["#f6e2b7", "#cdb48c", "#7c6747"],
+  ["#f07d60", "#b94a36", "#6b2319"],
+  ["#7c5440", "#533728", "#2f1c14"]
+];
+
+const PLAYER_PRIMARY_RAMPS: [string, string, string][] = [
+  ["#5ec7ff", "#2b8fc2", "#155474"],
+  ["#90d15e", "#4a9d43", "#275f2d"],
+  ["#e9b65e", "#bf7f33", "#6a4818"],
+  ["#d57be6", "#954cb3", "#56296d"],
+  ["#e86f8f", "#b04563", "#6a2338"]
+];
+
+const PLAYER_SECONDARY_RAMPS: [string, string, string][] = [
+  ["#f5efe5", "#cbbfa9", "#7b6d5d"],
+  ["#f0d287", "#c79440", "#70511d"],
+  ["#7de3d1", "#3ea596", "#1f5d56"],
+  ["#dcbdf7", "#9f78cb", "#583f77"],
+  ["#f1ae9c", "#c47163", "#744036"]
+];
+
+const PLAYER_ACCENT_RAMPS: [string, string, string][] = [
+  ["#ffe88a", "#d8b94c", "#7f6524"],
+  ["#b6ff92", "#74be49", "#386924"],
+  ["#ffa27c", "#d16c45", "#7d341f"],
+  ["#8ee8ff", "#4ba5ca", "#21576e"],
+  ["#ffd0ee", "#c782aa", "#703c61"]
+];
+
+const PLAYER_SKIN_RAMPS: [string, string, string][] = [
+  ["#f3d1b3", "#d39d79", "#946247"],
+  ["#e9be9c", "#bd8867", "#7d513b"],
+  ["#d59c75", "#a26d4d", "#693f2d"],
+  ["#8d6247", "#6d4735", "#472c20"]
+];
 
 function hash(value: number): number {
   let x = value >>> 0;
@@ -94,6 +229,18 @@ function drawRectPx(
 ): void {
   ctx.fillStyle = color;
   ctx.fillRect(x * size, y * size, width * size, height * size);
+}
+
+function drawMirroredRectPx(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  size: number,
+  color: string
+): void {
+  drawRectPx(ctx, PLAYER_WIDTH - x - width, y, width, height, size, color);
 }
 
 function circleMask(dx: number, dy: number, radius: number): boolean {
@@ -755,6 +902,557 @@ function makePlayerSprite(primary: string, secondary: string, skin: string): HTM
   return canvas;
 }
 
+function clampInt(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function hexToRgb(hex: string): Rgb {
+  const value = hex.replace("#", "");
+  return [
+    Number.parseInt(value.slice(0, 2), 16),
+    Number.parseInt(value.slice(2, 4), 16),
+    Number.parseInt(value.slice(4, 6), 16)
+  ];
+}
+
+function pickPlayerRamp(
+  ramps: [string, string, string][],
+  preferredIndex: number | undefined,
+  seed: number
+): [string, string, string] {
+  if (preferredIndex !== undefined && Number.isFinite(preferredIndex)) {
+    const index = Math.abs(Math.floor(preferredIndex)) % ramps.length;
+    return ramps[index];
+  }
+  return ramps[hash(seed) % ramps.length];
+}
+
+function pickTrait(id: number, preferred: number | undefined, salt: number): number {
+  if (preferred !== undefined && Number.isFinite(preferred)) {
+    const normalized = Math.abs(preferred % 1000) / 999;
+    return normalized;
+  }
+  return (hash(id ^ salt) % 1000) / 999;
+}
+
+function lerpInt(min: number, max: number, t: number): number {
+  return clampInt(min + (max - min) * t, min, max);
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function mixPoint(a: PlayerPoint, b: PlayerPoint, t: number): PlayerPoint {
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t
+  };
+}
+
+function fillCirclePx(ctx: CanvasRenderingContext2D, center: PlayerPoint, radius: number, color: string): void {
+  ctx.fillStyle = color;
+  const minX = Math.floor(center.x - radius);
+  const maxX = Math.ceil(center.x + radius);
+  const minY = Math.floor(center.y - radius);
+  const maxY = Math.ceil(center.y + radius);
+  for (let py = minY; py <= maxY; py += 1) {
+    for (let px = minX; px <= maxX; px += 1) {
+      const dx = px + 0.5 - center.x;
+      const dy = py + 0.5 - center.y;
+      if (dx * dx + dy * dy <= radius * radius) {
+        ctx.fillRect(px * PLAYER_GRID_SCALE, py * PLAYER_GRID_SCALE, PLAYER_GRID_SCALE, PLAYER_GRID_SCALE);
+      }
+    }
+  }
+}
+
+function drawSegmentPx(
+  ctx: CanvasRenderingContext2D,
+  from: PlayerPoint,
+  to: PlayerPoint,
+  thickness: number,
+  color: string
+): void {
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y)) * 3));
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    fillCirclePx(ctx, mixPoint(from, to, t), thickness / 2, color);
+  }
+}
+
+function drawTunicPx(
+  ctx: CanvasRenderingContext2D,
+  torsoTop: number,
+  torsoBottom: number,
+  centerX: number,
+  shoulderWidth: number,
+  waistWidth: number,
+  palette: PlayerPalette
+): void {
+  for (let y = torsoTop; y <= torsoBottom; y += 1) {
+    const t = clamp01((y - torsoTop) / Math.max(1, torsoBottom - torsoTop));
+    const taper = t < 0.35 ? t * 0.55 : 0.2 + (t - 0.35) * 0.95;
+    const width = clampInt(shoulderWidth - (shoulderWidth - waistWidth) * taper, waistWidth, shoulderWidth);
+    const inset = y === torsoTop ? 1 : y === torsoTop + 1 ? 0.5 : 0;
+    const startX = Math.round(centerX - width / 2 + inset);
+    const color = t < 0.2 ? palette.primary[0] : t < 0.82 ? palette.primary[1] : palette.primary[2];
+    const rowWidth = Math.max(2, width - Math.round(inset * 2));
+    drawRectPx(ctx, startX, y, rowWidth, 1, PLAYER_GRID_SCALE, color);
+  }
+}
+
+function drawTunicHemPx(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  y: number,
+  width: number,
+  splitDepth: number,
+  palette: PlayerPalette
+): void {
+  const leftWidth = Math.max(2, Math.floor(width / 2) - 1);
+  const rightWidth = Math.max(2, Math.ceil(width / 2) - 1);
+  drawRectPx(ctx, Math.round(centerX - width / 2), y, leftWidth, splitDepth, PLAYER_GRID_SCALE, palette.primary[2]);
+  drawRectPx(ctx, Math.round(centerX + 1), y, rightWidth, splitDepth, PLAYER_GRID_SCALE, palette.primary[2]);
+  drawRectPx(ctx, Math.round(centerX - width / 2), y, leftWidth, 1, PLAYER_GRID_SCALE, palette.secondary[0]);
+  drawRectPx(ctx, Math.round(centerX + 1), y, rightWidth, 1, PLAYER_GRID_SCALE, palette.secondary[0]);
+}
+
+function drawSleeveCapsPx(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  chestY: number,
+  shoulderWidth: number,
+  palette: PlayerPalette
+): void {
+  drawRectPx(ctx, Math.round(centerX - shoulderWidth / 2), Math.round(chestY + 1), 2, 2, PLAYER_GRID_SCALE, palette.secondary[0]);
+  drawRectPx(ctx, Math.round(centerX + shoulderWidth / 2) - 2, Math.round(chestY + 1), 2, 2, PLAYER_GRID_SCALE, palette.secondary[0]);
+}
+
+function drawSuspendersPx(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  chestY: number,
+  pelvisY: number,
+  waistWidth: number,
+  palette: PlayerPalette
+): void {
+  const leftX = Math.round(centerX - Math.max(2, waistWidth / 3));
+  const rightX = Math.round(centerX + Math.max(1, waistWidth / 3));
+  drawRectPx(ctx, leftX, Math.round(chestY), 1, Math.max(2, Math.round((pelvisY - chestY) * 0.55)), PLAYER_GRID_SCALE, palette.secondary[0]);
+  drawRectPx(ctx, rightX, Math.round(chestY), 1, Math.max(2, Math.round((pelvisY - chestY) * 0.55)), PLAYER_GRID_SCALE, palette.secondary[0]);
+}
+
+function drawBeltPx(ctx: CanvasRenderingContext2D, centerX: number, y: number, width: number, palette: PlayerPalette): void {
+  const startX = Math.round(centerX - width / 2);
+  drawRectPx(ctx, startX, y, width, 1, PLAYER_GRID_SCALE, palette.accent[1]);
+  drawRectPx(ctx, centerX - 1, y, 2, 1, PLAYER_GRID_SCALE, palette.accent[0]);
+}
+
+function drawEyesPx(
+  ctx: CanvasRenderingContext2D,
+  direction: Direction,
+  headCenter: PlayerPoint,
+  build: PlayerBuild
+): void {
+  const eyeY = Math.round(headCenter.y + 0.25);
+  if (direction === Direction.Down) {
+    drawRectPx(ctx, Math.round(headCenter.x - 2), eyeY, 1, 1, PLAYER_GRID_SCALE, "#241c18");
+    drawRectPx(ctx, Math.round(headCenter.x + 1), eyeY, 1, 1, PLAYER_GRID_SCALE, "#241c18");
+    return;
+  }
+  if (direction === Direction.Left) {
+    drawRectPx(ctx, Math.round(headCenter.x - 2), eyeY, 1, 1, PLAYER_GRID_SCALE, "#241c18");
+    return;
+  }
+  if (direction === Direction.Right) {
+    drawRectPx(ctx, Math.round(headCenter.x + 1), eyeY, 1, 1, PLAYER_GRID_SCALE, "#241c18");
+  }
+}
+
+function playerOutfitFor(id: number): PlayerOutfit {
+  return {
+    collar: (hash(id ^ 0x25aa33ef) % 3) as 0 | 1 | 2,
+    shoulderPads: (hash(id ^ 0x17ab91c1) % 2) === 0,
+    cape: (hash(id ^ 0x0faca211) % 5) <= 1,
+    coatTail: (hash(id ^ 0x66aa9911) % 3) as 0 | 1 | 2,
+    gloves: (hash(id ^ 0x44bb2277) % 3) !== 0,
+    bootCuffs: (hash(id ^ 0x91ccd431) % 2) === 0,
+    hairStyle: (hash(id ^ 0x7712eeaa) % 4) as 0 | 1 | 2 | 3,
+    beltPouch: (hash(id ^ 0x8801aa77) % 2) === 0,
+    trim: (hash(id ^ 0x14dd390f) % 3) as 0 | 1 | 2
+  };
+}
+
+function drawHairStylePx(
+  ctx: CanvasRenderingContext2D,
+  headCenter: PlayerPoint,
+  build: PlayerBuild,
+  outfit: PlayerOutfit,
+  direction: Direction,
+  palette: PlayerPalette
+): void {
+  const headLeft = Math.round(headCenter.x - build.headWidth / 2);
+  const headTop = Math.round(headCenter.y - build.headHeight / 2);
+  drawRectPx(ctx, headLeft, headTop, build.headWidth, 2, PLAYER_GRID_SCALE, palette.hair[1]);
+  drawRectPx(ctx, headLeft + 1, headTop + 1, Math.max(2, build.headWidth - 2), 1, PLAYER_GRID_SCALE, palette.hair[0]);
+
+  if (direction === Direction.Up) {
+    drawRectPx(ctx, headLeft, headTop + build.headHeight - 1, build.headWidth, 1, PLAYER_GRID_SCALE, palette.hair[2]);
+  }
+
+  if (outfit.hairStyle === 1 && direction !== Direction.Up) {
+    drawRectPx(ctx, headLeft, headTop + 2, 1, Math.max(2, build.headHeight - 2), PLAYER_GRID_SCALE, palette.hair[2]);
+  }
+  if (outfit.hairStyle === 2) {
+    drawRectPx(ctx, headLeft + build.headWidth - 1, headTop + 2, 1, Math.max(2, build.headHeight - 2), PLAYER_GRID_SCALE, palette.hair[2]);
+  }
+  if (outfit.hairStyle === 3 && direction !== Direction.Down) {
+    drawRectPx(ctx, Math.round(headCenter.x - 1), headTop + build.headHeight - 1, 2, 2, PLAYER_GRID_SCALE, palette.hair[2]);
+  }
+}
+
+function drawOutfitBodyPx(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  chestY: number,
+  pelvisY: number,
+  build: PlayerBuild,
+  outfit: PlayerOutfit,
+  palette: PlayerPalette
+): void {
+  const bodyTop = Math.round(chestY);
+  const bodyBottom = Math.round(pelvisY - 1);
+  const shoulderSpan = Math.max(4, build.shoulderWidth - 1);
+  const waistSpan = Math.max(4, build.torsoWidth - 1);
+  drawTunicPx(ctx, bodyTop, bodyBottom, centerX, shoulderSpan, waistSpan, palette);
+  drawSleeveCapsPx(ctx, centerX, chestY, shoulderSpan, palette);
+  drawBeltPx(ctx, centerX, Math.round(chestY + build.torsoHeight * 0.58), waistSpan, palette);
+
+  if (outfit.collar === 1) {
+    drawRectPx(ctx, Math.round(centerX - 1), Math.round(chestY), 2, 2, PLAYER_GRID_SCALE, palette.secondary[0]);
+  } else if (outfit.collar === 2) {
+    drawRectPx(ctx, Math.round(centerX - 2), Math.round(chestY), 4, 2, PLAYER_GRID_SCALE, palette.secondary[0]);
+  }
+
+  if (outfit.shoulderPads) {
+    fillCirclePx(ctx, { x: centerX - build.shoulderWidth / 2 + 0.8, y: chestY + 1.3 }, 1.1, palette.secondary[0]);
+    fillCirclePx(ctx, { x: centerX + build.shoulderWidth / 2 - 0.8, y: chestY + 1.3 }, 1.1, palette.secondary[0]);
+  }
+
+  if (outfit.trim === 1) {
+    drawRectPx(ctx, Math.round(centerX - waistSpan / 2), bodyBottom, waistSpan, 1, PLAYER_GRID_SCALE, palette.secondary[0]);
+  } else if (outfit.trim === 2) {
+    drawSuspendersPx(ctx, centerX, chestY + 1, pelvisY, waistSpan, palette);
+  }
+
+  if (outfit.coatTail >= 1) {
+    drawTunicHemPx(ctx, centerX, Math.round(pelvisY), waistSpan, 1 + outfit.coatTail, palette);
+  }
+
+  if (outfit.beltPouch) {
+    drawRectPx(ctx, Math.round(centerX + waistSpan / 2 - 1), Math.round(chestY + build.torsoHeight * 0.58), 2, 2, PLAYER_GRID_SCALE, palette.accent[2]);
+  }
+}
+
+function drawCapePx(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  chestY: number,
+  pelvisY: number,
+  build: PlayerBuild,
+  direction: Direction,
+  palette: PlayerPalette
+): void {
+  const width = direction === Direction.Up ? build.torsoWidth + 3 : build.torsoWidth + 1;
+  const height = direction === Direction.Up ? build.torsoHeight + 3 : build.torsoHeight + 1;
+  const x = Math.round(centerX - width / 2);
+  const y = Math.round(chestY + (direction === Direction.Up ? 0 : 1));
+  drawRectPx(ctx, x, y, width, height, PLAYER_GRID_SCALE, palette.secondary[2]);
+  drawRectPx(ctx, x + 1, y, Math.max(2, width - 2), 1, PLAYER_GRID_SCALE, palette.secondary[1]);
+  if (direction === Direction.Up) {
+    drawRectPx(ctx, x + 1, Math.round(pelvisY + 1), Math.max(2, width - 2), 2, PLAYER_GRID_SCALE, palette.secondary[2]);
+  }
+}
+
+function playerPaletteFor(id: number, appearance?: PlayerAppearance): PlayerPalette {
+  return {
+    hair: pickPlayerRamp(PLAYER_HAIR_RAMPS, appearance?.hair, id ^ 0x91a2f31),
+    primary: pickPlayerRamp(PLAYER_PRIMARY_RAMPS, appearance?.primary, id ^ 0x5f3759df),
+    secondary: pickPlayerRamp(PLAYER_SECONDARY_RAMPS, appearance?.secondary, id ^ 0x7f4a7c15),
+    accent: pickPlayerRamp(PLAYER_ACCENT_RAMPS, appearance?.accent, id ^ 0x1234abcd),
+    skin: pickPlayerRamp(PLAYER_SKIN_RAMPS, appearance?.skin, id ^ 0x31415926),
+    boots: ["#8a5c36", "#5e3d25", "#2c1c14"]
+  };
+}
+
+function playerBuildFor(id: number, appearance?: PlayerAppearance): PlayerBuild {
+  const height = pickTrait(id, appearance?.height, 0x1f123bb5);
+  const build = pickTrait(id, appearance?.build, 0x3a771c91);
+  const head = pickTrait(id, appearance?.headSize, 0x7b992f0d);
+  const arms = pickTrait(id, appearance?.armLength, 0x5c4112a3);
+  const legs = pickTrait(id, appearance?.legLength, 0x6f02de41);
+
+  const torsoWidth = lerpInt(6, 10, build);
+  const legLength = lerpInt(7, 11, (legs * 0.7 + height * 0.3));
+  const armLength = lerpInt(5, 9, (arms * 0.7 + height * 0.3));
+  const headWidth = lerpInt(6, 9, head);
+  const headHeight = lerpInt(5, 7, head * 0.75 + 0.15);
+  const torsoHeight = lerpInt(7, 10, height);
+  const legThickness = build > 0.6 ? 2 : 1;
+  const armThickness = build > 0.72 ? 2 : 1;
+
+  return {
+    headWidth,
+    headHeight,
+    torsoWidth,
+    torsoHeight,
+    shoulderWidth: Math.max(torsoWidth + 2, headWidth + 1),
+    armLength,
+    legLength,
+    armThickness,
+    legThickness,
+    legGap: build > 0.55 ? 2 : 1,
+    bootHeight: 2
+  };
+}
+
+function rowForDirection(direction: Direction): number {
+  switch (direction) {
+    case Direction.Left:
+      return 1;
+    case Direction.Right:
+      return 2;
+    case Direction.Up:
+      return 3;
+    case Direction.Down:
+    default:
+      return 0;
+  }
+}
+
+function animationColumn(animation: AnimationState, nowMs: number): number {
+  if (animation !== AnimationState.Walk) {
+    return 0;
+  }
+  const index = Math.floor(nowMs / 120) % PLAYER_WALK_SEQUENCE.length;
+  return PLAYER_WALK_SEQUENCE[index];
+}
+
+function makeFallbackPlayerFrame(
+  direction: Direction,
+  frame: number,
+  palette: PlayerPalette,
+  build: PlayerBuild,
+  outfit: PlayerOutfit
+): HTMLCanvasElement {
+  const canvas = createCanvas(PLAYER_FRAME_SIZE, PLAYER_FRAME_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const centerX = PLAYER_GRID_SIZE / 2;
+  const groundY = 29;
+  const gait = [
+    { left: -0.3, right: 0.3, liftLeft: 0, liftRight: 0, arm: -0.4, bob: 0 },
+    { left: -2.3, right: 1.5, liftLeft: -0.5, liftRight: 0.8, arm: 1.9, bob: -0.25 },
+    { left: -0.6, right: 0.6, liftLeft: 0.2, liftRight: 0.2, arm: 0, bob: -0.4 },
+    { left: 1.5, right: -2.3, liftLeft: 0.8, liftRight: -0.5, arm: -1.9, bob: -0.25 }
+  ][frame];
+
+  const pelvisY = groundY - build.legLength - 1 + gait.bob;
+  const chestY = pelvisY - build.torsoHeight;
+  const neckY = chestY - 1;
+  const headCenter: PlayerPoint = { x: centerX, y: neckY - build.headHeight / 2 - 0.5 };
+  const leftHip: PlayerPoint = { x: centerX - build.legGap, y: pelvisY };
+  const rightHip: PlayerPoint = { x: centerX + build.legGap, y: pelvisY };
+  const leftShoulder: PlayerPoint = { x: centerX - build.shoulderWidth / 2, y: chestY + 1 };
+  const rightShoulder: PlayerPoint = { x: centerX + build.shoulderWidth / 2, y: chestY + 1 };
+
+  const shadowWidth = 9 + Math.max(Math.abs(gait.left), Math.abs(gait.right));
+  ctx.fillStyle = "rgba(0,0,0,0.16)";
+  ctx.fillRect((centerX - shadowWidth / 2) * PLAYER_GRID_SCALE, (groundY + 1) * PLAYER_GRID_SCALE, shadowWidth * PLAYER_GRID_SCALE, 2 * PLAYER_GRID_SCALE);
+
+  if (direction === Direction.Down || direction === Direction.Up) {
+    const leftFoot: PlayerPoint = { x: centerX - build.legGap + gait.left, y: groundY };
+    const rightFoot: PlayerPoint = { x: centerX + build.legGap + gait.right, y: groundY };
+    const leftKnee: PlayerPoint = mixPoint(leftHip, leftFoot, 0.52);
+    leftKnee.x += gait.left * 0.35;
+    leftKnee.y -= 1.2 + gait.liftLeft;
+    const rightKnee: PlayerPoint = mixPoint(rightHip, rightFoot, 0.52);
+    rightKnee.x += gait.right * 0.35;
+    rightKnee.y -= 1.2 + gait.liftRight;
+
+    const leftHand: PlayerPoint = { x: leftShoulder.x - 0.6 + gait.arm, y: chestY + build.armLength };
+    const rightHand: PlayerPoint = { x: rightShoulder.x + 0.6 - gait.arm, y: chestY + build.armLength };
+    const leftElbow: PlayerPoint = mixPoint(leftShoulder, leftHand, 0.45);
+    leftElbow.x += gait.arm * 0.25;
+    const rightElbow: PlayerPoint = mixPoint(rightShoulder, rightHand, 0.45);
+    rightElbow.x -= gait.arm * 0.25;
+
+    drawSegmentPx(ctx, leftHip, leftKnee, build.legThickness + 1.1, palette.secondary[2]);
+    drawSegmentPx(ctx, leftKnee, leftFoot, build.legThickness + 1.1, palette.secondary[1]);
+    drawSegmentPx(ctx, rightHip, rightKnee, build.legThickness + 1.1, palette.secondary[2]);
+    drawSegmentPx(ctx, rightKnee, rightFoot, build.legThickness + 1.1, palette.secondary[1]);
+    fillCirclePx(ctx, leftFoot, build.legThickness, palette.boots[0]);
+    fillCirclePx(ctx, rightFoot, build.legThickness, palette.boots[0]);
+    if (outfit.bootCuffs) {
+      fillCirclePx(ctx, { x: leftFoot.x, y: leftFoot.y - 1.25 }, build.legThickness * 0.9, palette.secondary[0]);
+      fillCirclePx(ctx, { x: rightFoot.x, y: rightFoot.y - 1.25 }, build.legThickness * 0.9, palette.secondary[0]);
+    }
+
+    drawSegmentPx(ctx, leftShoulder, leftElbow, build.armThickness + 0.8, palette.primary[2]);
+    drawSegmentPx(ctx, leftElbow, leftHand, build.armThickness + 0.75, palette.skin[1]);
+    drawSegmentPx(ctx, rightShoulder, rightElbow, build.armThickness + 0.8, palette.primary[2]);
+    drawSegmentPx(ctx, rightElbow, rightHand, build.armThickness + 0.75, palette.skin[1]);
+    drawSegmentPx(ctx, leftShoulder, mixPoint(leftShoulder, leftHand, 0.55), build.armThickness + 0.55, palette.secondary[0]);
+    drawSegmentPx(ctx, rightShoulder, mixPoint(rightShoulder, rightHand, 0.55), build.armThickness + 0.55, palette.secondary[0]);
+    fillCirclePx(ctx, leftHand, build.armThickness * 0.55 + 0.45, outfit.gloves ? palette.secondary[0] : palette.skin[0]);
+    fillCirclePx(ctx, rightHand, build.armThickness * 0.55 + 0.45, outfit.gloves ? palette.secondary[0] : palette.skin[0]);
+
+    if (outfit.cape) {
+      drawCapePx(ctx, centerX, chestY, pelvisY, build, direction, palette);
+    }
+    drawOutfitBodyPx(ctx, centerX, chestY, pelvisY, build, outfit, palette);
+
+    fillCirclePx(ctx, headCenter, Math.max(build.headWidth, build.headHeight) * 0.46, palette.skin[0]);
+    drawHairStylePx(ctx, headCenter, build, outfit, direction, palette);
+    drawEyesPx(ctx, direction, headCenter, build);
+    if (direction === Direction.Up) {
+      const headLeft = Math.round(headCenter.x - build.headWidth / 2);
+      const headTop = Math.round(headCenter.y - build.headHeight / 2);
+      drawRectPx(ctx, headLeft, headTop + build.headHeight - 1, build.headWidth, 1, PLAYER_GRID_SCALE, palette.hair[2]);
+    }
+    return canvas;
+  }
+
+  const facingRight = direction === Direction.Right;
+  const facing = facingRight ? 1 : -1;
+  const frontHip: PlayerPoint = { x: centerX + facing * 0.8, y: pelvisY };
+  const backHip: PlayerPoint = { x: centerX - facing * 0.8, y: pelvisY + 0.2 };
+  const frontFoot: PlayerPoint = { x: centerX + facing * (1.8 + gait.left * 0.55), y: groundY };
+  const backFoot: PlayerPoint = { x: centerX - facing * (0.4 - gait.right * 0.4), y: groundY };
+  const frontKnee: PlayerPoint = mixPoint(frontHip, frontFoot, 0.52);
+  frontKnee.x += facing * (1.1 + gait.left * 0.22);
+  frontKnee.y -= 1.4 + gait.liftLeft;
+  const backKnee: PlayerPoint = mixPoint(backHip, backFoot, 0.52);
+  backKnee.x -= facing * (0.5 - gait.right * 0.2);
+  backKnee.y -= 0.7 + gait.liftRight * 0.5;
+
+  const frontShoulder: PlayerPoint = { x: centerX + facing * (build.shoulderWidth / 2 - 0.2), y: chestY + 1 };
+  const backShoulder: PlayerPoint = { x: centerX - facing * (build.shoulderWidth / 2 - 0.2), y: chestY + 1.2 };
+  const frontHand: PlayerPoint = { x: frontShoulder.x + facing * (1.2 - gait.arm * 0.45), y: chestY + build.armLength };
+  const backHand: PlayerPoint = { x: backShoulder.x - facing * (0.6 + gait.arm * 0.35), y: chestY + build.armLength - 0.4 };
+  const frontElbow: PlayerPoint = mixPoint(frontShoulder, frontHand, 0.46);
+  frontElbow.x += facing * 0.8;
+  const backElbow: PlayerPoint = mixPoint(backShoulder, backHand, 0.46);
+  backElbow.x -= facing * 0.4;
+
+  drawSegmentPx(ctx, backHip, backKnee, build.legThickness + 0.8, palette.secondary[2]);
+  drawSegmentPx(ctx, backKnee, backFoot, build.legThickness + 0.8, palette.secondary[1]);
+  fillCirclePx(ctx, backFoot, build.legThickness * 0.85, palette.boots[1]);
+  drawSegmentPx(ctx, backShoulder, backElbow, build.armThickness + 0.6, palette.primary[2]);
+  drawSegmentPx(ctx, backElbow, backHand, build.armThickness + 0.5, palette.skin[2]);
+  drawSegmentPx(ctx, backShoulder, mixPoint(backShoulder, backHand, 0.58), build.armThickness + 0.4, palette.secondary[0]);
+  if (outfit.bootCuffs) {
+    fillCirclePx(ctx, { x: backFoot.x, y: backFoot.y - 1.1 }, build.legThickness * 0.75, palette.secondary[0]);
+  }
+
+  if (outfit.cape) {
+    drawCapePx(ctx, centerX + facing * 0.1, chestY, pelvisY, build, direction, palette);
+  }
+  drawOutfitBodyPx(ctx, centerX + facing * 0.2, chestY, pelvisY, build, outfit, palette);
+
+  drawSegmentPx(ctx, frontHip, frontKnee, build.legThickness + 1.1, palette.secondary[1]);
+  drawSegmentPx(ctx, frontKnee, frontFoot, build.legThickness + 1.1, palette.secondary[0]);
+  fillCirclePx(ctx, frontFoot, build.legThickness, palette.boots[0]);
+  drawSegmentPx(ctx, frontShoulder, frontElbow, build.armThickness + 0.8, palette.primary[1]);
+  drawSegmentPx(ctx, frontElbow, frontHand, build.armThickness + 0.7, palette.skin[1]);
+  drawSegmentPx(ctx, frontShoulder, mixPoint(frontShoulder, frontHand, 0.58), build.armThickness + 0.5, palette.secondary[0]);
+  fillCirclePx(ctx, frontHand, build.armThickness * 0.5 + 0.45, outfit.gloves ? palette.secondary[0] : palette.skin[0]);
+  if (outfit.bootCuffs) {
+    fillCirclePx(ctx, { x: frontFoot.x, y: frontFoot.y - 1.1 }, build.legThickness * 0.85, palette.secondary[0]);
+  }
+
+  const headProfileCenter: PlayerPoint = { x: centerX + facing * 0.9, y: headCenter.y };
+  fillCirclePx(ctx, headProfileCenter, Math.max(build.headWidth, build.headHeight) * 0.45, palette.skin[0]);
+  drawHairStylePx(ctx, headProfileCenter, build, outfit, direction, palette);
+  drawEyesPx(ctx, direction, headProfileCenter, build);
+  return canvas;
+}
+
+function makeFallbackPlayerSheet(): HTMLCanvasElement {
+  const canvas = createCanvas(PLAYER_FRAME_SIZE * PLAYER_SHEET_COLUMNS, PLAYER_FRAME_SIZE * PLAYER_SHEET_ROWS);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const palette = playerPaletteFor(1);
+  const build = playerBuildFor(1);
+  const outfit = playerOutfitFor(1);
+  const directions = [Direction.Down, Direction.Left, Direction.Right, Direction.Up];
+  for (let row = 0; row < directions.length; row += 1) {
+    for (let col = 0; col < PLAYER_SHEET_COLUMNS; col += 1) {
+      ctx.drawImage(
+        makeFallbackPlayerFrame(directions[row], col, palette, build, outfit),
+        col * PLAYER_FRAME_SIZE,
+        row * PLAYER_FRAME_SIZE
+      );
+    }
+  }
+  return canvas;
+}
+
+function buildPlayerFrames(player: PlayerEntity): SpriteSource[] {
+  const palette = playerPaletteFor(player.id, player.appearance);
+  const build = playerBuildFor(player.id, player.appearance);
+  const outfit = playerOutfitFor(player.id);
+  const directions = [Direction.Down, Direction.Left, Direction.Right, Direction.Up];
+
+  return directions.flatMap((direction) =>
+    Array.from({ length: PLAYER_SHEET_COLUMNS }, (_, frame) => makeFallbackPlayerFrame(direction, frame, palette, build, outfit))
+  );
+}
+
+function slicePlayerFrames(sheet: SpriteSource): SpriteSource[] {
+  const sourceWidth = "naturalWidth" in sheet ? sheet.naturalWidth : sheet.width;
+  const sourceHeight = "naturalHeight" in sheet ? sheet.naturalHeight : sheet.height;
+  const cellWidth = Math.floor(sourceWidth / PLAYER_SHEET_COLUMNS);
+  const cellHeight = Math.floor(sourceHeight / PLAYER_SHEET_ROWS);
+
+  if (cellWidth <= 0 || cellHeight <= 0) {
+    return [];
+  }
+
+  const frames: SpriteSource[] = [];
+  for (let row = 0; row < PLAYER_SHEET_ROWS; row += 1) {
+    for (let col = 0; col < PLAYER_SHEET_COLUMNS; col += 1) {
+      const frame = createCanvas(PLAYER_FRAME_SIZE, PLAYER_FRAME_SIZE);
+      const ctx = frame.getContext("2d");
+      if (!ctx) {
+        frames.push(frame);
+        continue;
+      }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(
+        sheet,
+        col * cellWidth,
+        row * cellHeight,
+        cellWidth,
+        cellHeight,
+        0,
+        0,
+        PLAYER_FRAME_SIZE,
+        PLAYER_FRAME_SIZE
+      );
+      frames.push(frame);
+    }
+  }
+  return frames;
+}
+
 function makeFallbackObjectSprite(type: ObjectType): HTMLCanvasElement {
   switch (type) {
     case ObjectType.House:
@@ -906,7 +1604,7 @@ async function loadManifest(): Promise<GeneratedManifest | null> {
 export function sizeForObject(type: ObjectType): { width: number; height: number } {
   switch (type) {
     case ObjectType.House:
-      return { width: TILE_SIZE * 3.2, height: TILE_SIZE * 3.2 };
+      return { width: TILE_SIZE * 3.2 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 3.2 * OBJECT_WORLD_SCALE };
     case ObjectType.Pub:
     case ObjectType.Inn:
     case ObjectType.Barn:
@@ -915,30 +1613,30 @@ export function sizeForObject(type: ObjectType): { width: number; height: number
     case ObjectType.Chapel:
     case ObjectType.Manor:
     case ObjectType.TownHall:
-      return { width: TILE_SIZE * 4.2, height: TILE_SIZE * 4.2 };
+      return { width: TILE_SIZE * 4.2 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 4.2 * OBJECT_WORLD_SCALE };
     case ObjectType.Windmill:
-      return { width: TILE_SIZE * 3.8, height: TILE_SIZE * 4.8 };
+      return { width: TILE_SIZE * 3.8 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 4.8 * OBJECT_WORLD_SCALE };
     case ObjectType.Market:
-      return { width: TILE_SIZE * 3.2, height: TILE_SIZE * 2.8 };
+      return { width: TILE_SIZE * 3.2 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 2.8 * OBJECT_WORLD_SCALE };
     case ObjectType.Tree:
-      return { width: TILE_SIZE * 2.2, height: TILE_SIZE * 2.5 };
+      return { width: TILE_SIZE * 2.2 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 2.5 * OBJECT_WORLD_SCALE };
     case ObjectType.Horse:
-      return { width: TILE_SIZE * 1.6, height: TILE_SIZE * 1.4 };
+      return { width: TILE_SIZE * 1.6 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 1.4 * OBJECT_WORLD_SCALE };
     case ObjectType.Sheep:
-      return { width: TILE_SIZE * 0.95, height: TILE_SIZE * 0.85 };
+      return { width: TILE_SIZE * 0.95 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 0.85 * OBJECT_WORLD_SCALE };
     case ObjectType.Dog:
-      return { width: TILE_SIZE * 0.8, height: TILE_SIZE * 0.7 };
+      return { width: TILE_SIZE * 0.8 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 0.7 * OBJECT_WORLD_SCALE };
     case ObjectType.Cat:
-      return { width: TILE_SIZE * 0.7, height: TILE_SIZE * 0.65 };
+      return { width: TILE_SIZE * 0.7 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 0.65 * OBJECT_WORLD_SCALE };
     case ObjectType.SparkMouse:
-      return { width: TILE_SIZE * 0.9, height: TILE_SIZE * 0.85 };
+      return { width: TILE_SIZE * 0.9 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 0.85 * OBJECT_WORLD_SCALE };
     case ObjectType.Well:
     case ObjectType.Ruins:
-      return { width: TILE_SIZE * 1.75, height: TILE_SIZE * 1.75 };
+      return { width: TILE_SIZE * 1.75 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 1.75 * OBJECT_WORLD_SCALE };
     case ObjectType.GrassTuft:
-      return { width: TILE_SIZE * 0.6, height: TILE_SIZE * 0.6 };
+      return { width: TILE_SIZE * 0.6 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 0.6 * OBJECT_WORLD_SCALE };
     default:
-      return { width: TILE_SIZE * 1.1, height: TILE_SIZE * 1.1 };
+      return { width: TILE_SIZE * 1.1 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 1.1 * OBJECT_WORLD_SCALE };
   }
 }
 
@@ -950,8 +1648,9 @@ export class AssetManager {
   private readonly treeArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeTreeVariantSprite(index));
   private readonly roadArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeRoadSprite(index));
   private readonly bridgeSprites = new Map<string, SpriteSource>();
-  private localPlayerSprite: SpriteSource = makePlayerSprite("#d49442", "#355d78", "#f1d4b3");
-  private remotePlayerSprite: SpriteSource = makePlayerSprite("#8771c1", "#5b4c8e", "#ead5bf");
+  private localPlayerSheet: SpriteSource = makeFallbackPlayerSheet();
+  private remotePlayerSheet: SpriteSource = makeFallbackPlayerSheet();
+  private readonly playerFrameCache = new Map<string, SpriteSource[]>();
   private worldSurface: SpriteSource | null = null;
 
   constructor() {
@@ -1082,7 +1781,9 @@ export class AssetManager {
             .then((image) => {
               loadedArchive.push(image);
               this.objectArchives.set(type, [...loadedArchive]);
-              this.objectSprites.set(type, loadedArchive[loadedArchive.length - 1]);
+              if (!LARGE_BUILDING_TYPES.has(type)) {
+                this.objectSprites.set(type, loadedArchive[loadedArchive.length - 1]);
+              }
             })
             .catch(() => undefined)
         );
@@ -1109,7 +1810,8 @@ export class AssetManager {
       work.push(
         loadImage(`./assets/generated/${localPlayerFile}`)
           .then((image) => {
-            this.localPlayerSprite = image;
+            this.localPlayerSheet = image;
+            this.playerFrameCache.clear();
           })
           .catch(() => undefined)
       );
@@ -1120,7 +1822,8 @@ export class AssetManager {
       work.push(
         loadImage(`./assets/generated/${remotePlayerFile}`)
           .then((image) => {
-            this.remotePlayerSprite = image;
+            this.remotePlayerSheet = image;
+            this.playerFrameCache.clear();
           })
           .catch(() => undefined)
       );
@@ -1186,14 +1889,36 @@ export class AssetManager {
     }
     const archive = this.objectArchives.get(type);
     if (archive && archive.length > 0) {
-      const index = Math.max(0, Math.min(archive.length - 1, variant ?? archive.length - 1));
+      const defaultIndex = LARGE_BUILDING_TYPES.has(type) ? 0 : archive.length - 1;
+      const index = Math.max(0, Math.min(archive.length - 1, variant ?? defaultIndex));
       return archive[index];
     }
     return this.objectSprites.get(type) ?? makeFallbackObjectSprite(type);
   }
 
-  getPlayerSprite(isLocal: boolean): SpriteSource {
-    return isLocal ? this.localPlayerSprite : this.remotePlayerSprite;
+  getPlayerFrame(player: PlayerEntity, nowMs: number): SpriteSource {
+    const appearanceKey = [
+      player.appearance.hair ?? "r",
+      player.appearance.primary ?? "r",
+      player.appearance.secondary ?? "r",
+      player.appearance.accent ?? "r",
+      player.appearance.skin ?? "r",
+      player.appearance.height ?? "r",
+      player.appearance.build ?? "r",
+      player.appearance.headSize ?? "r",
+      player.appearance.armLength ?? "r",
+      player.appearance.legLength ?? "r"
+    ].join(":");
+    const cacheKey = `rig:${player.id}:${appearanceKey}`;
+    let frames = this.playerFrameCache.get(cacheKey);
+    if (!frames) {
+      frames = buildPlayerFrames(player);
+      this.playerFrameCache.set(cacheKey, frames);
+    }
+
+    const row = rowForDirection(player.dir);
+    const col = animationColumn(player.animation, nowMs);
+    return frames[row * PLAYER_SHEET_COLUMNS + col] ?? frames[0];
   }
 
   private getObjectArchive(type: ObjectType): SpriteSource[] {

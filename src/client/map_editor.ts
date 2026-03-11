@@ -134,6 +134,14 @@ export class MapEditor {
     this.loadLocalButton.addEventListener("click", () => this.loadLocal());
     this.clearButton.addEventListener("click", () => this.clearAll());
     window.addEventListener("keydown", (event) => {
+      const target = event.target;
+      const editingText =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (editingText) {
+        return;
+      }
       if (event.code === "KeyM" && !event.repeat) {
         this.setEnabled(!this.enabled);
       }

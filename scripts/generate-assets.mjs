@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import OpenAI from "openai";
 import sharp from "sharp";
@@ -12,14 +12,93 @@ if (!apiKey) {
 const client = new OpenAI({ apiKey });
 const outRoot = path.resolve("src/client/assets/generated");
 const manifestPath = path.join(outRoot, "manifest.json");
+const imageModel = "gpt-image-1-mini";
+const majorBuildingSlugs = new Set(["house", "pub", "inn", "barn", "stable", "blacksmith", "windmill", "chapel", "market", "manor", "townhall"]);
+const houseVariantThemes = [
+  "small lime-plaster cottage with red terracotta roof, flower boxes, stone stoop, and neat shutters",
+  "timber-framed cottage with mossy roof, crooked chimney, warm lantern, and herb planters",
+  "whitewashed village home with blue shutters, slate roof, tidy garden pots, and arched doorway",
+  "golden plaster house with deep burgundy roof, side awning, stacked firewood, and bright windows",
+  "stone cottage with steep roof, copper gutter accents, flower beds, and sturdy oak door",
+  "cozy craftsman home with olive roof tiles, porch beams, hanging sign, and side barrels",
+  "compact bakery-like house with cream walls, cinnamon roof, striped shade, and bread shelf near the door",
+  "riverside cottage with pale stone walls, teal shutters, weathered roof, and stacked nets",
+  "merchant house with broad roof overhang, decorative trim, window boxes, and crate stack",
+  "garden cottage with lavender roof, pale plaster walls, trellis vines, and clay pots",
+  "warm adobe village home with sunbaked tiles, dark beams, and a shaded doorway",
+  "northern cottage with dark slate roof, pale timber walls, chimney smoke vent, and wood pile",
+  "wealthier townhouse with polished trim, brighter windows, layered roof ridges, and banners",
+  "farmhouse with tall roof cap, cream walls, seed sacks, and fence-side tools",
+  "mason house with heavy stone base, red roof, carved lintel, and tidy front steps",
+  "tailor house with colored canopy, elegant shutters, cloth rolls, and ornamental trim",
+  "watcher cottage with tall narrow roof, bell eave, narrow windows, and stacked lantern crates",
+  "seaside-style cottage with pale stucco, coral roof, rope basket props, and airy windows",
+  "forest village home with green roof tiles, timber braces, mushroom baskets, and fern planters",
+  "prosperous village house with layered orange roof, decorative crest, planter boxes, and richer facade"
+];
+const buildingVariantThemes = {
+  pub: [
+    "busy tavern with warm lanterns, barrel clusters, carved hanging sign, and rich red roof",
+    "larger alehouse with weathered wood beams, side benches, casks, and smoky chimney",
+    "festive roadside pub with flower boxes, gold signboard, stacked crates, and welcoming porch"
+  ],
+  inn: [
+    "two-story inn with broad roof, dormer windows, luggage by the door, and lit entry",
+    "coach inn with stable-side wing, banner sign, lamp posts, and polished timber facade",
+    "traveler lodge with layered roof ridges, balcony rail, warm windows, and packed baggage"
+  ],
+  barn: [
+    "large barn with red plank walls, hay bales, open loft vent, and wagon tools",
+    "weathered grain barn with patched roof, feed sacks, side cart, and wide doors",
+    "well-kept farm barn with fresh timber, neat hay stacks, barrels, and bright trim"
+  ],
+  stable: [
+    "horse stable with open stall fronts, tack racks, hay piles, and hoof-worn entry",
+    "long stable building with side awning, water trough, saddles, and timber posts",
+    "busy riding stable with supply crates, groom tools, and broad shingled roof"
+  ],
+  blacksmith: [
+    "blacksmith workshop with forge chimney, glowing vent, iron tools, and dark roof",
+    "sturdy smithy with stone base, coal piles, anvil area, and soot-stained chimney",
+    "artisan forge with copper details, hammer signs, stacked ingots, and rugged walls"
+  ],
+  windmill: [
+    "tall windmill with strong stone base, crisp sails, grain sacks, and warm roof accents",
+    "village mill with timber upper section, detailed sails, nearby flour barrels, and broad entry",
+    "prosperous windmill with painted trim, layered roof cap, tidy grain crates, and pronounced sails"
+  ],
+  chapel: [
+    "small chapel with slate roof, stone buttresses, stained windows, and quiet flower beds",
+    "village shrine chapel with bell tower, pale stone walls, candles, and narrow garden path",
+    "peaceful chapel with blue-gray roof, carved doorway, memorial stones, and tidy hedges"
+  ],
+  market: [
+    "market hall with striped canopies, produce crates, hanging cloth, and busy stall details",
+    "merchant pavilion with broad roof, colorful awnings, baskets, and bundled goods",
+    "covered village market with fabric shades, stacked wares, barrels, and strong timber frame"
+  ],
+  manor: [
+    "large manor with layered rooflines, rich trim, banners, stone steps, and ornate windows",
+    "noble estate house with wide central gable, garden urns, and polished facade",
+    "wealthy manor with symmetrical wings, dormer roofs, heraldic crest, and refined entrance"
+  ],
+  townhall: [
+    "town hall with official crest, broad civic roof, notice boards, and front steps",
+    "village hall with clock gable, banners, side benches, and formal symmetrical facade",
+    "council hall with layered roof cap, bright windows, posted decrees, and ceremonial entry"
+  ]
+};
 
 function parseArgs(argv) {
   const options = {
     force: false,
     targetTileVariants: 6,
     targetObjectVariants: 1,
+    targetBuildingVariants: 1,
     targetPlayerVariants: 1,
-    targetHouseVariants: 1
+    targetHouseVariants: 1,
+    replaceObjectSlugs: new Set(),
+    onlyObjectSlugs: null
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -32,11 +111,30 @@ function parseArgs(argv) {
     } else if (current === "--object-target" && argv[index + 1]) {
       options.targetObjectVariants = Math.max(1, Number(argv[index + 1]) || options.targetObjectVariants);
       index += 1;
+    } else if (current === "--building-target" && argv[index + 1]) {
+      options.targetBuildingVariants = Math.max(1, Number(argv[index + 1]) || options.targetBuildingVariants);
+      index += 1;
     } else if (current === "--player-target" && argv[index + 1]) {
       options.targetPlayerVariants = Math.max(1, Number(argv[index + 1]) || options.targetPlayerVariants);
       index += 1;
     } else if (current === "--house-target" && argv[index + 1]) {
       options.targetHouseVariants = Math.max(1, Number(argv[index + 1]) || options.targetHouseVariants);
+      index += 1;
+    } else if (current === "--replace-objects" && argv[index + 1]) {
+      options.replaceObjectSlugs = new Set(
+        argv[index + 1]
+          .split(",")
+          .map((slug) => slug.trim())
+          .filter(Boolean)
+      );
+      index += 1;
+    } else if (current === "--only-objects" && argv[index + 1]) {
+      options.onlyObjectSlugs = new Set(
+        argv[index + 1]
+          .split(",")
+          .map((slug) => slug.trim())
+          .filter(Boolean)
+      );
       index += 1;
     }
   }
@@ -268,11 +366,9 @@ async function ensureDirs() {
 
 async function generateImage(prompt, transparent) {
   const result = await client.images.generate({
-    model: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1.5",
+    model: imageModel,
     prompt,
     size: "1024x1024",
-    quality: "high",
-    output_format: "png",
     background: transparent ? "transparent" : "opaque"
   });
 
@@ -285,6 +381,7 @@ async function generateImage(prompt, transparent) {
 
 async function pixelate(buffer, logicalWidth, logicalHeight, outFile) {
   const downscaled = await sharp(buffer)
+    .trim()
     .resize(logicalWidth, logicalHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer();
@@ -305,9 +402,59 @@ function ensureArrayStore(record, key) {
 }
 
 function nextVariantPath(kind, slug, existingPaths) {
-  const nextIndex = existingPaths.length + 1;
+  const nextIndex =
+    existingPaths.reduce((max, item) => {
+      const match = item.match(/-v(\d+)\.png$/);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0) + 1;
   const padded = String(nextIndex).padStart(3, "0");
   return `${kind}/${slug}/${slug}-v${padded}.png`;
+}
+
+async function classicVariantPath(slug) {
+  if (!majorBuildingSlugs.has(slug) || slug === "house") {
+    return null;
+  }
+  const relative = `objects/${slug}/${slug}-classic.png`;
+  try {
+    await access(path.join(outRoot, relative));
+    return relative;
+  } catch {
+    return null;
+  }
+}
+
+function promptForObject(entry, nextOrdinal) {
+  const shared = [
+    "Create one handcrafted retro RPG building sprite for a browser MMO.",
+    "Use a high-angle 3/4 village-building view with visible front facade and roof, similar to classic 2D RPG towns.",
+    "Transparent background. Single isolated structure only.",
+    "Crisp readable pixel art with strong silhouette, rich roof shingles, wooden trim, believable doors and windows, and grounded prop details.",
+    `The final sprite will be reduced to about ${entry.logicalWidth}x${entry.logicalHeight}, so keep the structure large, clear, and not tiny.`,
+    "No characters, no terrain tilemap, no UI, no text labels, no border, no frame, no cutaway interior.",
+    "Avoid blurry painterly rendering; preserve clustered pixel readability and coherent lighting."
+  ];
+
+  if (entry.slug === "house") {
+    const theme = houseVariantThemes[(nextOrdinal - 1) % houseVariantThemes.length];
+    return [
+      ...shared,
+      "This asset belongs to a 20-house village set and must feel distinct from the others while staying in the same world.",
+      `House theme: ${theme}.`
+    ].join(" ");
+  }
+
+  if (majorBuildingSlugs.has(entry.slug)) {
+    const themes = buildingVariantThemes[entry.slug] ?? [entry.prompt];
+    const theme = themes[(nextOrdinal - 1) % themes.length];
+    return [
+      ...shared,
+      `Building type: ${entry.slug}.`,
+      `Variant brief: ${theme}.`
+    ].join(" ");
+  }
+
+  return `${entry.prompt} Archive variant ${nextOrdinal}.`;
 }
 
 async function migrateLegacyManifest(manifest) {
@@ -381,9 +528,26 @@ async function run() {
   }
 
   for (const entry of objectEntries) {
+    if (options.onlyObjectSlugs && !options.onlyObjectSlugs.has(entry.slug)) {
+      continue;
+    }
     const archive = ensureArrayStore(manifest.objectArchive, entry.slug);
-    const targetVariants = entry.slug === "house" ? options.targetHouseVariants : options.targetObjectVariants;
-    const remaining = options.force ? targetVariants : Math.max(0, targetVariants - archive.length);
+    if (options.replaceObjectSlugs.has(entry.slug)) {
+      archive.length = 0;
+      delete manifest.objects[entry.slug];
+    }
+    const classicPath = await classicVariantPath(entry.slug);
+    if (classicPath && archive[0] !== classicPath) {
+      const withoutClassic = archive.filter((item) => item !== classicPath);
+      archive.length = 0;
+      archive.push(classicPath, ...withoutClassic);
+    }
+    const targetVariants = entry.slug === "house"
+      ? options.targetHouseVariants
+      : majorBuildingSlugs.has(entry.slug)
+        ? options.targetBuildingVariants + (classicPath ? 1 : 0)
+        : options.targetObjectVariants;
+    const remaining = Math.max(0, targetVariants - archive.length);
 
     if (remaining === 0) {
       console.log(`skipped object ${entry.slug}, archive already has ${archive.length} variants`);
@@ -391,11 +555,13 @@ async function run() {
 
     for (let variant = 0; variant < remaining; variant += 1) {
       const nextOrdinal = archive.length + 1;
-      const bytes = await generateImage(`${entry.prompt} Archive variant ${nextOrdinal}.`, true);
+      const bytes = await generateImage(promptForObject(entry, nextOrdinal), true);
       const relative = nextVariantPath("objects", entry.slug, archive);
       await mkdir(path.join(outRoot, "objects", entry.slug), { recursive: true });
       await pixelate(bytes, entry.logicalWidth, entry.logicalHeight, path.join(outRoot, relative));
       archive.push(relative);
+      manifest.objects[entry.slug] = relative;
+      await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
       console.log(`generated object ${entry.slug} variant ${nextOrdinal}`);
     }
 
@@ -464,10 +630,11 @@ async function run() {
   await writeFile(
     path.join(outRoot, "README.txt"),
     [
-      "Generated with OpenAI gpt-image-1.5 via scripts/generate-assets.mjs.",
+      "Generated with OpenAI gpt-image-1-mini via scripts/generate-assets.mjs.",
       "The archive is append-only by default.",
-      "Rerunning the script will skip generation once the target counts are already satisfied.",
-      "Use --tile-target, --object-target, or --player-target to grow the archive deliberately.",
+      "Rerunning the script will skip generation once the target counts are already satisfied unless you replace object archives explicitly.",
+      "Use --tile-target, --object-target, --building-target, or --player-target to grow the archive deliberately.",
+      "Use --replace-objects house,pub,... to rebuild selected building archives from scratch.",
       "Use --force to regenerate up to the requested target counts regardless of existing archive size."
     ].join("\n") + "\n",
     "utf8"
