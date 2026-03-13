@@ -10,6 +10,7 @@
     "assets:terrain": "node scripts/generate-bridge-terrain-tiles.mjs",
     "assets:stamps": "node scripts/generate-landmark-stamps.mjs",
     "assets:intro": "node scripts/generate-intro-parchment.mjs && node scripts/generate-intro-seal.mjs",
+    "assets:stable-ui": "node scripts/generate-stable-horse-previews.mjs",
     "assets:import-local": "node scripts/import-local-assets.mjs",
     "outfits:generate": "node scripts/generate-player-outfit-boards.mjs",
     "player:generate": "node scripts/generate-player-sprites.mjs",

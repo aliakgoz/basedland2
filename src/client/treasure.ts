@@ -54,6 +54,18 @@ interface BuryResult {
   message: string;
 }
 
+interface PreparedStablePurchase {
+  purchaseId: string;
+  stable: { tileX: number; tileY: number };
+  payment: TreasurePayment;
+}
+
+interface StablePurchaseResult {
+  success: boolean;
+  message: string;
+  mountedHorseVariant: number;
+}
+
 const BASE_CHAIN_HEX = "0x2105";
 const BASE_CHAIN_DECIMAL = 8453;
 const ERC20_TRANSFER_SELECTOR = "0xa9059cbb";
@@ -172,6 +184,31 @@ export class TreasureClient {
       const result = await this.postJson<BuryResult>("/api/treasure/bury/confirm", {
         playerId: player.id,
         buryId: prepared.buryId,
+        txHash,
+        payer: this.account
+      });
+      this.setMessage(result.message);
+    });
+  }
+
+  async buyStableHorse(variant: number): Promise<void> {
+    await this.runWithWallet(async () => {
+      const config = await this.postJson<TreasureConfig>("/api/stable/config", null, "GET");
+      if (!config.enabled) {
+        this.setMessage(config.reason ?? "Stable purchases are disabled.");
+        return;
+      }
+
+      const player = this.requirePlayer();
+      const prepared = await this.postJson<PreparedStablePurchase>("/api/stable/prepare", {
+        playerId: player.id,
+        variant
+      });
+
+      const txHash = await this.sendPayment(prepared.payment, `Approve ${prepared.payment.amountDisplay} to buy this horse...`);
+      const result = await this.postJson<StablePurchaseResult>("/api/stable/confirm", {
+        playerId: player.id,
+        purchaseId: prepared.purchaseId,
         txHash,
         payer: this.account
       });

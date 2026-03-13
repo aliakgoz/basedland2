@@ -17,6 +17,7 @@ import { ChunkManager } from "./chunk_manager";
 export interface ServerPlayer {
   id: number;
   socket: WebSocket;
+  isLocalAdminClient: boolean;
   x: number;
   y: number;
   dir: Direction;
@@ -45,12 +46,13 @@ export class PlayerManager {
     private readonly getTileTypeAt: (tileX: number, tileY: number) => TileType
   ) {}
 
-  createPlayer(socket: WebSocket): ServerPlayer {
+  createPlayer(socket: WebSocket, isLocalAdminClient = false): ServerPlayer {
     const id = this.nextId++;
     const [tileX, tileY] = findSpawnTile(id);
     const player: ServerPlayer = {
       id,
       socket,
+      isLocalAdminClient,
       x: tileX * TILE_SIZE + TILE_SIZE / 2,
       y: tileY * TILE_SIZE + TILE_SIZE / 2,
       dir: Direction.Down,

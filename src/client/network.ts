@@ -187,6 +187,7 @@ export class NetworkClient {
   readonly pendingInputs: PendingInput[] = [];
   onMessage: (text: string) => void = () => {};
   onOnline: (count: number) => void = () => {};
+  onInteraction: ((objectType: ObjectType, action: number, text: string) => void) | null = null;
   private reconnectTimer: number | null = null;
   private world: WorldState | null = null;
 
@@ -529,7 +530,12 @@ export class NetworkClient {
   private handleInteraction(view: DataView): void {
     const objectType = view.getUint8(5) as ObjectType;
     const action = view.getUint8(6);
-    this.onMessage(interactionText(objectType, action));
+    const text = interactionText(objectType, action);
+    if (this.onInteraction) {
+      this.onInteraction(objectType, action, text);
+      return;
+    }
+    this.onMessage(text);
   }
 
   private handleChat(view: DataView): void {

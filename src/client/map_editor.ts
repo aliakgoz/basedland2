@@ -32,13 +32,13 @@ function makeThumb(source: CanvasImageSource): HTMLCanvasElement {
 export class MapEditor {
   private static readonly BRUSH_SIZES = [1, 2, 4, 8] as const;
   private enabled = false;
+  private initialized = false;
   private activeGroupId = "ground";
   private selectedBrush: AssetArchiveEntry | null = null;
   private brushSize = 1;
   private painting = false;
   private eraseMode = false;
   private lastPaintedTile = "";
-  private readonly toggleButton: HTMLButtonElement;
   private readonly dock: HTMLElement;
   private readonly groups: HTMLElement;
   private readonly exportButton: HTMLButtonElement;
@@ -62,7 +62,6 @@ export class MapEditor {
     private readonly getLocalPlayer: () => PlayerEntity | null,
     private readonly sendPatch: (patch: EditorPatch) => void
   ) {
-    const toggleButton = document.querySelector<HTMLButtonElement>("#editor-toggle");
     const dock = document.querySelector<HTMLElement>("#editor-dock");
     const groups = document.querySelector<HTMLElement>("#editor-groups");
     const exportButton = document.querySelector<HTMLButtonElement>("#editor-export");
@@ -80,10 +79,9 @@ export class MapEditor {
       }
       this.brushButtons.set(size, button);
     }
-    if (!toggleButton || !dock || !groups || !exportButton || !saveOnlineButton || !loadOnlineButton || !importButton || !importInput || !saveLocalButton || !loadLocalButton || !clearButton) {
+    if (!dock || !groups || !exportButton || !saveOnlineButton || !loadOnlineButton || !importButton || !importInput || !saveLocalButton || !loadLocalButton || !clearButton) {
       throw new Error("Map editor UI missing");
     }
-    this.toggleButton = toggleButton;
     this.dock = dock;
     this.groups = groups;
     this.exportButton = exportButton;
@@ -100,6 +98,10 @@ export class MapEditor {
   }
 
   async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+    this.initialized = true;
     const loadedRemote = await this.loadOnline(false);
     if (!loadedRemote) {
       this.loadLocal();
@@ -117,8 +119,11 @@ export class MapEditor {
     return this.enabled;
   }
 
+  setAdminEnabled(next: boolean): void {
+    this.setEnabled(next);
+  }
+
   private bindUI(): void {
-    this.toggleButton.addEventListener("click", () => this.setEnabled(!this.enabled));
     for (const [size, button] of this.brushButtons) {
       button.addEventListener("click", () => {
         this.brushSize = size;
@@ -133,20 +138,6 @@ export class MapEditor {
     this.saveLocalButton.addEventListener("click", () => this.saveLocal());
     this.loadLocalButton.addEventListener("click", () => this.loadLocal());
     this.clearButton.addEventListener("click", () => this.clearAll());
-    window.addEventListener("keydown", (event) => {
-      const target = event.target;
-      const editingText =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-      if (editingText) {
-        return;
-      }
-      if (event.code === "KeyM" && !event.repeat) {
-        this.setEnabled(!this.enabled);
-      }
-    });
-
     this.canvas.addEventListener("contextmenu", (event) => {
       if (this.enabled) {
         event.preventDefault();
@@ -180,7 +171,6 @@ export class MapEditor {
 
   private setEnabled(next: boolean): void {
     this.enabled = next;
-    this.toggleButton.textContent = `Map Maker: ${next ? "On" : "Off"}`;
     this.dock.classList.toggle("active", next);
     if (!next) {
       this.renderer.clearManualCamera();

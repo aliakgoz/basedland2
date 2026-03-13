@@ -279,6 +279,15 @@
         z-index: 36;
       }
 
+      #stable-panel {
+        right: 18px;
+        bottom: 72px;
+        width: min(420px, calc(100vw - 36px));
+        padding: 14px;
+        display: none;
+        z-index: 36;
+      }
+
       #wallet-panel {
         top: 72px;
         left: 18px;
@@ -329,6 +338,10 @@
         display: block;
       }
 
+      #stable-panel.active {
+        display: block;
+      }
+
       #chat-panel h2 {
         margin: 0 0 8px;
         font-size: 11px;
@@ -345,7 +358,21 @@
         color: var(--muted);
       }
 
+      #stable-panel h2 {
+        margin: 0 0 6px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
       #bury-panel p {
+        margin: 0 0 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      #stable-panel p {
         margin: 0 0 10px;
         font-size: 12px;
         color: var(--muted);
@@ -403,6 +430,68 @@
         cursor: pointer;
       }
 
+      #stable-options {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .stable-option {
+        border: 1px solid rgba(173, 194, 147, 0.2);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        padding: 10px 8px 12px;
+        cursor: pointer;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .stable-option:hover {
+        border-color: rgba(217, 169, 75, 0.55);
+        background: rgba(217, 169, 75, 0.08);
+      }
+
+      .stable-art {
+        width: 100%;
+        height: 108px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background:
+          radial-gradient(circle at 50% 18%, rgba(255, 246, 212, 0.82), rgba(238, 220, 170, 0.54) 52%, rgba(64, 44, 22, 0.08) 100%),
+          linear-gradient(180deg, rgba(255, 252, 240, 0.22), rgba(88, 58, 28, 0.12));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        padding: 6px;
+      }
+
+      .stable-art img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        image-rendering: auto;
+        filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.22));
+      }
+
+      .stable-name {
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .stable-price {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
       #message {
         left: 50%;
         bottom: 18px;
@@ -410,15 +499,6 @@
         padding: 10px 14px;
         color: var(--text);
         border-color: rgba(217, 169, 75, 0.28);
-        z-index: 30;
-      }
-
-      #editor-toggle {
-        top: 18px;
-        right: 18px;
-        padding: 10px 14px;
-        cursor: pointer;
-        user-select: none;
         z-index: 30;
       }
 
@@ -676,6 +756,7 @@
             <li><strong>W A S D</strong>: move through the world</li>
             <li><strong>Space</strong>: dig the tile beneath you</li>
             <li><strong>F</strong>: open the treasure-bury panel</li>
+            <li><strong>E at a stable</strong>: buy and mount a horse</li>
             <li><strong>Y</strong>: open local chat</li>
             <li><strong>H</strong>: mount or dismount</li>
             <li><strong>E</strong>: interact</li>
@@ -687,6 +768,9 @@
 
           <h2>Finding Treasure</h2>
           <p>Press <strong>Space</strong> to dig. The dig payment is verified on Base first. Then the server checks whether your tile truly holds a cache. If it does, the configured payout share of the buried amount is sent automatically to the finder. The remainder stays behind as the house fee.</p>
+
+          <h2>Stable Mounts</h2>
+          <p>Press <strong>E</strong> at any stable to open the horse ledger. Choose a gray, brown, or black mount. Pay <strong>0.5 USDC</strong>, and the selected horse is delivered immediately beneath you in mounted form.</p>
 
           <h2>Cryptographic Trust</h2>
           <p>Payments are authorized with wallet signatures and verified against Base mainnet by RPC. Transaction hashes are public and auditable. Treasure coordinates are not. The chain stays transparent; the map stays hidden. That split is the whole game.</p>
@@ -705,7 +789,6 @@
         <h1>BasedLand</h1>
         <p id="online">Players online: 0</p>
       </div>
-      <button id="editor-toggle" class="panel interactive" type="button">Map Maker: Off</button>
       <div id="minimap" class="panel interactive">
         <h2>World Map</h2>
         <canvas id="minimap-canvas" width="200" height="200"></canvas>
@@ -742,6 +825,27 @@
           <input id="bury-amount" type="text" inputmode="decimal" placeholder="USDC amount" autocomplete="off" />
           <button id="bury-submit" type="submit">Hide</button>
         </form>
+      </div>
+      <div id="stable-panel" class="panel interactive">
+        <h2>Stable Ledger</h2>
+        <p>Select a mount. Payment is <strong>0.5 USDC</strong> and delivery is immediate.</p>
+        <div id="stable-options">
+          <button class="stable-option" type="button" data-horse-variant="1">
+            <span class="stable-art"><img src="/assets/generated/ui/stable-horses/stable-horse-gray-v001.png" alt="Gray horse preview" width="320" height="220" decoding="async" loading="eager" /></span>
+            <span class="stable-name">Gray</span>
+            <span class="stable-price">0.5 USDC</span>
+          </button>
+          <button class="stable-option" type="button" data-horse-variant="0">
+            <span class="stable-art"><img src="/assets/generated/ui/stable-horses/stable-horse-brown-v001.png" alt="Brown horse preview" width="320" height="220" decoding="async" loading="eager" /></span>
+            <span class="stable-name">Brown</span>
+            <span class="stable-price">0.5 USDC</span>
+          </button>
+          <button class="stable-option" type="button" data-horse-variant="2">
+            <span class="stable-art"><img src="/assets/generated/ui/stable-horses/stable-horse-black-v001.png" alt="Black horse preview" width="320" height="220" decoding="async" loading="eager" /></span>
+            <span class="stable-name">Black</span>
+            <span class="stable-price">0.5 USDC</span>
+          </button>
+        </div>
       </div>
       <div id="message" class="panel">Connecting...</div>
       <div id="editor-dock" class="panel interactive">

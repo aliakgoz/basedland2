@@ -176,6 +176,10 @@ export class TreasureManager {
     return this.usedTxHashes.has(txHash.toLowerCase());
   }
 
+  markTxUsed(txHash: string): void {
+    this.usedTxHashes.add(txHash.toLowerCase());
+  }
+
   claimTreasure(tileX: number, tileY: number, txHash: string, payer: string): TreasureClaimResult {
     const key = tileKey(tileX, tileY);
     const seededClaim = this.claimedTiles.get(key);

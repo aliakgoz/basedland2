@@ -8,7 +8,7 @@ BasedLand is Phase 1 of a browser MMO prototype focused on a lightweight shared 
 - chunk-based interest management
 - OpenAI-assisted asset generation
 - OpenAI-assisted world layout generation
-- a local map maker/editor
+- a server-admin map maker/editor
 
 This file is the operational guide for the whole project.
 
@@ -23,7 +23,7 @@ The current prototype supports:
 - static world props such as houses, pubs, inns, barns, stables, blacksmiths, windmills, chapels, markets, manors, town halls, trees, stones, animals, and signs
 - generated art assets loaded from disk when available
 - a `1000 x 1000` world driven by generated biome/layout data
-- a local map editor mode for painting ground, roads, and object layers
+- a server-admin map editor mode for painting ground, roads, and object layers
 
 The current focus is the multiplayer core, world pipeline, and editing workflow. Blockchain, wallet, and Base integration are intentionally not included yet.
 
@@ -32,7 +32,7 @@ The current focus is the multiplayer core, world pipeline, and editing workflow.
 Main folders:
 
 - `src/client/`
-  Browser game, renderer, networking, asset loading, and map editor.
+  Browser game, renderer, networking, asset loading, and admin-only map editor UI.
 - `src/server/`
   WebSocket server, simulation loop, player state, chunk visibility, and network encoding.
 - `src/shared/`
@@ -102,14 +102,6 @@ Gameplay:
 - `E`: interact
 - mouse wheel: zoom in/out
 
-Editor:
-
-- `M`: open/close map maker
-- left click: paint/place selected brush
-- right click: erase
-- bottom dock: select grouped archive items such as `Ground`, `Roads`, `Trees`, `Buildings`, `Props`
-- editor open while moving with `W A S D`: pan the camera very quickly instead of moving the player
-
 ## 6. Build Scripts
 
 Available npm scripts:
@@ -137,7 +129,7 @@ Meaning:
 
 ### 6.2 Map Save Model
 
-Map maker changes now save in three ways:
+When the admin map maker is open, changes save in three ways:
 
 - automatic local browser backup
 - automatic online save to the Node server
@@ -149,12 +141,12 @@ Server-side persistent file:
 
 How it works:
 
-1. when you paint in the editor, the full editor layer is saved to browser local storage
+1. when you paint in the editor, the full editor layer is saved to browser local storage on the server machine browser
 2. the same layer is also autosaved to the Node backend after a short debounce
 3. when the game starts, it tries to load the online map first
 4. if no online map exists, it falls back to the local browser backup
 
-Editor buttons:
+Editor panel buttons:
 
 - `Save Online`
 - `Load Online`
@@ -425,13 +417,27 @@ npm run build
 npm start
 ```
 
-## 10. Map Maker
+## 10. Admin Map Maker
 
-The project includes a local map editor intended for manual polish and hand-authored areas.
+The map maker is no longer an in-game player feature.
 
-Open it with:
+It can only be opened from the server terminal, and only a browser running on the same machine as the server can use it.
 
-- `M`
+Server terminal commands:
+
+```text
+map-maker on
+map-maker off
+clear-dug
+```
+
+How it works:
+
+- start the server on the host machine
+- open the game from that same machine using `http://localhost:3000`
+- type `map-maker on` in the server terminal
+- the editor dock appears for that local browser only
+- type `map-maker off` to close access again
 
 What it does:
 
@@ -439,25 +445,14 @@ What it does:
 - paint road overlays
 - place and erase objects
 - choose brushes from grouped archive sections
-
-Current workflow:
-
-- use generated/procedural world as the base
-- use map maker to shape villages, roads, landmarks, and special areas
-- export or save the editor layer
-
-Editor save options:
-
-- `Export JSON`
-- `Import JSON`
-- `Save Local`
-- `Load Local`
+- pan the camera quickly with `W A S D` while the editor is open
 
 Current scope:
 
-- this is a local editing layer
-- it is not yet a collaborative shared editor
-- it is not yet a server-persisted map database
+- there is no map maker button in the game UI
+- there is no `M` hotkey
+- remote players cannot open or use it
+- editor API and editor patches are accepted only while `map-maker on` is active and the client is local to the server machine
 
 ## 11. Multiplayer and Network Design
 
@@ -647,8 +642,10 @@ npm run build
 npm start
 ```
 
-Open the editor in-game:
+Admin commands:
 
 ```text
-Press M
+map-maker on
+map-maker off
+clear-dug
 ```

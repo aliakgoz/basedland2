@@ -1,4 +1,4 @@
-import { AnimationState, Direction, InputFlag, MOUNT_SPEED_MULTIPLIER, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
+import { AnimationState, Direction, InputFlag, MOUNT_RANGE, MOUNT_SPEED_MULTIPLIER, ObjectType, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { pruneExpiredOverheadMessages } from "./entity";
@@ -21,15 +21,16 @@ const chatInput = document.querySelector<HTMLInputElement>("#chat-input");
 const buryPanel = document.querySelector<HTMLElement>("#bury-panel");
 const buryForm = document.querySelector<HTMLFormElement>("#bury-form");
 const buryAmount = document.querySelector<HTMLInputElement>("#bury-amount");
+const stablePanel = document.querySelector<HTMLElement>("#stable-panel");
+const stableOptions = document.querySelectorAll<HTMLButtonElement>("[data-horse-variant]");
 const walletConnect = document.querySelector<HTMLButtonElement>("#wallet-connect");
 const walletStatus = document.querySelector<HTMLElement>("#wallet-status");
 const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disconnect");
 const treasureSummaryAmount = document.querySelector<HTMLElement>("#treasure-summary-amount");
 const treasureSummaryCount = document.querySelector<HTMLElement>("#treasure-summary-count");
-const editorToggle = document.querySelector<HTMLElement>("#editor-toggle");
 const editorDock = document.querySelector<HTMLElement>("#editor-dock");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !stablePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount) {
   throw new Error("HUD elements missing");
 }
 
@@ -61,16 +62,21 @@ assets.loadGeneratedOverrides().then(() => {
     }
     return;
   }
-  void editor.initialize().then(() => {
-    editor.refreshPalette();
-    if (!network.isConnected()) {
-      renderer.setMessage("Assets ready. Connecting...");
-    }
-  });
+  if (!network.isConnected()) {
+    renderer.setMessage("Assets ready. Connecting...");
+  }
 });
 
 network.onMessage = (text) => renderer.setMessage(text);
 network.onOnline = (count) => renderer.setOnline(count);
+network.onInteraction = (objectType, _action, text) => {
+  if (objectType === ObjectType.Stable || objectType === ObjectType.TownHall || objectType === ObjectType.Barn) {
+    setStableOpen(true);
+    renderer.setMessage("Stable ledger open. Choose your horse.");
+    return;
+  }
+  renderer.setMessage(text);
+};
 network.connect(world);
 
 canvas.addEventListener(
@@ -91,6 +97,7 @@ const EDITOR_CAMERA_MULTIPLIER = 20;
 const TREASURE_SUMMARY_REFRESH_MS = 10000;
 let chatOpen = false;
 let buryOpen = false;
+let stableOpen = false;
 let introVisible = true;
 
 interface TreasureSummaryResponse {
@@ -98,6 +105,19 @@ interface TreasureSummaryResponse {
   totalAmountUnits: string;
   totalAmountDisplay: string;
 }
+
+interface StableNearbyResponse {
+  nearby: boolean;
+  stable?: { tileX: number; tileY: number };
+}
+
+interface EditorAccessResponse {
+  enabled: boolean;
+}
+
+const CLIENT_STABLE_FALLBACK_RANGE = 480;
+const EDITOR_ACCESS_REFRESH_MS = 3000;
+let editorInitializationStarted = false;
 
 function dismissIntro(): void {
   if (!introVisible) {
@@ -122,8 +142,97 @@ async function refreshTreasureSummary(): Promise<void> {
   }
 }
 
+async function refreshEditorAccess(): Promise<void> {
+  if (!editor) {
+    return;
+  }
+  try {
+    const response = await fetch("/api/editor-access", { cache: "no-store" });
+    if (!response.ok) {
+      editor.setAdminEnabled(false);
+      return;
+    }
+    const payload = (await response.json()) as EditorAccessResponse;
+    if (!payload.enabled) {
+      editor.setAdminEnabled(false);
+      return;
+    }
+    if (!editorInitializationStarted) {
+      editorInitializationStarted = true;
+      await editor.initialize();
+      editor.refreshPalette();
+    }
+    editor.setAdminEnabled(true);
+  } catch {
+    editor.setAdminEnabled(false);
+  }
+}
+
+async function handleInteract(): Promise<void> {
+  const player = network.localPlayer;
+  if (!player) {
+    return;
+  }
+
+  for (const chunk of world.chunkObjects.values()) {
+    for (const object of chunk) {
+      if (object.type !== ObjectType.Stable && object.type !== ObjectType.TownHall && object.type !== ObjectType.Barn) {
+        continue;
+      }
+      const dx = object.x - player.x;
+      const dy = object.y - player.y;
+      if (dx * dx + dy * dy <= CLIENT_STABLE_FALLBACK_RANGE * CLIENT_STABLE_FALLBACK_RANGE) {
+        setStableOpen(true);
+        renderer.setMessage("Stable ledger open. Choose your horse.");
+        return;
+      }
+    }
+  }
+
+  try {
+    const response = await fetch("/api/stable/nearby", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: player.id })
+    });
+    if (response.ok) {
+      const payload = (await response.json()) as StableNearbyResponse;
+      if (payload.nearby) {
+        setStableOpen(true);
+        renderer.setMessage("Stable ledger open. Choose your horse.");
+        return;
+      }
+    }
+  } catch {
+    // Fall through to default interaction packet if proximity check fails.
+  }
+
+  network.sendInteract();
+}
+
+function hasNearbyHorseForMount(): boolean {
+  const player = network.localPlayer;
+  if (!player) {
+    return false;
+  }
+  const maxDistanceSq = MOUNT_RANGE * MOUNT_RANGE;
+  for (const chunk of world.chunkObjects.values()) {
+    for (const object of chunk) {
+      if (object.type !== ObjectType.Horse) {
+        continue;
+      }
+      const dx = object.x - player.x;
+      const dy = object.y - player.y;
+      if (dx * dx + dy * dy <= maxDistanceSq) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function syncTextEntryState(): void {
-  input.setTextEntryActive(chatOpen || buryOpen);
+  input.setTextEntryActive(chatOpen || buryOpen || stableOpen);
 }
 
 function setChatOpen(next: boolean): void {
@@ -132,6 +241,8 @@ function setChatOpen(next: boolean): void {
     buryOpen = false;
     buryPanel.classList.remove("active");
     buryAmount.blur();
+    stableOpen = false;
+    stablePanel.classList.remove("active");
   }
   chatPanel.classList.toggle("active", next);
   syncTextEntryState();
@@ -151,6 +262,8 @@ function setBuryOpen(next: boolean): void {
     chatPanel.classList.remove("active");
     chatInput.blur();
     chatInput.value = "";
+    stableOpen = false;
+    stablePanel.classList.remove("active");
   }
   buryPanel.classList.toggle("active", next);
   syncTextEntryState();
@@ -160,6 +273,31 @@ function setBuryOpen(next: boolean): void {
   } else {
     buryAmount.blur();
     buryAmount.value = "";
+  }
+}
+
+function setStableOpen(next: boolean): void {
+  stableOpen = next;
+  if (next) {
+    chatOpen = false;
+    buryOpen = false;
+    chatPanel.classList.remove("active");
+    buryPanel.classList.remove("active");
+    chatInput.blur();
+    chatInput.value = "";
+    buryAmount.blur();
+    buryAmount.value = "";
+  }
+  stablePanel.classList.toggle("active", next);
+  syncTextEntryState();
+}
+
+function dismissStablePanelOnActivity(mask: number): void {
+  if (!stableOpen) {
+    return;
+  }
+  if (mask !== 0 || input.consumeInteract() || input.consumeMountToggle() || input.consumeDig() || input.consumeBuryToggle() || input.consumeChatToggle()) {
+    setStableOpen(false);
   }
 }
 
@@ -199,6 +337,17 @@ buryAmount.addEventListener("keydown", (event) => {
   }
 });
 
+for (const button of stableOptions) {
+  button.addEventListener("click", () => {
+    const variant = Number(button.dataset.horseVariant ?? "-1");
+    if (variant < 0) {
+      return;
+    }
+    setStableOpen(false);
+    void treasure.buyStableHorse(variant);
+  });
+}
+
 window.addEventListener("keydown", (event) => {
   if (introVisible) {
     if (!event.repeat) {
@@ -207,11 +356,34 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.code === "Escape" && (chatOpen || buryOpen)) {
+  if (event.code === "Escape" && (chatOpen || buryOpen || stableOpen)) {
     event.preventDefault();
     setChatOpen(false);
     setBuryOpen(false);
+    setStableOpen(false);
+    return;
   }
+  if (stableOpen) {
+    const target = event.target;
+    const editingText =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable);
+    if (!editingText) {
+      setStableOpen(false);
+    }
+  }
+});
+
+window.addEventListener("pointerdown", (event) => {
+  if (!stableOpen) {
+    return;
+  }
+  const target = event.target;
+  if (target instanceof Node && stablePanel.contains(target)) {
+    return;
+  }
+  setStableOpen(false);
 });
 
 walletConnect.addEventListener("click", () => {
@@ -227,15 +399,18 @@ introOverlay.addEventListener("pointerdown", () => {
 });
 
 if (!__BASEDLAND_MAP_EDITOR_ENABLED__) {
-  editorToggle?.remove();
   editorDock?.remove();
 }
 
 input.setUiBlocked(true);
 void refreshTreasureSummary();
+void refreshEditorAccess();
 window.setInterval(() => {
   void refreshTreasureSummary();
 }, TREASURE_SUMMARY_REFRESH_MS);
+window.setInterval(() => {
+  void refreshEditorAccess();
+}, EDITOR_ACCESS_REFRESH_MS);
 
 function applyLocalMovement(dt: number): void {
   if (introVisible) {
@@ -253,10 +428,15 @@ function applyLocalMovement(dt: number): void {
   }
 
   if (input.consumeMountToggle()) {
-    network.sendToggleMount();
+    if (player.mountedHorseVariant === null && !editor?.isEnabled() && !hasNearbyHorseForMount()) {
+      renderer.setMessage("No horse close enough to mount.");
+    } else {
+      network.sendToggleMount();
+    }
   }
 
   const mask = input.getMask();
+  dismissStablePanelOnActivity(mask);
   let dx = 0;
   let dy = 0;
 
@@ -329,7 +509,7 @@ function applyLocalMovement(dt: number): void {
   }
 
   if (input.consumeInteract()) {
-    network.sendInteract();
+    void handleInteract();
   }
 
   if (input.consumeDig()) {

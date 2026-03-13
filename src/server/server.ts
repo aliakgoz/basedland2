@@ -14,6 +14,7 @@ import {
   SIMULATION_RATE,
   TILE_SIZE,
   TileType,
+  ObjectType,
   WORLD_HEIGHT_TILES,
   WORLD_SEED,
   WORLD_WIDTH_TILES,
@@ -51,6 +52,7 @@ const baseRpcUrl = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
 const treasureRecipient = (process.env.TREASURE_RECIPIENT_ADDRESS ?? "").trim();
 const treasureUsdcAddress = (process.env.TREASURE_USDC_ADDRESS ?? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").trim();
 const treasureDigAmountDisplay = (process.env.TREASURE_DIG_USDC_AMOUNT ?? "0.01").trim();
+const stableHorsePriceDisplay = (process.env.STABLE_HORSE_PRICE_USDC_AMOUNT ?? "0.5").trim();
 const treasurePayoutPercentRaw = (process.env.TREASURE_PAYOUT_PERCENT ?? "99").trim();
 const mapMakerEnabled = !["0", "false", "off", "no"].includes((process.env.MAP_MAKER_ENABLED ?? "1").trim().toLowerCase());
 const treasureSecretSalt = process.env.TREASURE_SECRET_SALT ?? "basedland-secret";
@@ -58,12 +60,54 @@ const treasureCount = Math.max(1, Number(process.env.TREASURE_COUNT ?? 128) || 1
 const treasurePayoutPrivateKey = (process.env.TREASURE_PAYOUT_PRIVATE_KEY ?? "").trim();
 const BASE_CHAIN_ID = 8453;
 const ERC20_TRANSFER_SELECTOR = "0xa9059cbb";
+const STABLE_INTERACTION_RANGE = 480;
 const mimeTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8"
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml"
 };
+let mapMakerConsoleOpen = false;
+const ALREADY_DUG_MESSAGES = [
+  "You dig with confidence and discover the shocking truth: this hole is already a hole.",
+  "The ground would like a break. It has already been enthusiastically excavated.",
+  "You cannot unearth what is already thoroughly earthed-out.",
+  "This patch has been dug so hard it now has trust issues.",
+  "Your shovel finds only yesterday's ambition.",
+  "Fresh news from the soil: still dug.",
+  "You poke the hole. The hole pokes back emotionally.",
+  "There is no deeper state here. Only an existing pit.",
+  "That tile has already donated all the dirt it can spare.",
+  "You arrive late to the archaeology party.",
+  "The excavation department reports: duplicate hole request denied.",
+  "This ground has already been introduced to the concept of absence.",
+  "You swing the shovel and the hole files a repeat complaint.",
+  "The dirt has already moved out.",
+  "You cannot double-dig a single dig. Even this world has standards.",
+  "This spot is already open for business and closed for more digging.",
+  "The shovel pauses. The hole nods. Everyone understands.",
+  "No treasure, no dirt, no sequel. This one is already dug.",
+  "That hole is not getting any holier.",
+  "You try to dig again. The ground replies, 'been there.'",
+  "Further excavation would mainly impress the worms.",
+  "This tile has already experienced character development.",
+  "The pit is complete. Please enjoy it from a respectful distance.",
+  "You found the legendary treasure of doing the same thing twice."
+] as const;
+
+function isLoopbackAddress(address: string | undefined): boolean {
+  const normalized = (address ?? "").trim();
+  return normalized === "::1" || normalized === "127.0.0.1" || normalized === "::ffff:127.0.0.1";
+}
+
+function randomAlreadyDugMessage(): string {
+  return ALREADY_DUG_MESSAGES[Math.floor(Math.random() * ALREADY_DUG_MESSAGES.length)] ?? "This tile is already excavated.";
+}
 
 function readJsonBody<T>(req: IncomingMessage): Promise<T> {
   return new Promise((resolveBody, reject) => {
@@ -81,11 +125,19 @@ function readJsonBody<T>(req: IncomingMessage): Promise<T> {
   });
 }
 
+interface StablePurchaseSession {
+  id: string;
+  playerId: number;
+  variant: number;
+  createdAt: number;
+  expiresAt: number;
+}
+
 const httpServer = createServer(async (req, res) => {
   const pathname = req.url === "/" ? "/index.html" : req.url ?? "/index.html";
 
   if (pathname.startsWith("/api/editor-map")) {
-    if (!mapMakerEnabled) {
+    if (!mapMakerEnabled || !mapMakerConsoleOpen || !isLoopbackAddress(req.socket.remoteAddress)) {
       res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
       res.end(JSON.stringify({ error: "Map maker is disabled." }));
       return;
@@ -128,6 +180,13 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname.startsWith("/api/editor-access")) {
+    json(res, 200, {
+      enabled: mapMakerEnabled && mapMakerConsoleOpen && isLoopbackAddress(req.socket.remoteAddress)
+    });
+    return;
+  }
+
   if (pathname.startsWith("/api/treasure/config")) {
     json(res, 200, {
       enabled: isTreasureEnabled(),
@@ -138,6 +197,146 @@ const httpServer = createServer(async (req, res) => {
       amountUnits: treasureDigAmountUnits.toString(),
       amountDisplay: `${treasureDigAmountDisplay} USDC`
     });
+    return;
+  }
+
+  if (pathname.startsWith("/api/stable/config")) {
+    json(res, 200, {
+      enabled: isTreasureEnabled(),
+      reason: isTreasureEnabled() ? undefined : "TREASURE_RECIPIENT_ADDRESS missing on server.",
+      chainId: BASE_CHAIN_ID,
+      usdcToken: treasureUsdcAddress,
+      recipient: treasureRecipient,
+      amountUnits: stableHorsePriceUnits.toString(),
+      amountDisplay: `${stableHorsePriceDisplay} USDC`
+    });
+    return;
+  }
+
+  if (pathname.startsWith("/api/stable/nearby") && req.method === "POST") {
+    try {
+      const payload = await readJsonBody<{ playerId?: number }>(req);
+      const playerId = Number(payload.playerId ?? 0);
+      if (!Number.isFinite(playerId) || playerId <= 0) {
+        json(res, 400, { error: "Invalid player id." });
+        return;
+      }
+      const stable = getNearbyStable(playerId);
+      json(res, 200, {
+        nearby: Boolean(stable),
+        stable
+      });
+    } catch {
+      json(res, 400, { error: "Invalid stable proximity payload." });
+    }
+    return;
+  }
+
+  if (pathname.startsWith("/api/stable/prepare") && req.method === "POST") {
+    if (!isTreasureEnabled()) {
+      json(res, 503, { error: "Stable purchases are disabled on this server." });
+      return;
+    }
+
+    try {
+      await treasureStateReady;
+      const payload = await readJsonBody<{ playerId?: number; variant?: number }>(req);
+      const playerId = Number(payload.playerId ?? 0);
+      const variant = Number(payload.variant ?? -1);
+      if (!Number.isFinite(playerId) || !Number.isFinite(variant) || variant < 0 || variant > 2) {
+        json(res, 400, { error: "Invalid stable purchase request." });
+        return;
+      }
+      const stable = getNearbyStable(playerId);
+      if (!stable) {
+        json(res, 403, { error: "Move closer to a stable to buy a horse." });
+        return;
+      }
+      const id = `stable_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      stablePurchaseSessions.set(id, {
+        id,
+        playerId,
+        variant,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000
+      });
+      json(res, 200, {
+        purchaseId: id,
+        stable,
+        payment: {
+          enabled: true,
+          chainId: BASE_CHAIN_ID,
+          usdcToken: treasureUsdcAddress,
+          recipient: treasureRecipient,
+          amountUnits: stableHorsePriceUnits.toString(),
+          amountDisplay: `${stableHorsePriceDisplay} USDC`
+        }
+      });
+    } catch {
+      json(res, 400, { error: "Invalid stable purchase payload." });
+    }
+    return;
+  }
+
+  if (pathname.startsWith("/api/stable/confirm") && req.method === "POST") {
+    if (!isTreasureEnabled()) {
+      json(res, 503, { error: "Stable purchases are disabled on this server." });
+      return;
+    }
+
+    try {
+      await treasureStateReady;
+      const payload = await readJsonBody<{ playerId?: number; purchaseId?: string; txHash?: string; payer?: string }>(req);
+      const playerId = Number(payload.playerId ?? 0);
+      const purchaseId = String(payload.purchaseId ?? "");
+      const txHash = String(payload.txHash ?? "").toLowerCase();
+      const payer = String(payload.payer ?? "");
+      const session = stablePurchaseSessions.get(purchaseId) ?? null;
+      if (!session || session.playerId !== playerId || session.expiresAt < Date.now()) {
+        stablePurchaseSessions.delete(purchaseId);
+        json(res, 400, { error: "Stable purchase session expired or missing." });
+        return;
+      }
+      stablePurchaseSessions.delete(purchaseId);
+      if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+        json(res, 400, { error: "Invalid transaction hash." });
+        return;
+      }
+      if (!/^0x[a-fA-F0-9]{40}$/.test(payer)) {
+        json(res, 400, { error: "Invalid payer wallet address." });
+        return;
+      }
+      if (treasureManager?.isTxUsed(txHash)) {
+        json(res, 409, { error: "This transaction hash was already used." });
+        return;
+      }
+      if (!getNearbyStable(playerId)) {
+        json(res, 403, { error: "Move back to a stable to complete the purchase." });
+        return;
+      }
+
+      await verifyTreasurePayment(txHash, payer, stableHorsePriceUnits);
+      treasureManager?.markTxUsed(txHash);
+      await persistTreasureStateNow();
+      const player = playerManager.players.get(playerId);
+      if (!player) {
+        json(res, 404, { error: "Player not found on server." });
+        return;
+      }
+      if (player.mountedHorseId === null) {
+        player.mountedHorseId = horseManager.allocateDynamicHorseId();
+      }
+      player.mountedHorseVariant = session.variant;
+      sendImmediateSnapshot(player);
+
+      json(res, 200, {
+        success: true,
+        mountedHorseVariant: session.variant,
+        message: "Horse purchased. You ride out immediately."
+      });
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : "Stable purchase failed." });
+    }
     return;
   }
 
@@ -178,7 +377,7 @@ const httpServer = createServer(async (req, res) => {
         return;
       }
       if (currentType === dugType) {
-        json(res, 409, { error: "This tile is already excavated." });
+        json(res, 409, { error: randomAlreadyDugMessage() });
         return;
       }
 
@@ -428,6 +627,7 @@ const editorMapReady = loadEditorMap().then((persisted) => {
 });
 let editorMapSaveTimer: NodeJS.Timeout | null = null;
 let treasureStateSaveTimer: NodeJS.Timeout | null = null;
+const stablePurchaseSessions = new Map<string, StablePurchaseSession>();
 const treasureStateReady = Promise.all([editorMapReady, loadTreasureState()]).then(([, persisted]) => {
   persistedTreasureState = persisted;
   treasureManager = new TreasureManager(
@@ -576,6 +776,7 @@ function formatUsdcAmount(amountUnits: bigint): string {
 }
 
 const treasureDigAmountUnits = parseUsdcAmountUnits(treasureDigAmountDisplay);
+const stableHorsePriceUnits = parseUsdcAmountUnits(stableHorsePriceDisplay);
 const treasurePayoutPercent = Math.max(0, Math.min(100, Number.parseInt(treasurePayoutPercentRaw, 10) || 99));
 
 function payoutAmountAfterFee(amountUnits: bigint): bigint {
@@ -583,6 +784,37 @@ function payoutAmountAfterFee(amountUnits: bigint): bigint {
     return 0n;
   }
   return (amountUnits * BigInt(treasurePayoutPercent)) / 100n;
+}
+
+function getNearbyStable(playerId: number): { tileX: number; tileY: number } | null {
+  const player = playerManager.players.get(playerId);
+  if (!player) {
+    return null;
+  }
+  const currentChunk = chunkManager.getChunkKeyForPlayer(player.id);
+  if (!currentChunk) {
+    return null;
+  }
+  const searchKeys = chunkManager.getNearbyChunkKeys(currentChunk, 4);
+  const candidateTypes = [ObjectType.Stable, ObjectType.TownHall, ObjectType.Barn] as const;
+
+  for (const type of candidateTypes) {
+    const stable = entitySystem.findNearestObjectOfType(
+      type,
+      player.x,
+      player.y,
+      searchKeys,
+      STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
+    );
+    if (!stable) {
+      continue;
+    }
+    return {
+      tileX: Math.floor(stable.x / TILE_SIZE),
+      tileY: Math.floor(stable.y / TILE_SIZE)
+    };
+  }
+  return null;
 }
 
 function normalizeAddress(value: string): string {
@@ -862,7 +1094,8 @@ function refreshVisibility(player: ServerPlayer): ServerPlayer[] {
 
 wss.on("connection", (socket) => {
   socket.binaryType = "arraybuffer";
-  const player = playerManager.createPlayer(socket);
+  const socketAddress = (socket as unknown as { _socket?: { remoteAddress?: string } })._socket?.remoteAddress;
+  const player = playerManager.createPlayer(socket, isLoopbackAddress(socketAddress));
 
   socket.send(
     encodeWelcome({
@@ -896,7 +1129,32 @@ wss.on("connection", (socket) => {
         return;
       }
 
-      const object = entitySystem.findNearestInteractable(
+      let stable = entitySystem.findNearestObjectOfType(
+        ObjectType.Stable,
+        player.x,
+        player.y,
+        chunkManager.getNearbyChunkKeys(currentChunk, 4),
+        STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
+      );
+      if (!stable) {
+        stable = entitySystem.findNearestObjectOfType(
+          ObjectType.TownHall,
+          player.x,
+          player.y,
+          chunkManager.getNearbyChunkKeys(currentChunk, 4),
+          STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
+        );
+      }
+      if (!stable) {
+        stable = entitySystem.findNearestObjectOfType(
+          ObjectType.Barn,
+          player.x,
+          player.y,
+          chunkManager.getNearbyChunkKeys(currentChunk, 4),
+          STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
+        );
+      }
+      const object = stable ?? entitySystem.findNearestInteractable(
         player.x,
         player.y,
         chunkManager.getNearbyChunkKeys(currentChunk, 1),
@@ -938,6 +1196,9 @@ wss.on("connection", (socket) => {
         MOUNT_RANGE * MOUNT_RANGE
       );
       if (!horse) {
+        if (!mapMakerEnabled) {
+          return;
+        }
         player.mountedHorseId = horseManager.allocateDynamicHorseId();
         player.mountedHorseVariant = player.id % 3;
         sendImmediateSnapshot(player);
@@ -952,7 +1213,7 @@ wss.on("connection", (socket) => {
 
     const patch = parseEditorPatchPacket(buffer);
     if (patch) {
-      if (!mapMakerEnabled) {
+      if (!mapMakerEnabled || !mapMakerConsoleOpen || !player.isLocalAdminClient) {
         return;
       }
       await editorMapReady;
@@ -1039,6 +1300,16 @@ if (process.stdin.isTTY) {
     if (command === "clear-dug") {
       const cleared = await clearDugTiles();
       console.log(`Cleared ${cleared} dug tiles.`);
+      return;
+    }
+    if (command === "map-maker on") {
+      mapMakerConsoleOpen = true;
+      console.log("Map maker opened for localhost admin clients.");
+      return;
+    }
+    if (command === "map-maker off") {
+      mapMakerConsoleOpen = false;
+      console.log("Map maker closed.");
       return;
     }
     if (command.length > 0) {
