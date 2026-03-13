@@ -14,6 +14,7 @@ export class InputController {
   private mountToggleQueued = false;
   private digQueued = false;
   private textEntryActive = false;
+  private digEnabled = true;
 
   constructor() {
     window.addEventListener("keydown", (event) => {
@@ -42,7 +43,7 @@ export class InputController {
       if (event.code === "KeyH" && !event.repeat) {
         this.mountToggleQueued = true;
       }
-      if (event.code === "Space" && !event.repeat) {
+      if (this.digEnabled && event.code === "Space" && !event.repeat) {
         this.digQueued = true;
         event.preventDefault();
       }
@@ -98,6 +99,13 @@ export class InputController {
     this.textEntryActive = active;
     if (active) {
       this.pressed.clear();
+      this.digQueued = false;
+    }
+  }
+
+  setDigEnabled(enabled: boolean): void {
+    this.digEnabled = enabled;
+    if (!enabled) {
       this.digQueued = false;
     }
   }

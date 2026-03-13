@@ -1,4 +1,5 @@
-import { createServer, type IncomingMessage } from "node:http";
+import "dotenv/config";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -39,10 +40,20 @@ import {
 } from "./network";
 import { loadEditorMap, saveEditorMap } from "./map_store";
 import { PlayerManager, type ServerPlayer } from "./player_manager";
+import { TreasureManager } from "./treasure_manager";
+import { loadTreasureState, saveTreasureState, type PersistedTreasureState } from "./treasure_store";
 import { ServerWorldState } from "./world_state";
 
 const clientRoot = resolve(__dirname, "../client");
 const serverPort = Number(process.env.PORT ?? 3000);
+const baseRpcUrl = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
+const treasureRecipient = (process.env.TREASURE_RECIPIENT_ADDRESS ?? "").trim();
+const treasureUsdcAddress = (process.env.TREASURE_USDC_ADDRESS ?? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").trim();
+const treasureAmountDisplay = (process.env.TREASURE_DIG_USDC_AMOUNT ?? "0.01").trim();
+const treasureSecretSalt = process.env.TREASURE_SECRET_SALT ?? "basedland-secret";
+const treasureCount = Math.max(1, Number(process.env.TREASURE_COUNT ?? 128) || 128);
+const BASE_CHAIN_ID = 8453;
+const ERC20_TRANSFER_SELECTOR = "0xa9059cbb";
 const mimeTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -108,6 +119,137 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname.startsWith("/api/treasure/config")) {
+    json(res, 200, {
+      enabled: isTreasureEnabled(),
+      reason: isTreasureEnabled() ? undefined : "TREASURE_RECIPIENT_ADDRESS missing on server.",
+      chainId: BASE_CHAIN_ID,
+      usdcToken: treasureUsdcAddress,
+      recipient: treasureRecipient,
+      amountUnits: treasureAmountUnits.toString(),
+      amountDisplay: `${treasureAmountDisplay} USDC`
+    });
+    return;
+  }
+
+  if (pathname.startsWith("/api/treasure/prepare") && req.method === "POST") {
+    if (!isTreasureEnabled()) {
+      json(res, 503, { error: "Treasure digging is disabled on this server." });
+      return;
+    }
+
+    try {
+      await treasureStateReady;
+      const payload = await readJsonBody<{ playerId?: number; tileX?: number; tileY?: number }>(req);
+      const rawTileX = Number(payload.tileX ?? -1);
+      const rawTileY = Number(payload.tileY ?? -1);
+      const playerId = Number(payload.playerId ?? 0);
+      if (!Number.isFinite(rawTileX) || !Number.isFinite(rawTileY) || !Number.isFinite(playerId)) {
+        json(res, 400, { error: "Invalid dig coordinates." });
+        return;
+      }
+      const tileX = Math.max(0, Math.min(WORLD_WIDTH_TILES - 1, rawTileX));
+      const tileY = Math.max(0, Math.min(WORLD_HEIGHT_TILES - 1, rawTileY));
+      const currentType = worldState.getTileType(tileX, tileY);
+      const dugType = dugTileFor(currentType);
+      if (!treasureManager || !Number.isFinite(playerId) || playerId <= 0 || dugType === null) {
+        json(res, 400, { error: "This tile cannot be dug." });
+        return;
+      }
+      if (currentType === dugType) {
+        json(res, 409, { error: "This tile is already excavated." });
+        return;
+      }
+
+      const dig = treasureManager.prepareDig(playerId, tileX, tileY);
+      json(res, 200, {
+        digId: dig.id,
+        tileX,
+        tileY,
+        payment: {
+          enabled: true,
+          chainId: BASE_CHAIN_ID,
+          usdcToken: treasureUsdcAddress,
+          recipient: treasureRecipient,
+          amountUnits: treasureAmountUnits.toString(),
+          amountDisplay: `${treasureAmountDisplay} USDC`
+        }
+      });
+    } catch {
+      json(res, 400, { error: "Invalid treasure prepare payload." });
+    }
+    return;
+  }
+
+  if (pathname.startsWith("/api/treasure/confirm") && req.method === "POST") {
+    if (!isTreasureEnabled()) {
+      json(res, 503, { error: "Treasure digging is disabled on this server." });
+      return;
+    }
+
+    try {
+      await treasureStateReady;
+      const payload = await readJsonBody<{ playerId?: number; digId?: string; txHash?: string; payer?: string }>(req);
+      const playerId = Number(payload.playerId ?? 0);
+      const digId = String(payload.digId ?? "");
+      const txHash = String(payload.txHash ?? "").toLowerCase();
+      const payer = String(payload.payer ?? "");
+      const session = treasureManager?.consumeSession(digId, playerId) ?? null;
+
+      if (!session) {
+        json(res, 400, { error: "Dig session expired or missing." });
+        return;
+      }
+      if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+        json(res, 400, { error: "Invalid transaction hash." });
+        return;
+      }
+      if (!/^0x[a-fA-F0-9]{40}$/.test(payer)) {
+        json(res, 400, { error: "Invalid payer wallet address." });
+        return;
+      }
+      if (treasureManager?.isTxUsed(txHash)) {
+        json(res, 409, { error: "This transaction hash was already used." });
+        return;
+      }
+
+      await verifyTreasurePayment(txHash, payer);
+
+      const currentType = worldState.getTileType(session.tileX, session.tileY);
+      const dugType = dugTileFor(currentType);
+      if (dugType !== null) {
+        const patch: EditorPatch = { kind: "ground", x: session.tileX, y: session.tileY, tileType: dugType };
+        touchLiveEditorMap(patch);
+        queueEditorMapSave();
+        const packet = encodeEditorPatch(patch);
+        for (const client of wss.clients) {
+          if (client.readyState === 1) {
+            client.send(packet);
+          }
+        }
+      }
+
+      const result = treasureManager?.claimTreasure(session.tileX, session.tileY, txHash, payer) ?? {
+        found: false,
+        alreadyClaimed: false
+      };
+      queueTreasureStateSave();
+
+      json(res, 200, {
+        success: true,
+        found: result.found,
+        message: result.found
+          ? "Treasure found. The buried cache was real."
+          : result.alreadyClaimed
+            ? "This treasure was already claimed earlier."
+            : "No treasure here. The dig completed and the ground was opened."
+      });
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : "Treasure confirmation failed." });
+    }
+    return;
+  }
+
   const filePath = join(clientRoot, pathname.replace(/\?.*$/, ""));
 
   try {
@@ -134,6 +276,13 @@ const entitySystem = new EntitySystem();
 const horseManager = new HorseManager();
 const worldState = new ServerWorldState();
 const playerManager = new PlayerManager(chunkManager, (tileX, tileY) => worldState.getTileType(tileX, tileY));
+let treasureManager: TreasureManager | null = null;
+let persistedTreasureState: PersistedTreasureState = {
+  revision: 0,
+  updatedAt: new Date(0).toISOString(),
+  claimed: [],
+  usedTxHashes: []
+};
 let liveEditorMap: PersistedEditorMap = {
   revision: 0,
   updatedAt: new Date(0).toISOString(),
@@ -144,6 +293,16 @@ const editorMapReady = loadEditorMap().then((persisted) => {
   worldState.importEditorLayer(persisted.data);
 });
 let editorMapSaveTimer: NodeJS.Timeout | null = null;
+let treasureStateSaveTimer: NodeJS.Timeout | null = null;
+const treasureStateReady = Promise.all([editorMapReady, loadTreasureState()]).then(([, persisted]) => {
+  persistedTreasureState = persisted;
+  treasureManager = new TreasureManager(
+    (tileX, tileY) => worldState.getTileType(tileX, tileY),
+    treasureSecretSalt,
+    treasureCount,
+    persisted
+  );
+});
 
 let serverTick = 0;
 
@@ -221,6 +380,138 @@ function queueEditorMapSave(): void {
     editorMapSaveTimer = null;
     liveEditorMap = await saveEditorMap(liveEditorMap.data);
   }, 400);
+}
+
+function queueTreasureStateSave(): void {
+  if (treasureStateSaveTimer) {
+    clearTimeout(treasureStateSaveTimer);
+  }
+  treasureStateSaveTimer = setTimeout(async () => {
+    treasureStateSaveTimer = null;
+    if (!treasureManager) {
+      return;
+    }
+    persistedTreasureState = await saveTreasureState({
+      ...treasureManager.exportState(),
+      revision: persistedTreasureState.revision
+    });
+  }, 400);
+}
+
+function isTreasureEnabled(): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(treasureRecipient);
+}
+
+function parseUsdcAmountUnits(value: string): bigint {
+  const [wholePart, fractionPart = ""] = value.split(".");
+  const normalizedWhole = wholePart.length === 0 ? "0" : wholePart;
+  const normalizedFraction = `${fractionPart}000000`.slice(0, 6);
+  return BigInt(normalizedWhole) * 1_000_000n + BigInt(normalizedFraction);
+}
+
+const treasureAmountUnits = parseUsdcAmountUnits(treasureAmountDisplay);
+
+function normalizeAddress(value: string): string {
+  return value.toLowerCase();
+}
+
+function strip0x(value: string): string {
+  return value.startsWith("0x") ? value.slice(2) : value;
+}
+
+function dugTileFor(type: TileType): TileType | null {
+  switch (type) {
+    case TileType.Grass:
+      return TileType.GrassDug;
+    case TileType.Dirt:
+      return TileType.DirtDug;
+    case TileType.Forest:
+      return TileType.ForestDug;
+    case TileType.Stone:
+      return TileType.StoneDug;
+    case TileType.Hill:
+      return TileType.HillDug;
+    case TileType.GrassDug:
+    case TileType.DirtDug:
+    case TileType.ForestDug:
+    case TileType.StoneDug:
+    case TileType.HillDug:
+      return type;
+    default:
+      return null;
+  }
+}
+
+async function baseRpc<T>(method: string, params: unknown[]): Promise<T> {
+  const response = await fetch(baseRpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: Date.now(),
+      method,
+      params
+    })
+  });
+  const payload = (await response.json()) as { result?: T; error?: { message?: string } };
+  if (!response.ok || payload.error) {
+    throw new Error(payload.error?.message ?? `RPC ${method} failed.`);
+  }
+  return payload.result as T;
+}
+
+function decodeTransferInput(input: string): { recipient: string; amount: bigint } | null {
+  if (!input.startsWith(ERC20_TRANSFER_SELECTOR)) {
+    return null;
+  }
+  const hex = strip0x(input);
+  if (hex.length < 8 + 64 + 64) {
+    return null;
+  }
+  const recipientWord = hex.slice(8, 8 + 64);
+  const amountWord = hex.slice(8 + 64, 8 + 64 + 64);
+  return {
+    recipient: normalizeAddress(`0x${recipientWord.slice(24)}`),
+    amount: BigInt(`0x${amountWord}`)
+  };
+}
+
+async function verifyTreasurePayment(txHash: string, payer: string): Promise<void> {
+  const tx = await baseRpc<{ to?: string; from?: string; input?: string } | null>("eth_getTransactionByHash", [txHash]);
+  const receipt = await baseRpc<{ status?: string } | null>("eth_getTransactionReceipt", [txHash]);
+  const chainIdHex = await baseRpc<string>("eth_chainId", []);
+
+  if (!tx || !receipt || receipt.status !== "0x1") {
+    throw new Error("Base transaction is not confirmed.");
+  }
+  if (Number.parseInt(chainIdHex, 16) !== BASE_CHAIN_ID) {
+    throw new Error("RPC endpoint is not Base mainnet.");
+  }
+  if (normalizeAddress(tx.to ?? "") !== normalizeAddress(treasureUsdcAddress)) {
+    throw new Error("Transaction target is not Base USDC.");
+  }
+  if (normalizeAddress(tx.from ?? "") !== normalizeAddress(payer)) {
+    throw new Error("Transaction sender does not match the connected wallet.");
+  }
+
+  const decoded = decodeTransferInput(tx.input ?? "");
+  if (!decoded) {
+    throw new Error("Transaction is not a USDC transfer.");
+  }
+  if (decoded.recipient !== normalizeAddress(treasureRecipient)) {
+    throw new Error("USDC recipient does not match the treasure wallet.");
+  }
+  if (decoded.amount !== treasureAmountUnits) {
+    throw new Error("USDC amount does not match the dig fee.");
+  }
+}
+
+function json(res: ServerResponse, status: number, payload: unknown): void {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store"
+  });
+  res.end(`${JSON.stringify(payload)}\n`);
 }
 
 function baseTileForDug(type: TileType): TileType | null {

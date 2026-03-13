@@ -97,6 +97,48 @@
         z-index: 35;
       }
 
+      #wallet-panel {
+        top: 72px;
+        left: 18px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 31;
+      }
+
+      #wallet-status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      #wallet-disconnect {
+        width: 28px;
+        height: 28px;
+        border: 1px solid rgba(217, 169, 75, 0.22);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+        font-size: 14px;
+      }
+
+      #wallet-disconnect.visible {
+        display: inline-flex;
+      }
+
+      #wallet-connect {
+        border: 1px solid rgba(62, 148, 255, 0.45);
+        background: rgba(62, 148, 255, 0.12);
+        color: var(--text);
+        padding: 7px 10px;
+        cursor: pointer;
+      }
+
       #chat-panel.active {
         display: block;
       }
@@ -381,7 +423,12 @@
         </div>
         <canvas id="worldmap-canvas" width="960" height="720"></canvas>
       </div>
-      <div id="hint" class="panel">WASD move, E interact, H mount, Y chat, wheel zoom, click minimap to pan, M map maker.</div>
+      <div id="hint" class="panel">WASD move, E interact, H mount, Space dig on Base, Y chat, wheel zoom, click minimap to pan, M map maker.</div>
+      <div id="wallet-panel" class="panel interactive">
+        <button id="wallet-connect" type="button">Connect Wallet</button>
+        <span id="wallet-status">Connect Wallet</span>
+        <button id="wallet-disconnect" type="button" aria-label="Disconnect wallet" title="Disconnect wallet">x</button>
+      </div>
       <div id="chat-panel" class="panel interactive">
         <h2>Local Chat</h2>
         <form id="chat-form">

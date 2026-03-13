@@ -1,4 +1,4 @@
-import { AnimationState, Direction, InputFlag, MOUNT_SPEED_MULTIPLIER, PLAYER_SPEED, TILE_SIZE, TileType } from "../shared/protocol";
+import { AnimationState, Direction, InputFlag, MOUNT_SPEED_MULTIPLIER, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { pruneExpiredOverheadMessages } from "./entity";
@@ -6,6 +6,7 @@ import { InputController } from "./input";
 import { MapEditor } from "./map_editor";
 import { NetworkClient } from "./network";
 import { Renderer } from "./renderer";
+import { TreasureClient } from "./treasure";
 import { WorldState } from "./world";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game");
@@ -14,8 +15,11 @@ const message = document.querySelector<HTMLElement>("#message");
 const chatPanel = document.querySelector<HTMLElement>("#chat-panel");
 const chatForm = document.querySelector<HTMLFormElement>("#chat-form");
 const chatInput = document.querySelector<HTMLInputElement>("#chat-input");
+const walletConnect = document.querySelector<HTMLButtonElement>("#wallet-connect");
+const walletStatus = document.querySelector<HTMLElement>("#wallet-status");
+const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disconnect");
 
-if (!canvas || !online || !message || !chatPanel || !chatForm || !chatInput) {
+if (!canvas || !online || !message || !chatPanel || !chatForm || !chatInput || !walletConnect || !walletStatus || !walletDisconnect) {
   throw new Error("HUD elements missing");
 }
 
@@ -25,6 +29,17 @@ const input = new InputController();
 const world = new WorldState();
 const network = new NetworkClient();
 const editor = new MapEditor(assets, world, renderer, canvas, () => network.localPlayer, (patch) => network.sendEditorPatch(patch));
+const treasure = new TreasureClient(
+  () => network.localPlayer,
+  (text) => renderer.setMessage(text),
+  (label, connected, busy) => {
+    walletStatus.textContent = busy ? `${label}...` : label;
+    walletConnect.textContent = connected ? "Wallet Ready" : "Connect Wallet";
+    walletConnect.disabled = busy;
+    walletDisconnect.disabled = busy;
+    walletDisconnect.classList.toggle("visible", connected);
+  }
+);
 
 renderer.setMessage("Loading pixel assets...");
 assets.loadGeneratedOverrides().then(() => {
@@ -56,29 +71,6 @@ let lastInputMask = -1;
 let previousFrame = performance.now();
 const EDITOR_CAMERA_MULTIPLIER = 20;
 let chatOpen = false;
-
-function dugTileFor(type: TileType): TileType | null {
-  switch (type) {
-    case TileType.Grass:
-      return TileType.GrassDug;
-    case TileType.Dirt:
-      return TileType.DirtDug;
-    case TileType.Forest:
-      return TileType.ForestDug;
-    case TileType.Stone:
-      return TileType.StoneDug;
-    case TileType.Hill:
-      return TileType.HillDug;
-    case TileType.GrassDug:
-    case TileType.DirtDug:
-    case TileType.ForestDug:
-    case TileType.StoneDug:
-    case TileType.HillDug:
-      return type;
-    default:
-      return null;
-  }
-}
 
 function setChatOpen(next: boolean): void {
   chatOpen = next;
@@ -116,6 +108,14 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     setChatOpen(false);
   }
+});
+
+walletConnect.addEventListener("click", () => {
+  void treasure.connectWallet();
+});
+
+walletDisconnect.addEventListener("click", () => {
+  treasure.disconnectWallet();
 });
 
 function applyLocalMovement(dt: number): void {
@@ -208,14 +208,7 @@ function applyLocalMovement(dt: number): void {
   }
 
   if (input.consumeDig()) {
-    const digTileX = Math.floor(player.x / TILE_SIZE);
-    const digTileY = Math.floor(player.y / TILE_SIZE);
-    const dugTile = dugTileFor(world.getTileType(digTileX, digTileY));
-    if (dugTile !== null) {
-      const patch = { kind: "ground" as const, x: digTileX, y: digTileY, tileType: dugTile };
-      world.applyEditorPatch(patch);
-      network.sendEditorPatch(patch);
-    }
+    void treasure.digAtPlayerTile();
   }
 }
 
