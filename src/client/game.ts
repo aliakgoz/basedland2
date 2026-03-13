@@ -1,4 +1,4 @@
-import { AnimationState, Direction, InputFlag, MOUNT_SPEED_MULTIPLIER, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
+import { AnimationState, Direction, InputFlag, MOUNT_SPEED_MULTIPLIER, PLAYER_SPEED, TILE_SIZE, TileType } from "../shared/protocol";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { pruneExpiredOverheadMessages } from "./entity";
@@ -56,6 +56,29 @@ let lastInputMask = -1;
 let previousFrame = performance.now();
 const EDITOR_CAMERA_MULTIPLIER = 20;
 let chatOpen = false;
+
+function dugTileFor(type: TileType): TileType | null {
+  switch (type) {
+    case TileType.Grass:
+      return TileType.GrassDug;
+    case TileType.Dirt:
+      return TileType.DirtDug;
+    case TileType.Forest:
+      return TileType.ForestDug;
+    case TileType.Stone:
+      return TileType.StoneDug;
+    case TileType.Hill:
+      return TileType.HillDug;
+    case TileType.GrassDug:
+    case TileType.DirtDug:
+    case TileType.ForestDug:
+    case TileType.StoneDug:
+    case TileType.HillDug:
+      return type;
+    default:
+      return null;
+  }
+}
 
 function setChatOpen(next: boolean): void {
   chatOpen = next;
@@ -141,6 +164,7 @@ function applyLocalMovement(dt: number): void {
     if (input.consumeInteract()) {
       return;
     }
+    input.consumeDig();
     return;
   }
 
@@ -181,6 +205,17 @@ function applyLocalMovement(dt: number): void {
 
   if (input.consumeInteract()) {
     network.sendInteract();
+  }
+
+  if (input.consumeDig()) {
+    const digTileX = Math.floor(player.x / TILE_SIZE);
+    const digTileY = Math.floor(player.y / TILE_SIZE);
+    const dugTile = dugTileFor(world.getTileType(digTileX, digTileY));
+    if (dugTile !== null) {
+      const patch = { kind: "ground" as const, x: digTileX, y: digTileY, tileType: dugTile };
+      world.applyEditorPatch(patch);
+      network.sendEditorPatch(patch);
+    }
   }
 }
 

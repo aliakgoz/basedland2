@@ -12,6 +12,7 @@ export class InputController {
   private interactQueued = false;
   private chatToggleQueued = false;
   private mountToggleQueued = false;
+  private digQueued = false;
   private textEntryActive = false;
 
   constructor() {
@@ -40,6 +41,10 @@ export class InputController {
       }
       if (event.code === "KeyH" && !event.repeat) {
         this.mountToggleQueued = true;
+      }
+      if (event.code === "Space" && !event.repeat) {
+        this.digQueued = true;
+        event.preventDefault();
       }
     });
 
@@ -83,10 +88,17 @@ export class InputController {
     return queued;
   }
 
+  consumeDig(): boolean {
+    const queued = this.digQueued;
+    this.digQueued = false;
+    return queued;
+  }
+
   setTextEntryActive(active: boolean): void {
     this.textEntryActive = active;
     if (active) {
       this.pressed.clear();
+      this.digQueued = false;
     }
   }
 }

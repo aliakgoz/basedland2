@@ -93,6 +93,15 @@ function requiresRoadAccess(type: ObjectType): boolean {
     case ObjectType.Dog:
     case ObjectType.Cat:
     case ObjectType.SparkMouse:
+    case ObjectType.HillStamp:
+    case ObjectType.MountainStamp:
+    case ObjectType.GardenStamp:
+    case ObjectType.GrainEar:
+    case ObjectType.YellowGrainEar:
+    case ObjectType.GreenGrainEar:
+    case ObjectType.GrapeVine:
+    case ObjectType.AppleTree:
+    case ObjectType.OliveTree:
       return false;
     default:
       return true;
@@ -220,6 +229,7 @@ interface VillageStructurePlan {
 }
 
 const HOUSE_VARIANT_COUNT = 20;
+const TREE_VARIANT_COUNT = 20;
 const LARGE_BUILDING_VARIANT_COUNT = 4;
 const SPECIAL_BUILDINGS: ObjectType[] = [
   ObjectType.Pub,
@@ -448,6 +458,7 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       const onRoad = hasGeneratedRoad(tileX, tileY);
       const onBridge = hasBridgeTile(tileX, tileY);
       const horseVariant = hash2d(WORLD_SEED + 551, tileX, tileY) % 3;
+      const treeVariant = hash2d(WORLD_SEED + 552, tileX, tileY) % TREE_VARIANT_COUNT;
       const nearRoad = isNearRoad(tileX, tileY, 3);
 
       if (!isWalkableTile(tile) || onRoad || onBridge) {
@@ -523,7 +534,11 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       }
 
       if (type !== null) {
-        pushObject(objects, cx, cy, localIndex, type, tileX, tileY, type === ObjectType.Horse ? horseVariant : undefined);
+        const variant =
+          type === ObjectType.Horse ? horseVariant :
+          type === ObjectType.Tree ? treeVariant :
+          undefined;
+        pushObject(objects, cx, cy, localIndex, type, tileX, tileY, variant);
         localIndex += 1;
       }
     }
@@ -631,6 +646,24 @@ export function describeInteraction(type: ObjectType): { action: number; text: s
       return { action: 12, text: "The cat watches you with royal judgment." };
     case ObjectType.SparkMouse:
       return { action: 23, text: "The little spark beast crackles and darts away." };
+    case ObjectType.HillStamp:
+      return { action: 24, text: "The hillside rises in layered terraces." };
+    case ObjectType.MountainStamp:
+      return { action: 25, text: "The mountain face towers over the valley." };
+    case ObjectType.GardenStamp:
+      return { action: 26, text: "Trellises and crop rows run across the garden." };
+    case ObjectType.GrainEar:
+      return { action: 27, text: "A ripe grain stalk bends in the wind." };
+    case ObjectType.YellowGrainEar:
+      return { action: 28, text: "The yellow ear is dry and ready for harvest." };
+    case ObjectType.GreenGrainEar:
+      return { action: 29, text: "The green ear is still filling with grain." };
+    case ObjectType.GrapeVine:
+      return { action: 30, text: "A vine hangs heavy with clustered grapes." };
+    case ObjectType.AppleTree:
+      return { action: 31, text: "The apple tree smells sharp and sweet." };
+    case ObjectType.OliveTree:
+      return { action: 32, text: "Silvery olive leaves shimmer in the light." };
     default:
       return { action: 0, text: "Nothing interesting happens." };
   }

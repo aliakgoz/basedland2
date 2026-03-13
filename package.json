@@ -7,6 +7,8 @@
     "build": "node esbuild.mjs",
     "assets:generate": "node scripts/generate-assets.mjs",
     "assets:buildings": "node scripts/generate-assets.mjs --only-objects house,pub,inn,barn,stable,blacksmith,windmill,chapel,market,manor,townhall --replace-objects house,pub,inn,barn,stable,blacksmith,windmill,chapel,market,manor,townhall --house-target 20 --building-target 3",
+    "assets:terrain": "node scripts/generate-bridge-terrain-tiles.mjs",
+    "assets:stamps": "node scripts/generate-landmark-stamps.mjs",
     "assets:import-local": "node scripts/import-local-assets.mjs",
     "outfits:generate": "node scripts/generate-player-outfit-boards.mjs",
     "player:generate": "node scripts/generate-player-sprites.mjs",

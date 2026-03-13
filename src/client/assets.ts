@@ -20,17 +20,25 @@ export interface AssetArchiveGroup {
   entries: AssetArchiveEntry[];
 }
 
+export const CUSTOM_ROAD_WOOD_DECK = 100;
+export const CUSTOM_ROAD_WOOD_ARCH = 101;
+
 interface GeneratedManifest {
   tiles: Partial<Record<string, string[]>>;
   objects: Partial<Record<string, string>>;
   objectArchive?: Partial<Record<string, string[]>>;
   players: Partial<Record<string, string>>;
   bridges?: Partial<Record<string, string>>;
+  roads?: Partial<Record<string, string>>;
   worldSurface?: string;
 }
 
 const TILE_VARIANTS = 6;
 const HOUSE_VARIANTS = 20;
+const TREE_VARIANTS = 20;
+const HILL_STAMP_VARIANTS = 3;
+const MOUNTAIN_STAMP_VARIANTS = 3;
+const GARDEN_STAMP_VARIANTS = 11;
 const TILE_PIXEL_SIZE = 16;
 const OBJECT_SIZE = 32;
 const PLAYER_FRAME_SIZE = 64;
@@ -42,6 +50,7 @@ const PLAYER_WIDTH = 16;
 const PLAYER_HEIGHT = 20;
 const OBJECT_WORLD_SCALE = 2;
 const USE_GENERATED_GROUND = false;
+const GENERATED_GROUND_OVERRIDES = new Set<TileType>();
 const BRIDGE_SLUGS = [
   "bridge-v",
   "bridge-h",
@@ -68,6 +77,29 @@ const LARGE_BUILDING_TYPES = new Set<ObjectType>([
   ObjectType.TownHall
 ]);
 const HORSE_VARIANTS = 3;
+const EDITOR_GROUND_TILES: TileType[] = [
+  TileType.Grass,
+  TileType.Dirt,
+  TileType.Stone,
+  TileType.Water,
+  TileType.Forest,
+  TileType.Hill,
+  TileType.GrassDug,
+  TileType.DirtDug,
+  TileType.ForestDug,
+  TileType.StoneDug,
+  TileType.HillDug,
+  TileType.BarleyField,
+  TileType.WheatField,
+  TileType.Orchard,
+  TileType.Vineyard,
+  TileType.Garden,
+  TileType.PumpkinPatch,
+  TileType.CabbagePatch,
+  TileType.BerryGarden,
+  TileType.HerbGarden,
+  TileType.FallowField
+];
 
 type Rgb = [number, number, number];
 type PlayerPaletteRole = "hair" | "primary" | "secondary" | "accent" | "skin" | "boots";
@@ -126,7 +158,23 @@ const TILE_PALETTES: Record<TileType, string[]> = {
   [TileType.Dirt]: ["#8f6b46", "#a17b54", "#6d4e34", "#b48c62", "#503724"],
   [TileType.Stone]: ["#8f9396", "#a8adb0", "#71767a", "#c4c8cb", "#565c61"],
   [TileType.Water]: ["#4a7cab", "#5a92c5", "#34648e", "#83b3dd", "#294f70"],
-  [TileType.Forest]: ["#456f37", "#50813f", "#345a29", "#6b9d55", "#27461f"]
+  [TileType.Forest]: ["#456f37", "#50813f", "#345a29", "#6b9d55", "#27461f"],
+  [TileType.Hill]: ["#7b776e", "#908b80", "#635f57", "#aaa59a", "#4f4b45"],
+  [TileType.BarleyField]: ["#8f6b46", "#c7b85a", "#9f8b34", "#e1d17a", "#6f5a24"],
+  [TileType.WheatField]: ["#8f6b46", "#d8c468", "#b79b3c", "#f0dd8b", "#7d6325"],
+  [TileType.Orchard]: ["#7b9b58", "#5b7f36", "#b94d43", "#e2d6b8", "#3d5d23"],
+  [TileType.Vineyard]: ["#8a7c5a", "#6d8d3b", "#5c3f7d", "#8fc86b", "#4b2e64"],
+  [TileType.Garden]: ["#8f6b46", "#67a84e", "#d85c6f", "#f0cf63", "#4a7eb5"],
+  [TileType.PumpkinPatch]: ["#8f6b46", "#5e8a3f", "#d97a2b", "#f0b25f", "#3e5d2b"],
+  [TileType.CabbagePatch]: ["#8f6b46", "#6cae58", "#4e8747", "#93cf8a", "#355d31"],
+  [TileType.BerryGarden]: ["#8f6b46", "#5d993f", "#8f2d5c", "#d75d92", "#3a6e2d"],
+  [TileType.HerbGarden]: ["#8f6b46", "#6fcf8a", "#3e9f6c", "#b6efc5", "#266649"],
+  [TileType.FallowField]: ["#92704a", "#a37d54", "#7a593a", "#bc9469", "#5c4029"],
+  [TileType.GrassDug]: ["#6fa84f", "#78b154", "#5d913f", "#8fc76d", "#4f7b33"],
+  [TileType.DirtDug]: ["#8f6b46", "#a17b54", "#6d4e34", "#b48c62", "#503724"],
+  [TileType.ForestDug]: ["#456f37", "#50813f", "#345a29", "#6b9d55", "#27461f"],
+  [TileType.StoneDug]: ["#8f9396", "#a8adb0", "#71767a", "#c4c8cb", "#565c61"],
+  [TileType.HillDug]: ["#7b776e", "#908b80", "#635f57", "#aaa59a", "#4f4b45"]
 };
 
 const PLAYER_WALK_SEQUENCE = [0, 1, 2, 3, 2, 1] as const;
@@ -229,6 +277,28 @@ const HORSE_PALETTES: HorsePalette[] = [
   }
 ];
 
+const TREE_PALETTES: Array<{
+  trunk: [string, string];
+  leaves: [string, string, string, string];
+}> = [
+  {
+    trunk: ["#5d3b24", "#7f5737"],
+    leaves: ["#315d2c", "#48803f", "#69a658", "#9bd37e"]
+  },
+  {
+    trunk: ["#6d472a", "#8e6039"],
+    leaves: ["#27554d", "#34756a", "#4da08f", "#88cfbe"]
+  },
+  {
+    trunk: ["#644124", "#845735"],
+    leaves: ["#4f5a1f", "#728435", "#96ad52", "#c8d97b"]
+  },
+  {
+    trunk: ["#5e3826", "#7c4f34"],
+    leaves: ["#5a2d26", "#8a4537", "#b7684d", "#df9c74"]
+  }
+];
+
 function hash(value: number): number {
   let x = value >>> 0;
   x ^= x >>> 16;
@@ -291,11 +361,183 @@ function makeTileVariant(type: TileType, variant: number): HTMLCanvasElement {
     return canvas;
   }
 
+  const dugBaseType = (() => {
+    switch (type) {
+      case TileType.GrassDug:
+        return TileType.Grass;
+      case TileType.DirtDug:
+        return TileType.Dirt;
+      case TileType.ForestDug:
+        return TileType.Forest;
+      case TileType.StoneDug:
+        return TileType.Stone;
+      case TileType.HillDug:
+        return TileType.Hill;
+      default:
+        return null;
+    }
+  })();
+
+  if (dugBaseType !== null) {
+    const base = makeTileVariant(dugBaseType, variant);
+    ctx.drawImage(base, 0, 0);
+    const pixel = TILE_SIZE / TILE_PIXEL_SIZE;
+    const spoilA = type === TileType.StoneDug || type === TileType.HillDug ? "#8b745c" : "#9a6f43";
+    const spoilB = type === TileType.StoneDug || type === TileType.HillDug ? "#b09779" : "#bf8f58";
+    const spoilC = type === TileType.StoneDug || type === TileType.HillDug ? "#5c4a38" : "#6d4e31";
+    const pitDark = "#2f241c";
+    const pitMid = type === TileType.StoneDug || type === TileType.HillDug ? "#53453a" : "#4a3424";
+    const pitEdge = type === TileType.StoneDug || type === TileType.HillDug ? "#706154" : "#7d5a39";
+
+    for (let py = 4; py <= 12; py += 1) {
+      for (let px = 3; px <= 12; px += 1) {
+        const dx = (px - 7.5) / 4.6;
+        const dy = (py - 8) / 3.5;
+        const dist = dx * dx + dy * dy;
+        if (dist > 1.08) {
+          continue;
+        }
+        let color = pitMid;
+        if (dist > 0.78) {
+          color = pitEdge;
+        }
+        if (dist < 0.35) {
+          color = pitDark;
+        }
+        paintPixel(ctx, px, py, pixel, color);
+      }
+    }
+
+    for (let py = 2; py <= 6; py += 1) {
+      for (let px = 9; px <= 14; px += 1) {
+        const dx = (px - 11.5) / 3.2;
+        const dy = (py - 4) / 2.3;
+        if (dx * dx + dy * dy > 1.1) {
+          continue;
+        }
+        const roll = hash2d(WORLD_SEED + 5200 + type * 17 + variant, px, py) % 3;
+        const color = roll === 0 ? spoilA : roll === 1 ? spoilB : spoilC;
+        paintPixel(ctx, px, py, pixel, color);
+      }
+    }
+
+    for (let py = 3; py <= 5; py += 1) {
+      for (let px = 11; px <= 13; px += 1) {
+        if ((px + py + variant) % 2 === 0) {
+          paintPixel(ctx, px, py, pixel, spoilB);
+        }
+      }
+    }
+
+    for (let step = 0; step < 6; step += 1) {
+      const px = 9 + step;
+      const py = 6 + Math.floor(step / 2);
+      paintPixel(ctx, px, py, pixel, spoilC);
+    }
+
+    return canvas;
+  }
+
   const pixel = TILE_SIZE / TILE_PIXEL_SIZE;
   const palette = TILE_PALETTES[type];
   const bg = palette[0];
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+
+  const paintPlant = (px: number, py: number, color: string): void => {
+    paintPixel(ctx, px, py, pixel, color);
+    if (py + 1 < TILE_PIXEL_SIZE) {
+      paintPixel(ctx, px, py + 1, pixel, color);
+    }
+  };
+
+  const drawRidges = (): void => {
+    for (let py = 0; py < TILE_PIXEL_SIZE; py += 1) {
+      for (let px = 0; px < TILE_PIXEL_SIZE; px += 1) {
+        const color = ((px + variant) % 4) < 2 ? palette[1] : palette[2];
+        paintPixel(ctx, px, py, pixel, color);
+      }
+    }
+  };
+
+  if (type === TileType.Hill) {
+    for (let py = 0; py < TILE_PIXEL_SIZE; py += 1) {
+      for (let px = 0; px < TILE_PIXEL_SIZE; px += 1) {
+        const color = (px + py + variant) % 5 === 0 ? palette[3] : (px - py + variant + 20) % 4 === 0 ? palette[2] : palette[1];
+        paintPixel(ctx, px, py, pixel, color);
+      }
+    }
+    for (let band = 0; band < 4; band += 1) {
+      const y = 3 + band * 3 + (variant % 2);
+      for (let x = 0; x < TILE_PIXEL_SIZE; x += 1) {
+        if ((x + band) % 2 === 0) {
+          paintPixel(ctx, x, y, pixel, palette[4]);
+        }
+      }
+    }
+    return canvas;
+  }
+
+  if (type === TileType.BarleyField || type === TileType.WheatField || type === TileType.FallowField) {
+    drawRidges();
+    for (let px = 1; px < TILE_PIXEL_SIZE; px += 3) {
+      for (let py = 1; py < TILE_PIXEL_SIZE; py += 3) {
+        const color = type === TileType.FallowField ? palette[3] : ((px + py + variant) % 2 === 0 ? palette[3] : palette[2]);
+        paintPlant(px, py, color);
+      }
+    }
+    return canvas;
+  }
+
+  if (type === TileType.Vineyard) {
+    drawRidges();
+    for (let px = 2; px < TILE_PIXEL_SIZE; px += 4) {
+      for (let py = 1; py < TILE_PIXEL_SIZE; py += 3) {
+        paintPlant(px, py, palette[1]);
+        if ((py + variant) % 2 === 0) {
+          paintPixel(ctx, px + 1, py, pixel, palette[2]);
+        }
+      }
+    }
+    return canvas;
+  }
+
+  if (type === TileType.Orchard) {
+    for (let py = 0; py < TILE_PIXEL_SIZE; py += 1) {
+      for (let px = 0; px < TILE_PIXEL_SIZE; px += 1) {
+        paintPixel(ctx, px, py, pixel, (px + py + variant) % 4 === 0 ? palette[3] : palette[0]);
+      }
+    }
+    for (let py = 3; py < TILE_PIXEL_SIZE; py += 5) {
+      for (let px = 3; px < TILE_PIXEL_SIZE; px += 5) {
+        paintPixel(ctx, px, py, pixel, palette[1]);
+        paintPixel(ctx, px, py - 1, pixel, palette[1]);
+        paintPixel(ctx, px - 1, py - 1, pixel, palette[4]);
+        if ((px + py + variant) % 2 === 0) {
+          paintPixel(ctx, px + 1, py, pixel, palette[2]);
+        }
+      }
+    }
+    return canvas;
+  }
+
+  if (type === TileType.Garden || type === TileType.PumpkinPatch || type === TileType.CabbagePatch || type === TileType.BerryGarden || type === TileType.HerbGarden) {
+    drawRidges();
+    const plantA = palette[1];
+    const plantB = palette[2];
+    const plantC = palette[3];
+    for (let py = 1; py < TILE_PIXEL_SIZE; py += 3) {
+      for (let px = 1; px < TILE_PIXEL_SIZE; px += 3) {
+        const selector = (hash2d(WORLD_SEED + 3000 + type * 17 + variant, px, py) % 3);
+        const color = selector === 0 ? plantA : selector === 1 ? plantB : plantC;
+        paintPlant(px, py, color);
+        if (type === TileType.PumpkinPatch || type === TileType.CabbagePatch) {
+          paintPixel(ctx, px + 1, py + 1, pixel, color);
+        }
+      }
+    }
+    return canvas;
+  }
 
   for (let py = 0; py < TILE_PIXEL_SIZE; py += 1) {
     for (let px = 0; px < TILE_PIXEL_SIZE; px += 1) {
@@ -308,7 +550,13 @@ function makeTileVariant(type: TileType, variant: number): HTMLCanvasElement {
           color = palette[3];
         }
       } else if (type === TileType.Stone) {
-        color = coarse < 22 ? palette[3] : coarse < 68 ? palette[1] : palette[2];
+        const fine = hash2d(WORLD_SEED + 1400 + variant * 13, px, py) % 100;
+        color = coarse < 20 ? palette[3] : coarse < 74 ? palette[1] : palette[2];
+        if (fine < 10) {
+          color = palette[4];
+        } else if (fine > 90) {
+          color = palette[3];
+        }
       } else if (type === TileType.Dirt) {
         color = coarse < 18 ? palette[3] : coarse < 70 ? palette[1] : palette[2];
       } else if (type === TileType.Forest) {
@@ -322,7 +570,8 @@ function makeTileVariant(type: TileType, variant: number): HTMLCanvasElement {
   }
 
   const accent = palette[4];
-  for (let i = 0; i < 3; i += 1) {
+  const accentCount = type === TileType.Stone ? 6 : 3;
+  for (let i = 0; i < accentCount; i += 1) {
     const ax = 2 + (hash2d(WORLD_SEED + 700 + variant, i, type) % 12);
     const ay = 2 + (hash2d(WORLD_SEED + 900 + variant, type, i) % 12);
     paintPixel(ctx, ax, ay, pixel, accent);
@@ -332,23 +581,7 @@ function makeTileVariant(type: TileType, variant: number): HTMLCanvasElement {
 }
 
 function makeTreeSprite(): HTMLCanvasElement {
-  const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return canvas;
-  }
-  const s = 2;
-  drawRectPx(ctx, 7, 10, 2, 5, s, "#6c4826");
-  for (let y = 2; y <= 10; y += 1) {
-    for (let x = 3; x <= 12; x += 1) {
-      if (!circleMask(x - 8, y - 6, 5)) {
-        continue;
-      }
-      const shade = (x + y) % 3 === 0 ? "#5f9a44" : (x + y) % 4 === 0 ? "#8ec66c" : "#3f6e2f";
-      paintPixel(ctx, x, y, s, shade);
-    }
-  }
-  return canvas;
+  return makeTreeVariantSprite(0);
 }
 
 function makeTreeVariantSprite(variant: number): HTMLCanvasElement {
@@ -357,31 +590,94 @@ function makeTreeVariantSprite(variant: number): HTMLCanvasElement {
   if (!ctx) {
     return canvas;
   }
+  const pixel = 2;
+  const style = variant % 5;
+  const palette = TREE_PALETTES[Math.floor(variant / 5) % TREE_PALETTES.length];
+  const trunkHeight = 8 + (variant % 4);
+  const trunkWidth = style === 1 ? 3 : style === 4 ? 2 : 4;
+  const trunkX = 16 - Math.floor(trunkWidth / 2) + ((variant % 3) - 1);
+  const trunkTop = 29 - trunkHeight;
 
-  const trunkX = 14 + (variant % 4);
-  const trunkHeight = 9 + (variant % 3);
-  drawRectPx(ctx, trunkX, 19 - trunkHeight, 4, trunkHeight, 2, variant % 2 === 0 ? "#6d4828" : "#7d5330");
-  const canopyRadius = 8 + (variant % 5);
-  const palette = [
-    ["#3f6e2f", "#5f9a44", "#8ec66c"],
-    ["#2f5f2f", "#4e8747", "#78b563"],
-    ["#446b29", "#679945", "#97c96f"],
-    ["#355e27", "#56843f", "#7eb55e"]
-  ][variant % 4];
+  const paintLeaf = (x: number, y: number, accentChance = 0.12): void => {
+    const roll = hash2d(WORLD_SEED + 1400 + variant, x, y) % 100;
+    let color = palette.leaves[0];
+    if (roll > 76) {
+      color = palette.leaves[2];
+    } else if (roll > 38) {
+      color = palette.leaves[1];
+    }
+    if (roll > 100 - Math.round(accentChance * 100)) {
+      color = palette.leaves[3];
+    }
+    paintPixel(ctx, x, y, pixel, color);
+  };
 
-  for (let y = 4; y <= 18; y += 1) {
-    for (let x = 5; x <= 25; x += 1) {
-      const offsetX = x - 16 + ((variant % 3) - 1);
-      const offsetY = y - 10;
-      const ellipse = (offsetX * offsetX) / ((canopyRadius + 1) * (canopyRadius + 1)) + (offsetY * offsetY) / (canopyRadius * canopyRadius);
-      if (ellipse > 1) {
-        continue;
+  const paintBlob = (cx: number, cy: number, rx: number, ry: number, lift = 0): void => {
+    for (let y = cy - ry; y <= cy + ry; y += 1) {
+      for (let x = cx - rx; x <= cx + rx; x += 1) {
+        const nx = (x - cx) / Math.max(1, rx);
+        const ny = (y - cy + lift * 0.12 * (x - cx)) / Math.max(1, ry);
+        if ((nx * nx) + (ny * ny) > 1) {
+          continue;
+        }
+        if ((hash2d(WORLD_SEED + 1700 + variant, x, y) % 11) === 0) {
+          continue;
+        }
+        paintLeaf(x, y, style === 3 ? 0.2 : 0.12);
       }
-      const shadeIndex = (hash2d(WORLD_SEED + 400 + variant, x, y) % palette.length);
-      paintPixel(ctx, x, y, 2, palette[shadeIndex]);
+    }
+  };
+
+  drawRectPx(ctx, trunkX, trunkTop, trunkWidth, trunkHeight, pixel, palette.trunk[0]);
+  drawRectPx(ctx, trunkX + 1, trunkTop, Math.max(1, trunkWidth - 2), trunkHeight - 1, pixel, palette.trunk[1]);
+  drawRectPx(ctx, trunkX - 1, 29, 2, 1, pixel, palette.trunk[0]);
+  drawRectPx(ctx, trunkX + trunkWidth - 1, 29, 2, 1, pixel, palette.trunk[0]);
+
+  if (style === 0) {
+    paintBlob(16, 10, 7 + (variant % 2), 6);
+    paintBlob(11, 14, 5, 5);
+    paintBlob(21, 14, 5, 5);
+    paintBlob(16, 17, 6, 4);
+  } else if (style === 1) {
+    for (let row = 0; row < 6; row += 1) {
+      const y = 7 + row * 3;
+      const width = 2 + row * 2 + (variant % 2);
+      paintBlob(16, y, width, 2);
+    }
+    paintBlob(16, 6, 2, 2);
+  } else if (style === 2) {
+    paintBlob(16, 9, 8, 5);
+    paintBlob(11, 13, 6, 4);
+    paintBlob(21, 13, 6, 4);
+    paintBlob(16, 16, 7, 4);
+    for (let y = 15; y <= 24; y += 2) {
+      paintLeaf(8 + (hash2d(variant + 2000, y, 1) % 2), y, 0.05);
+      paintLeaf(24 - (hash2d(variant + 2100, y, 2) % 2), y, 0.05);
+    }
+  } else if (style === 3) {
+    paintBlob(11, 12, 7, 4, -1);
+    paintBlob(21, 11, 8, 4, 1);
+    paintBlob(16, 16, 10, 3);
+    for (let x = 8; x <= 24; x += 2) {
+      paintLeaf(x, 19 + (hash2d(WORLD_SEED + 2200 + variant, x, 3) % 2), 0.18);
+    }
+  } else {
+    paintBlob(16, 8, 4, 5);
+    paintBlob(16, 13, 5, 6);
+    paintBlob(16, 18, 4, 5);
+    if ((variant % 2) === 0) {
+      paintBlob(13, 14, 2, 3);
+      paintBlob(19, 14, 2, 3);
     }
   }
 
+  for (let branch = 0; branch < 3; branch += 1) {
+    const branchY = trunkTop + 2 + branch * 2;
+    if (style !== 4) {
+      paintPixel(ctx, trunkX - 1, branchY, pixel, palette.trunk[1]);
+      paintPixel(ctx, trunkX + trunkWidth, branchY + (branch % 2), pixel, palette.trunk[1]);
+    }
+  }
   return canvas;
 }
 
@@ -550,6 +846,392 @@ function makeBridgeSprite(slug: string): HTMLCanvasElement {
   }
   if (slug === "bridge-t-south") {
     drawVertical(8, 15);
+  }
+
+  return canvas;
+}
+
+function makeWoodDeckTileSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(TILE_SIZE, TILE_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const pixel = 2;
+  const rail = "#4a2e1d";
+  const plankA = "#bf915d";
+  const plankB = "#98683f";
+  const highlight = "#e8c18c";
+  const shadow = "#6f472b";
+
+  for (let py = 2; py <= 13; py += 1) {
+    for (let px = 2; px <= 13; px += 1) {
+      paintPixel(ctx, px, py, pixel, (px + py) % 2 === 0 ? plankA : plankB);
+    }
+    paintPixel(ctx, 1, py, pixel, rail);
+    paintPixel(ctx, 14, py, pixel, rail);
+    if (py % 3 === 0) {
+      paintPixel(ctx, 4, py, pixel, highlight);
+      paintPixel(ctx, 10, py, pixel, shadow);
+    }
+  }
+
+  return canvas;
+}
+
+function makeWoodArchTileSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(TILE_SIZE, TILE_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const pixel = 2;
+  const rail = "#4a2e1d";
+  const plankA = "#bf915d";
+  const plankB = "#98683f";
+  const highlight = "#e8c18c";
+  const shadow = "#6f472b";
+
+  for (let py = 4; py <= 13; py += 1) {
+    const inset = py <= 6 ? 1 : py >= 12 ? 2 : 0;
+    for (let px = 2 + inset; px <= 13 - inset; px += 1) {
+      paintPixel(ctx, px, py, pixel, (px + py) % 2 === 0 ? plankA : plankB);
+    }
+    paintPixel(ctx, 1 + inset, py, pixel, rail);
+    paintPixel(ctx, 14 - inset, py, pixel, rail);
+  }
+
+  for (let px = 4; px <= 11; px += 1) {
+    paintPixel(ctx, px, 3, pixel, rail);
+  }
+  for (let px = 5; px <= 10; px += 1) {
+    paintPixel(ctx, px, 2, pixel, highlight);
+  }
+  for (let py = 6; py <= 11; py += 1) {
+    paintPixel(ctx, 4, py, pixel, shadow);
+    paintPixel(ctx, 11, py, pixel, shadow);
+  }
+
+  return canvas;
+}
+
+function makeHillStampSprite(variant: number): HTMLCanvasElement {
+  const width = TILE_SIZE * 8;
+  const height = TILE_SIZE * 8;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const pixel = 4;
+  const palettes = [
+    { base: "#6f9a45", mid: "#89b45b", edge: "#537332", shadow: "#415a28", dirt: "#8d7048", shrub: "#5f8538" },
+    { base: "#947347", mid: "#b18855", edge: "#755735", shadow: "#5a432a", dirt: "#c29a60", shrub: "#7a6037" },
+    { base: "#7f7b6a", mid: "#9d9887", edge: "#666252", shadow: "#4f4b40", dirt: "#8f7a58", shrub: "#6e6958" }
+  ];
+  const palette = palettes[variant % palettes.length];
+  const rings = [
+    { x: 32, y: 34, rx: 25, ry: 20, color: palette.shadow },
+    { x: 32, y: 31, rx: 23, ry: 18, color: palette.edge },
+    { x: 32, y: 28, rx: 20, ry: 15, color: palette.base },
+    { x: 32, y: 25, rx: 16, ry: 12, color: palette.mid }
+  ];
+
+  for (const ring of rings) {
+    for (let py = ring.y - ring.ry; py <= ring.y + ring.ry; py += 1) {
+      for (let px = ring.x - ring.rx; px <= ring.x + ring.rx; px += 1) {
+        const nx = (px - ring.x) / Math.max(1, ring.rx);
+        const ny = (py - ring.y) / Math.max(1, ring.ry);
+        if ((nx * nx) + (ny * ny) > 1.03) {
+          continue;
+        }
+        if ((hash2d(WORLD_SEED + 4100 + variant * 37, px, py) % 23) === 0) {
+          continue;
+        }
+        paintPixel(ctx, px, py, pixel, ring.color);
+      }
+    }
+  }
+
+  for (let row = 0; row < 4; row += 1) {
+    const y = 20 + row * 6;
+    for (let x = 14 + row; x <= 50 - row; x += 2) {
+      if ((x + row + variant) % 3 === 0) {
+        paintPixel(ctx, x, y, pixel, palette.dirt);
+      }
+    }
+  }
+
+  for (let shrub = 0; shrub < 26; shrub += 1) {
+    const sx = 14 + (hash2d(WORLD_SEED + 4200 + variant, shrub, 1) % 36);
+    const sy = 16 + (hash2d(WORLD_SEED + 4300 + variant, shrub, 2) % 22);
+    if (((sx - 32) * (sx - 32)) / 380 + ((sy - 28) * (sy - 28)) / 210 > 1) {
+      continue;
+    }
+    paintPixel(ctx, sx, sy, pixel, palette.shrub);
+  }
+
+  return canvas;
+}
+
+function makeMountainStampSprite(variant: number): HTMLCanvasElement {
+  const width = TILE_SIZE * 8;
+  const height = TILE_SIZE * 8;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const pixel = 4;
+  const palettes = [
+    { base: "#7e858a", mid: "#9aa1a6", edge: "#666c70", shadow: "#4d5357", accent: "#b2b8bd" },
+    { base: "#8a6f56", mid: "#a78967", edge: "#6e5743", shadow: "#544233", accent: "#c0a17d" },
+    { base: "#6f767f", mid: "#8d96a1", edge: "#575d66", shadow: "#41464e", accent: "#a7afb7" }
+  ];
+  const palette = palettes[variant % palettes.length];
+  const layers = [
+    { x: 32, y: 35, rx: 24, ry: 18, color: palette.shadow },
+    { x: 32, y: 31, rx: 22, ry: 16, color: palette.edge },
+    { x: 32, y: 27, rx: 18, ry: 13, color: palette.base },
+    { x: 32, y: 23, rx: 13, ry: 9, color: palette.mid }
+  ];
+
+  for (const layer of layers) {
+    for (let py = layer.y - layer.ry; py <= layer.y + layer.ry; py += 1) {
+      for (let px = layer.x - layer.rx; px <= layer.x + layer.rx; px += 1) {
+        const nx = (px - layer.x) / Math.max(1, layer.rx);
+        const ny = (py - layer.y) / Math.max(1, layer.ry);
+        if ((nx * nx) + (ny * ny) > 1.08) {
+          continue;
+        }
+        if ((hash2d(WORLD_SEED + 4400 + variant * 41, px, py) % 17) === 0) {
+          continue;
+        }
+        paintPixel(ctx, px, py, pixel, layer.color);
+      }
+    }
+  }
+
+  for (let ridge = 0; ridge < 5; ridge += 1) {
+    const y = 17 + ridge * 6;
+    for (let x = 18 + ridge; x <= 46 - ridge; x += 2) {
+      const color = ridge % 2 === 0 ? palette.accent : palette.edge;
+      if ((x + ridge + variant) % 4 !== 0) {
+        paintPixel(ctx, x, y, pixel, color);
+      }
+    }
+  }
+
+  for (let rock = 0; rock < 40; rock += 1) {
+    const rx = 15 + (hash2d(WORLD_SEED + 4500 + variant, rock, 3) % 34);
+    const ry = 14 + (hash2d(WORLD_SEED + 4600 + variant, rock, 4) % 25);
+    if (((rx - 32) * (rx - 32)) / 360 + ((ry - 28) * (ry - 28)) / 220 > 1) {
+      continue;
+    }
+    paintPixel(ctx, rx, ry, pixel, rock % 3 === 0 ? palette.shadow : palette.accent);
+  }
+
+  return canvas;
+}
+
+function makeGardenStampSprite(variant: number): HTMLCanvasElement {
+  const width = TILE_SIZE * 16;
+  const height = TILE_SIZE * 16;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const pixel = 4;
+  const soilA = "#9a6c3e";
+  const soilB = "#7b532f";
+  const path = "#b98a58";
+  const hedge = "#6da03f";
+  const hedgeDark = "#4f7b31";
+  const layout = variant % GARDEN_STAMP_VARIANTS;
+
+  drawRectPx(ctx, 4, 4, 120, 120, pixel, hedgeDark);
+  drawRectPx(ctx, 6, 6, 116, 116, pixel, hedge);
+  drawRectPx(ctx, 12, 12, 104, 104, pixel, path);
+  drawRectPx(ctx, 16, 16, 96, 96, pixel, soilA);
+
+  for (let py = 16; py < 112; py += 1) {
+    for (let px = 16; px < 112; px += 1) {
+      if ((hash2d(WORLD_SEED + 4700 + variant * 23, px, py) % 9) === 0) {
+        paintPixel(ctx, px, py, pixel, soilB);
+      }
+    }
+  }
+
+  const drawBedFrame = (x: number, y: number, w: number, h: number): void => {
+    drawRectPx(ctx, x, y, w, h, pixel, soilA);
+    for (let i = 0; i < w; i += 1) {
+      if (i % 5 === 0) {
+        paintPixel(ctx, x + i, y, pixel, soilB);
+        paintPixel(ctx, x + i, y + h - 1, pixel, soilB);
+      }
+    }
+    for (let i = 0; i < h; i += 1) {
+      if (i % 5 === 0) {
+        paintPixel(ctx, x, y + i, pixel, soilB);
+        paintPixel(ctx, x + w - 1, y + i, pixel, soilB);
+      }
+    }
+  };
+
+  const cropRows = (x: number, y: number, w: number, h: number, stalk: string, tip?: string): void => {
+    for (let row = y + 3; row < y + h - 3; row += 9) {
+      for (let col = x + 4; col < x + w - 4; col += 8) {
+        drawRectPx(ctx, col, row + 2, 1, 3, pixel, stalk);
+        drawRectPx(ctx, col + 2, row + 2, 1, 3, pixel, stalk);
+        if (tip) {
+          drawRectPx(ctx, col - 1, row, 2, 2, pixel, tip);
+          drawRectPx(ctx, col + 2, row, 2, 2, pixel, tip);
+        } else {
+          drawRectPx(ctx, col, row, 2, 2, pixel, stalk);
+        }
+      }
+    }
+  };
+
+  const orchardRows = (): void => {
+    for (let row = 26; row <= 92; row += 18) {
+      for (let col = 28; col <= 92; col += 18) {
+        drawRectPx(ctx, col - 1, row + 3, 2, 2, pixel, "#6b4a28");
+        drawRectPx(ctx, col - 3, row - 2, 6, 5, pixel, "#5f8f38");
+        drawRectPx(ctx, col - 1, row - 4, 2, 2, pixel, "#d05e43");
+      }
+    }
+  };
+
+  const vineyardRows = (): void => {
+    for (let row = 24; row <= 96; row += 12) {
+      drawRectPx(ctx, 24, row, 80, 1, pixel, "#6f4a2a");
+      for (let col = 24; col <= 104; col += 10) {
+        drawRectPx(ctx, col, row - 2, 1, 5, pixel, "#8b6540");
+        drawRectPx(ctx, col + 2, row - 1, 2, 2, pixel, "#5e8b3e");
+        drawRectPx(ctx, col + 4, row - 1, 2, 2, pixel, "#6d4f96");
+      }
+    }
+  };
+
+  const mixedBeds = (leafA: string, leafB: string, fruit?: string): void => {
+    for (let row = 24; row <= 96; row += 12) {
+      for (let col = 24; col <= 96; col += 10) {
+        drawRectPx(ctx, col, row, 3, 3, pixel, (col + row) % 20 === 0 ? leafB : leafA);
+        if (fruit) {
+          drawRectPx(ctx, col + 1, row - 1, 1, 1, pixel, fruit);
+        }
+      }
+    }
+  };
+
+  const drawDiamondWheatField = (): void => {
+    const cx = 64;
+    const cy = 64;
+    const outer = 50;
+    const inner = 44;
+    const soilDark = "#8b5d2f";
+    const soilMid = "#a86f39";
+    const soilLight = "#c48848";
+    const wheatDark = "#c89534";
+    const wheatLight = "#f1c85a";
+    const stem = "#8a6b24";
+
+    for (let py = cy - outer; py <= cy + outer; py += 1) {
+      for (let px = cx - outer; px <= cx + outer; px += 1) {
+        const dist = Math.abs(px - cx) + Math.abs(py - cy);
+        if (dist > outer) {
+          continue;
+        }
+        let color = soilDark;
+        if (dist <= inner) {
+          color = ((px + py) % 6 === 0) ? soilLight : soilMid;
+        }
+        if (dist >= outer - 2) {
+          color = soilDark;
+        }
+        paintPixel(ctx, px, py, pixel, color);
+      }
+    }
+
+    for (let row = -30; row <= 30; row += 10) {
+      for (let offset = -24; offset <= 24; offset += 8) {
+        const px = cx + offset + Math.floor(row / 2);
+        const py = cy + row;
+        const dist = Math.abs(px - cx) + Math.abs(py - cy);
+        if (dist > inner - 6) {
+          continue;
+        }
+        drawRectPx(ctx, px, py + 2, 1, 4, pixel, stem);
+        drawRectPx(ctx, px + 2, py + 2, 1, 4, pixel, stem);
+        drawRectPx(ctx, px - 1, py, 2, 2, pixel, wheatDark);
+        drawRectPx(ctx, px + 1, py - 1, 2, 2, pixel, wheatLight);
+        drawRectPx(ctx, px + 3, py, 2, 2, pixel, wheatDark);
+      }
+    }
+
+    for (let row = -34; row <= 34; row += 10) {
+      const startX = cx - 34 + Math.floor(row / 2);
+      const endX = cx + 34 + Math.floor(row / 2);
+      for (let x = startX; x <= endX; x += 2) {
+        const py = cy + row + 5;
+        const dist = Math.abs(x - cx) + Math.abs(py - cy);
+        if (dist <= inner - 4) {
+          paintPixel(ctx, x, py, pixel, soilDark);
+        }
+      }
+    }
+  };
+
+  drawBedFrame(20, 20, 88, 88);
+
+  switch (layout) {
+    case 0:
+      cropRows(20, 20, 88, 88, "#4f8a35", "#ddb54d");
+      break;
+    case 1:
+      cropRows(20, 20, 88, 88, "#4f8a35", "#efd77a");
+      break;
+    case 2:
+      orchardRows();
+      break;
+    case 3:
+      vineyardRows();
+      break;
+    case 4:
+      mixedBeds("#5ca14b", "#7bc76a", "#e3c45f");
+      break;
+    case 5:
+      mixedBeds("#53813d", "#699c48", "#d7862f");
+      break;
+    case 6:
+      mixedBeds("#5d994e", "#7fbe70");
+      break;
+    case 7:
+      mixedBeds("#548f42", "#73b45e", "#c64d63");
+      break;
+    case 8:
+      mixedBeds("#63ad67", "#89c98d");
+      break;
+    case 9:
+      for (let row = 24; row <= 100; row += 10) {
+        drawRectPx(ctx, 24, row, 80, 2, pixel, soilB);
+      }
+      break;
+    default:
+      drawDiamondWheatField();
+      break;
+  }
+
+  for (let step = 20; step <= 108; step += 12) {
+    paintPixel(ctx, step, 14, pixel, hedgeDark);
+    paintPixel(ctx, step, 110, pixel, hedgeDark);
   }
 
   return canvas;
@@ -941,6 +1623,105 @@ function makeGrassTuftSprite(): HTMLCanvasElement {
   drawRectPx(ctx, 8, 10, 1, 4, s, "#6cad4c");
   drawRectPx(ctx, 5, 12, 1, 2, s, "#80c25d");
   drawRectPx(ctx, 9, 12, 1, 2, s, "#80c25d");
+  return canvas;
+}
+
+function makeGrainEarSprite(kind: "gold" | "yellow" | "green"): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE, OBJECT_SIZE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const s = 2;
+  const palettes = {
+    gold: { stem: "#7d6a2f", grainA: "#d8b04a", grainB: "#f0cf6d", shadow: "#9b7a2f" },
+    yellow: { stem: "#8a7426", grainA: "#e0bc43", grainB: "#f4da73", shadow: "#a07f22" },
+    green: { stem: "#5f7d2d", grainA: "#7eb149", grainB: "#a9d46d", shadow: "#4e6827" }
+  } as const;
+  const palette = palettes[kind];
+
+  drawRectPx(ctx, 7, 10, 1, 6, s, palette.stem);
+  drawRectPx(ctx, 8, 9, 1, 7, s, palette.stem);
+  drawRectPx(ctx, 6, 11, 1, 3, s, palette.stem);
+  drawRectPx(ctx, 9, 12, 1, 3, s, palette.stem);
+
+  for (let index = 0; index < 5; index += 1) {
+    const y = 5 + index * 2;
+    drawRectPx(ctx, 7 - (index % 2), y, 2, 1, s, index < 2 ? palette.grainB : palette.grainA);
+    drawRectPx(ctx, 8, y + 1, 2, 1, s, palette.shadow);
+    drawRectPx(ctx, 9, y, 2, 1, s, index < 2 ? palette.grainB : palette.grainA);
+  }
+  drawRectPx(ctx, 8, 4, 1, 2, s, palette.grainB);
+  return canvas;
+}
+
+function makeGrapeVineSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE * 2, OBJECT_SIZE * 2);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const s = 2;
+  drawRectPx(ctx, 10, 21, 1, 8, s, "#6c4a2b");
+  drawRectPx(ctx, 22, 21, 1, 8, s, "#6c4a2b");
+  drawRectPx(ctx, 10, 20, 13, 1, s, "#8b6542");
+  drawRectPx(ctx, 8, 18, 17, 2, s, "#5f8f3a");
+  drawRectPx(ctx, 9, 16, 15, 2, s, "#76ab46");
+  drawRectPx(ctx, 11, 14, 11, 2, s, "#8abe59");
+  drawRectPx(ctx, 13, 12, 7, 2, s, "#6f9e41");
+  drawRectPx(ctx, 12, 19, 2, 2, s, "#6d4f96");
+  drawRectPx(ctx, 16, 18, 2, 3, s, "#7a58a7");
+  drawRectPx(ctx, 19, 19, 2, 2, s, "#6d4f96");
+  drawRectPx(ctx, 14, 15, 2, 2, s, "#6d4f96");
+  drawRectPx(ctx, 18, 14, 2, 2, s, "#7a58a7");
+  drawRectPx(ctx, 7, 20, 2, 1, s, "#82bf52");
+  drawRectPx(ctx, 24, 19, 2, 1, s, "#82bf52");
+  return canvas;
+}
+
+function makeAppleTreeSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE * 2, OBJECT_SIZE * 2);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const s = 2;
+  drawRectPx(ctx, 15, 22, 3, 8, s, "#6a4729");
+  drawRectPx(ctx, 13, 18, 7, 3, s, "#6d9b44");
+  drawRectPx(ctx, 10, 14, 13, 5, s, "#79aa4f");
+  drawRectPx(ctx, 12, 10, 9, 4, s, "#8fc15d");
+  drawRectPx(ctx, 8, 15, 4, 4, s, "#6a9640");
+  drawRectPx(ctx, 21, 15, 4, 4, s, "#6a9640");
+  paintPixel(ctx, 13, 14, s, "#d04d43");
+  paintPixel(ctx, 18, 13, s, "#d04d43");
+  paintPixel(ctx, 16, 17, s, "#d04d43");
+  paintPixel(ctx, 20, 16, s, "#d04d43");
+  paintPixel(ctx, 11, 17, s, "#d04d43");
+  return canvas;
+}
+
+function makeOliveTreeSprite(): HTMLCanvasElement {
+  const canvas = createCanvas(OBJECT_SIZE * 2, OBJECT_SIZE * 2);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return canvas;
+  }
+
+  const s = 2;
+  drawRectPx(ctx, 15, 22, 3, 8, s, "#6b5137");
+  drawRectPx(ctx, 14, 20, 1, 3, s, "#6b5137");
+  drawRectPx(ctx, 18, 19, 1, 4, s, "#6b5137");
+  drawRectPx(ctx, 11, 16, 13, 5, s, "#7e8f67");
+  drawRectPx(ctx, 13, 12, 9, 4, s, "#98a884");
+  drawRectPx(ctx, 9, 17, 4, 3, s, "#70805d");
+  drawRectPx(ctx, 22, 17, 4, 3, s, "#70805d");
+  paintPixel(ctx, 14, 18, s, "#4f5f3f");
+  paintPixel(ctx, 19, 16, s, "#4f5f3f");
+  paintPixel(ctx, 17, 13, s, "#4f5f3f");
+  paintPixel(ctx, 12, 16, s, "#4f5f3f");
   return canvas;
 }
 
@@ -1640,6 +2421,24 @@ function makeFallbackObjectSprite(type: ObjectType): HTMLCanvasElement {
       return makeCatSprite();
     case ObjectType.SparkMouse:
       return makeSparkMouseSprite();
+    case ObjectType.HillStamp:
+      return makeHillStampSprite(0);
+    case ObjectType.MountainStamp:
+      return makeMountainStampSprite(0);
+    case ObjectType.GardenStamp:
+      return makeGardenStampSprite(0);
+    case ObjectType.GrainEar:
+      return makeGrainEarSprite("gold");
+    case ObjectType.YellowGrainEar:
+      return makeGrainEarSprite("yellow");
+    case ObjectType.GreenGrainEar:
+      return makeGrainEarSprite("green");
+    case ObjectType.GrapeVine:
+      return makeGrapeVineSprite();
+    case ObjectType.AppleTree:
+      return makeAppleTreeSprite();
+    case ObjectType.OliveTree:
+      return makeOliveTreeSprite();
     default:
       return makeStoneSprite();
   }
@@ -1695,6 +2494,24 @@ function objectSlug(type: ObjectType): string {
       return "cat";
     case ObjectType.SparkMouse:
       return "sparkmouse";
+    case ObjectType.HillStamp:
+      return "hill-stamp";
+    case ObjectType.MountainStamp:
+      return "mountain-stamp";
+    case ObjectType.GardenStamp:
+      return "garden-stamp";
+    case ObjectType.GrainEar:
+      return "grain-ear";
+    case ObjectType.YellowGrainEar:
+      return "yellow-grain-ear";
+    case ObjectType.GreenGrainEar:
+      return "green-grain-ear";
+    case ObjectType.GrapeVine:
+      return "grape-vine";
+    case ObjectType.AppleTree:
+      return "apple-tree";
+    case ObjectType.OliveTree:
+      return "olive-tree";
     default:
       return "stone";
   }
@@ -1712,6 +2529,38 @@ function tileSlug(type: TileType): string {
       return "water";
     case TileType.Forest:
       return "forest";
+    case TileType.Hill:
+      return "hill";
+    case TileType.BarleyField:
+      return "barley-field";
+    case TileType.WheatField:
+      return "wheat-field";
+    case TileType.Orchard:
+      return "orchard";
+    case TileType.Vineyard:
+      return "vineyard";
+    case TileType.Garden:
+      return "garden";
+    case TileType.PumpkinPatch:
+      return "pumpkin-patch";
+    case TileType.CabbagePatch:
+      return "cabbage-patch";
+    case TileType.BerryGarden:
+      return "berry-garden";
+    case TileType.HerbGarden:
+      return "herb-garden";
+    case TileType.FallowField:
+      return "fallow-field";
+    case TileType.GrassDug:
+      return "grass-dug";
+    case TileType.DirtDug:
+      return "dirt-dug";
+    case TileType.ForestDug:
+      return "forest-dug";
+    case TileType.StoneDug:
+      return "stone-dug";
+    case TileType.HillDug:
+      return "hill-dug";
     default:
       return "grass";
   }
@@ -1767,6 +2616,20 @@ export function sizeForObject(type: ObjectType): { width: number; height: number
       return { width: TILE_SIZE * 0.7 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 0.65 * OBJECT_WORLD_SCALE };
     case ObjectType.SparkMouse:
       return { width: TILE_SIZE * 0.9 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 0.85 * OBJECT_WORLD_SCALE };
+    case ObjectType.HillStamp:
+    case ObjectType.MountainStamp:
+      return { width: TILE_SIZE * 8, height: TILE_SIZE * 8 };
+    case ObjectType.GardenStamp:
+      return { width: TILE_SIZE * 16, height: TILE_SIZE * 16 };
+    case ObjectType.GrapeVine:
+      return { width: TILE_SIZE * 1.6, height: TILE_SIZE * 1.4 };
+    case ObjectType.AppleTree:
+    case ObjectType.OliveTree:
+      return { width: TILE_SIZE * 2.5, height: TILE_SIZE * 2.7 };
+    case ObjectType.GrainEar:
+    case ObjectType.YellowGrainEar:
+    case ObjectType.GreenGrainEar:
+      return { width: TILE_SIZE * 0.8, height: TILE_SIZE * 1.0 };
     case ObjectType.Well:
     case ObjectType.Ruins:
       return { width: TILE_SIZE * 1.75 * OBJECT_WORLD_SCALE, height: TILE_SIZE * 1.75 * OBJECT_WORLD_SCALE };
@@ -1783,8 +2646,15 @@ export class AssetManager {
   private readonly objectArchives = new Map<ObjectType, SpriteSource[]>();
   private readonly houseArchive: SpriteSource[] = Array.from({ length: HOUSE_VARIANTS }, (_, index) => makeHouseVariantSprite(index));
   private readonly horseArchive: SpriteSource[] = Array.from({ length: HORSE_VARIANTS }, (_, index) => makeHorseVariantSprite(index));
-  private readonly treeArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeTreeVariantSprite(index));
+  private readonly treeArchive: SpriteSource[] = Array.from({ length: TREE_VARIANTS }, (_, index) => makeTreeVariantSprite(index));
+  private readonly hillStampArchive: SpriteSource[] = Array.from({ length: HILL_STAMP_VARIANTS }, (_, index) => makeHillStampSprite(index));
+  private readonly mountainStampArchive: SpriteSource[] = Array.from({ length: MOUNTAIN_STAMP_VARIANTS }, (_, index) => makeMountainStampSprite(index));
+  private readonly gardenStampArchive: SpriteSource[] = Array.from({ length: GARDEN_STAMP_VARIANTS }, (_, index) => makeGardenStampSprite(index));
   private readonly roadArchive: SpriteSource[] = Array.from({ length: 20 }, (_, index) => makeRoadSprite(index));
+  private readonly customRoadSprites = new Map<number, SpriteSource>([
+    [CUSTOM_ROAD_WOOD_DECK, makeWoodDeckTileSprite()],
+    [CUSTOM_ROAD_WOOD_ARCH, makeWoodArchTileSprite()]
+  ]);
   private readonly bridgeSprites = new Map<string, SpriteSource>();
   private localPlayerSheet: SpriteSource = makeFallbackPlayerSheet();
   private remotePlayerSheet: SpriteSource = makeFallbackPlayerSheet();
@@ -1793,7 +2663,7 @@ export class AssetManager {
   private worldSurface: SpriteSource | null = null;
 
   constructor() {
-    for (const type of [TileType.Grass, TileType.Dirt, TileType.Stone, TileType.Water, TileType.Forest]) {
+    for (const type of EDITOR_GROUND_TILES) {
       this.tileSprites.set(
         type,
         Array.from({ length: TILE_VARIANTS }, (_, variant) => makeTileVariant(type, variant))
@@ -1824,7 +2694,16 @@ export class AssetManager {
       ObjectType.GrassTuft,
       ObjectType.Dog,
       ObjectType.Cat,
-      ObjectType.SparkMouse
+      ObjectType.SparkMouse,
+      ObjectType.HillStamp,
+      ObjectType.MountainStamp,
+      ObjectType.GardenStamp,
+      ObjectType.GrainEar,
+      ObjectType.YellowGrainEar,
+      ObjectType.GreenGrainEar,
+      ObjectType.GrapeVine,
+      ObjectType.AppleTree,
+      ObjectType.OliveTree
     ]) {
       const fallback = makeFallbackObjectSprite(type);
       this.objectSprites.set(type, fallback);
@@ -1837,6 +2716,12 @@ export class AssetManager {
 
     this.objectSprites.set(ObjectType.Horse, this.horseArchive[0]);
     this.objectArchives.set(ObjectType.Horse, [...this.horseArchive]);
+    this.objectSprites.set(ObjectType.HillStamp, this.hillStampArchive[this.hillStampArchive.length - 1]);
+    this.objectArchives.set(ObjectType.HillStamp, [...this.hillStampArchive]);
+    this.objectSprites.set(ObjectType.MountainStamp, this.mountainStampArchive[this.mountainStampArchive.length - 1]);
+    this.objectArchives.set(ObjectType.MountainStamp, [...this.mountainStampArchive]);
+    this.objectSprites.set(ObjectType.GardenStamp, this.gardenStampArchive[this.gardenStampArchive.length - 1]);
+    this.objectArchives.set(ObjectType.GardenStamp, [...this.gardenStampArchive]);
   }
 
   async loadGeneratedOverrides(): Promise<void> {
@@ -1847,8 +2732,11 @@ export class AssetManager {
 
     const work: Promise<void>[] = [];
 
-    if (USE_GENERATED_GROUND) {
-      for (const type of [TileType.Grass, TileType.Dirt, TileType.Stone, TileType.Water, TileType.Forest]) {
+    if (USE_GENERATED_GROUND || GENERATED_GROUND_OVERRIDES.size > 0) {
+      for (const type of EDITOR_GROUND_TILES) {
+        if (!USE_GENERATED_GROUND && !GENERATED_GROUND_OVERRIDES.has(type)) {
+          continue;
+        }
         const tileFiles = manifest.tiles[tileSlug(type)] ?? [];
         for (let variant = 0; variant < TILE_VARIANTS; variant += 1) {
           const file = tileFiles[variant];
@@ -1872,6 +2760,9 @@ export class AssetManager {
     }
 
     for (const type of this.objectSprites.keys()) {
+      if (type === ObjectType.HillStamp || type === ObjectType.MountainStamp || type === ObjectType.GardenStamp) {
+        continue;
+      }
       const file = manifest.objects[objectSlug(type)];
       if (!file) {
         continue;
@@ -1888,7 +2779,13 @@ export class AssetManager {
     }
 
     for (const type of this.objectSprites.keys()) {
-      if (type === ObjectType.House || type === ObjectType.Horse) {
+      if (
+        type === ObjectType.House ||
+        type === ObjectType.Horse ||
+        type === ObjectType.HillStamp ||
+        type === ObjectType.MountainStamp ||
+        type === ObjectType.GardenStamp
+      ) {
         continue;
       }
       const archiveFiles = manifest.objectArchive?.[objectSlug(type)] ?? [];
@@ -1930,6 +2827,30 @@ export class AssetManager {
             .catch(() => undefined)
         );
       }
+    }
+
+    const woodDeckFile = manifest.roads?.["wood-deck"];
+    if (woodDeckFile) {
+      work.push(
+        loadImage(`./assets/generated/${woodDeckFile}`)
+          .then((image) => {
+            this.customRoadSprites.set(CUSTOM_ROAD_WOOD_DECK, image);
+            return undefined;
+          })
+          .catch(() => undefined)
+      );
+    }
+
+    const woodArchFile = manifest.roads?.["wood-arch"];
+    if (woodArchFile) {
+      work.push(
+        loadImage(`./assets/generated/${woodArchFile}`)
+          .then((image) => {
+            this.customRoadSprites.set(CUSTOM_ROAD_WOOD_ARCH, image);
+            return undefined;
+          })
+          .catch(() => undefined)
+      );
     }
 
     const generatedHouseVariants = manifest.objectArchive?.house ?? [];
@@ -2003,6 +2924,10 @@ export class AssetManager {
   }
 
   getRoadSprite(variant: number): SpriteSource {
+    const custom = this.customRoadSprites.get(variant);
+    if (custom) {
+      return custom;
+    }
     return this.roadArchive[Math.abs(variant) % this.roadArchive.length];
   }
 
@@ -2129,17 +3054,51 @@ export class AssetManager {
       { id: "ground-dirt", label: "Dirt", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Dirt, 0, 0), tileType: TileType.Dirt },
       { id: "ground-stone", label: "Stone", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Stone, 0, 0), tileType: TileType.Stone },
       { id: "ground-water", label: "Water", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Water, 0, 0), tileType: TileType.Water },
-      { id: "ground-forest", label: "Forest", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Forest, 0, 0), tileType: TileType.Forest }
+      { id: "ground-forest", label: "Forest", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Forest, 0, 0), tileType: TileType.Forest },
+      { id: "ground-hill", label: "Hill", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Hill, 0, 0), tileType: TileType.Hill },
+      { id: "ground-grass-dug", label: "Grass Dug", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.GrassDug, 0, 0), tileType: TileType.GrassDug },
+      { id: "ground-dirt-dug", label: "Dirt Dug", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.DirtDug, 0, 0), tileType: TileType.DirtDug },
+      { id: "ground-forest-dug", label: "Forest Dug", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.ForestDug, 0, 0), tileType: TileType.ForestDug },
+      { id: "ground-stone-dug", label: "Stone Dug", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.StoneDug, 0, 0), tileType: TileType.StoneDug },
+      { id: "ground-hill-dug", label: "Hill Dug", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.HillDug, 0, 0), tileType: TileType.HillDug },
+      { id: "ground-barley", label: "Barley", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.BarleyField, 0, 0), tileType: TileType.BarleyField },
+      { id: "ground-wheat", label: "Wheat", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.WheatField, 0, 0), tileType: TileType.WheatField },
+      { id: "ground-orchard", label: "Orchard", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Orchard, 0, 0), tileType: TileType.Orchard },
+      { id: "ground-vineyard", label: "Vineyard", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Vineyard, 0, 0), tileType: TileType.Vineyard },
+      { id: "ground-garden", label: "Garden", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.Garden, 0, 0), tileType: TileType.Garden },
+      { id: "ground-pumpkin", label: "Pumpkin", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.PumpkinPatch, 0, 0), tileType: TileType.PumpkinPatch },
+      { id: "ground-cabbage", label: "Cabbage", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.CabbagePatch, 0, 0), tileType: TileType.CabbagePatch },
+      { id: "ground-berry", label: "Berry", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.BerryGarden, 0, 0), tileType: TileType.BerryGarden },
+      { id: "ground-herb", label: "Herb", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.HerbGarden, 0, 0), tileType: TileType.HerbGarden },
+      { id: "ground-fallow", label: "Fallow", group: "ground", kind: "ground", preview: this.getTileSprite(TileType.FallowField, 0, 0), tileType: TileType.FallowField }
     ];
 
-    const roads: AssetArchiveEntry[] = this.roadArchive.map((sprite, index) => ({
-      id: `road-${index}`,
-      label: `Road ${index + 1}`,
-      group: "roads",
-      kind: "road",
-      preview: sprite,
-      roadVariant: index
-    }));
+    const roads: AssetArchiveEntry[] = [
+      ...this.roadArchive.map((sprite, index) => ({
+        id: `road-${index}`,
+        label: `Road ${index + 1}`,
+        group: "roads",
+        kind: "road",
+        preview: sprite,
+        roadVariant: index
+      })),
+      {
+        id: "road-wood-deck",
+        label: "Wood Deck",
+        group: "roads",
+        kind: "road",
+        preview: this.getRoadSprite(CUSTOM_ROAD_WOOD_DECK),
+        roadVariant: CUSTOM_ROAD_WOOD_DECK
+      },
+      {
+        id: "road-wood-arch",
+        label: "Wood Arch",
+        group: "roads",
+        kind: "road",
+        preview: this.getRoadSprite(CUSTOM_ROAD_WOOD_ARCH),
+        roadVariant: CUSTOM_ROAD_WOOD_ARCH
+      }
+    ];
 
     const trees: AssetArchiveEntry[] = this.treeArchive.map((sprite, index) => ({
       id: `tree-${index}`,
@@ -2185,11 +3144,28 @@ export class AssetManager {
       ...this.buildObjectEntries(ObjectType.Crate, "Crate", "props", "prop-crate")
     ];
 
+    const landmarks: AssetArchiveEntry[] = [
+      ...this.buildObjectEntries(ObjectType.HillStamp, "Hill", "landmarks", "landmark-hill"),
+      ...this.buildObjectEntries(ObjectType.MountainStamp, "Mountain", "landmarks", "landmark-mountain"),
+      ...this.buildObjectEntries(ObjectType.GardenStamp, "Garden", "landmarks", "landmark-garden")
+    ];
+
+    const flora: AssetArchiveEntry[] = [
+      ...this.buildObjectEntries(ObjectType.GrainEar, "Grain Ear", "flora", "flora-grain"),
+      ...this.buildObjectEntries(ObjectType.YellowGrainEar, "Yellow Ear", "flora", "flora-yellow-grain"),
+      ...this.buildObjectEntries(ObjectType.GreenGrainEar, "Green Ear", "flora", "flora-green-grain"),
+      ...this.buildObjectEntries(ObjectType.GrapeVine, "Grape Vine", "flora", "flora-grape-vine"),
+      ...this.buildObjectEntries(ObjectType.AppleTree, "Apple Tree", "flora", "flora-apple-tree"),
+      ...this.buildObjectEntries(ObjectType.OliveTree, "Olive Tree", "flora", "flora-olive-tree")
+    ];
+
     return [
       { id: "ground", label: "Ground", entries: grounds },
       { id: "roads", label: "Roads", entries: roads },
       { id: "trees", label: "Trees", entries: trees },
       { id: "buildings", label: "Buildings", entries: buildings },
+      { id: "landmarks", label: "Landmarks", entries: landmarks },
+      { id: "flora", label: "Flora", entries: flora },
       { id: "props", label: "Props", entries: props },
       { id: "erase", label: "Erase", entries: [{ id: "erase-brush", label: "Erase", group: "erase", kind: "erase", preview: this.getTileSprite(TileType.Dirt, 1, 1) }] }
     ];

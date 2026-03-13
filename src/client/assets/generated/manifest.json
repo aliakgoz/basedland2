@@ -18,12 +18,7 @@
       "tiles/dirt-5.png"
     ],
     "stone": [
-      "tiles/stone-0.png",
-      "tiles/stone-1.png",
-      "tiles/stone-2.png",
-      "tiles/stone-3.png",
-      "tiles/stone-4.png",
-      "tiles/stone-5.png"
+      "tiles/stone/stone-16x16-v002.png"
     ],
     "water": [
       "tiles/water-0.png",
@@ -40,6 +35,39 @@
       "tiles/forest-3.png",
       "tiles/forest-4.png",
       "tiles/forest-5.png"
+    ],
+    "hill": [
+      "tiles/hill/hill-16x16-v002.png"
+    ],
+    "barley-field": [
+      "tiles/barley-field/barley-field-16x16-v001.png"
+    ],
+    "wheat-field": [
+      "tiles/wheat-field/wheat-field-16x16-v001.png"
+    ],
+    "orchard": [
+      "tiles/orchard/orchard-16x16-v001.png"
+    ],
+    "vineyard": [
+      "tiles/vineyard/vineyard-16x16-v001.png"
+    ],
+    "garden": [
+      "tiles/garden/garden-16x16-v001.png"
+    ],
+    "pumpkin-patch": [
+      "tiles/pumpkin-patch/pumpkin-patch-16x16-v001.png"
+    ],
+    "cabbage-patch": [
+      "tiles/cabbage-patch/cabbage-patch-16x16-v001.png"
+    ],
+    "berry-garden": [
+      "tiles/berry-garden/berry-garden-16x16-v001.png"
+    ],
+    "herb-garden": [
+      "tiles/herb-garden/herb-garden-16x16-v001.png"
+    ],
+    "fallow-field": [
+      "tiles/fallow-field/fallow-field-16x16-v001.png"
     ]
   },
   "objects": {
@@ -65,24 +93,27 @@
     "chapel": "objects/chapel/chapel-classic.png",
     "market": "objects/market/market-classic.png",
     "manor": "objects/manor/manor-classic.png",
-    "townhall": "objects/townhall/townhall-classic.png"
+    "townhall": "objects/townhall/townhall-classic.png",
+    "hill-stamp": "objects/hill-stamp/hill-stamp-v004.png",
+    "mountain-stamp": "objects/mountain-stamp/mountain-stamp-v004.png",
+    "garden-stamp": "objects/garden-stamp/garden-stamp-v020.png"
   },
   "players": {
     "local-player": "players/player-base/player-base-v005.png",
     "remote-player": "players/player-base/player-base-v005.png"
   },
   "bridges": {
-    "bridge-v": "bridges/bridge-v/bridge-v-v001.png",
-    "bridge-h": "bridges/bridge-h/bridge-h-v001.png",
-    "bridge-cross": "bridges/bridge-cross/bridge-cross-v001.png",
-    "bridge-sw": "bridges/bridge-sw/bridge-sw-v001.png",
-    "bridge-se": "bridges/bridge-se/bridge-se-v001.png",
-    "bridge-nw": "bridges/bridge-nw/bridge-nw-v001.png",
-    "bridge-ne": "bridges/bridge-ne/bridge-ne-v001.png",
-    "bridge-t-east": "bridges/bridge-t-east/bridge-t-east-v001.png",
-    "bridge-t-west": "bridges/bridge-t-west/bridge-t-west-v001.png",
-    "bridge-t-north": "bridges/bridge-t-north/bridge-t-north-v001.png",
-    "bridge-t-south": "bridges/bridge-t-south/bridge-t-south-v001.png"
+    "bridge-v": "bridges/bridge-v/bridge-v-v003.png",
+    "bridge-h": "bridges/bridge-h/bridge-h-v003.png",
+    "bridge-cross": "bridges/bridge-cross/bridge-cross-v003.png",
+    "bridge-sw": "bridges/bridge-sw/bridge-sw-v003.png",
+    "bridge-se": "bridges/bridge-se/bridge-se-v003.png",
+    "bridge-nw": "bridges/bridge-nw/bridge-nw-v003.png",
+    "bridge-ne": "bridges/bridge-ne/bridge-ne-v003.png",
+    "bridge-t-east": "bridges/bridge-t-east/bridge-t-east-v003.png",
+    "bridge-t-west": "bridges/bridge-t-west/bridge-t-west-v003.png",
+    "bridge-t-north": "bridges/bridge-t-north/bridge-t-north-v003.png",
+    "bridge-t-south": "bridges/bridge-t-south/bridge-t-south-v003.png"
   },
   "tileArchive": {
     "grass": [
@@ -107,7 +138,9 @@
       "tiles/stone-2.png",
       "tiles/stone-3.png",
       "tiles/stone-4.png",
-      "tiles/stone-5.png"
+      "tiles/stone-5.png",
+      "tiles/stone/stone-16x16-v001.png",
+      "tiles/stone/stone-16x16-v002.png"
     ],
     "water": [
       "tiles/water-0.png",
@@ -124,6 +157,40 @@
       "tiles/forest-3.png",
       "tiles/forest-4.png",
       "tiles/forest-5.png"
+    ],
+    "hill": [
+      "tiles/hill/hill-16x16-v001.png",
+      "tiles/hill/hill-16x16-v002.png"
+    ],
+    "barley-field": [
+      "tiles/barley-field/barley-field-16x16-v001.png"
+    ],
+    "wheat-field": [
+      "tiles/wheat-field/wheat-field-16x16-v001.png"
+    ],
+    "orchard": [
+      "tiles/orchard/orchard-16x16-v001.png"
+    ],
+    "vineyard": [
+      "tiles/vineyard/vineyard-16x16-v001.png"
+    ],
+    "garden": [
+      "tiles/garden/garden-16x16-v001.png"
+    ],
+    "pumpkin-patch": [
+      "tiles/pumpkin-patch/pumpkin-patch-16x16-v001.png"
+    ],
+    "cabbage-patch": [
+      "tiles/cabbage-patch/cabbage-patch-16x16-v001.png"
+    ],
+    "berry-garden": [
+      "tiles/berry-garden/berry-garden-16x16-v001.png"
+    ],
+    "herb-garden": [
+      "tiles/herb-garden/herb-garden-16x16-v001.png"
+    ],
+    "fallow-field": [
+      "tiles/fallow-field/fallow-field-16x16-v001.png"
     ]
   },
   "objectArchive": {
@@ -244,6 +311,28 @@
       "objects/townhall/townhall-v001.png",
       "objects/townhall/townhall-v002.png",
       "objects/townhall/townhall-v003.png"
+    ],
+    "hill-stamp": [
+      "objects/hill-stamp/hill-stamp-v002.png",
+      "objects/hill-stamp/hill-stamp-v003.png",
+      "objects/hill-stamp/hill-stamp-v004.png"
+    ],
+    "mountain-stamp": [
+      "objects/mountain-stamp/mountain-stamp-v002.png",
+      "objects/mountain-stamp/mountain-stamp-v003.png",
+      "objects/mountain-stamp/mountain-stamp-v004.png"
+    ],
+    "garden-stamp": [
+      "objects/garden-stamp/garden-stamp-v011.png",
+      "objects/garden-stamp/garden-stamp-v012.png",
+      "objects/garden-stamp/garden-stamp-v013.png",
+      "objects/garden-stamp/garden-stamp-v014.png",
+      "objects/garden-stamp/garden-stamp-v015.png",
+      "objects/garden-stamp/garden-stamp-v016.png",
+      "objects/garden-stamp/garden-stamp-v017.png",
+      "objects/garden-stamp/garden-stamp-v018.png",
+      "objects/garden-stamp/garden-stamp-v019.png",
+      "objects/garden-stamp/garden-stamp-v020.png"
     ]
   },
   "playerArchive": {
@@ -273,37 +362,73 @@
   },
   "bridgeArchive": {
     "bridge-v": [
-      "bridges/bridge-v/bridge-v-v001.png"
+      "bridges/bridge-v/bridge-v-v001.png",
+      "bridges/bridge-v/bridge-v-v002.png",
+      "bridges/bridge-v/bridge-v-v003.png"
     ],
     "bridge-h": [
-      "bridges/bridge-h/bridge-h-v001.png"
+      "bridges/bridge-h/bridge-h-v001.png",
+      "bridges/bridge-h/bridge-h-v002.png",
+      "bridges/bridge-h/bridge-h-v003.png"
     ],
     "bridge-cross": [
-      "bridges/bridge-cross/bridge-cross-v001.png"
+      "bridges/bridge-cross/bridge-cross-v001.png",
+      "bridges/bridge-cross/bridge-cross-v002.png",
+      "bridges/bridge-cross/bridge-cross-v003.png"
     ],
     "bridge-sw": [
-      "bridges/bridge-sw/bridge-sw-v001.png"
+      "bridges/bridge-sw/bridge-sw-v001.png",
+      "bridges/bridge-sw/bridge-sw-v002.png",
+      "bridges/bridge-sw/bridge-sw-v003.png"
     ],
     "bridge-se": [
-      "bridges/bridge-se/bridge-se-v001.png"
+      "bridges/bridge-se/bridge-se-v001.png",
+      "bridges/bridge-se/bridge-se-v002.png",
+      "bridges/bridge-se/bridge-se-v003.png"
     ],
     "bridge-nw": [
-      "bridges/bridge-nw/bridge-nw-v001.png"
+      "bridges/bridge-nw/bridge-nw-v001.png",
+      "bridges/bridge-nw/bridge-nw-v002.png",
+      "bridges/bridge-nw/bridge-nw-v003.png"
     ],
     "bridge-ne": [
-      "bridges/bridge-ne/bridge-ne-v001.png"
+      "bridges/bridge-ne/bridge-ne-v001.png",
+      "bridges/bridge-ne/bridge-ne-v002.png",
+      "bridges/bridge-ne/bridge-ne-v003.png"
     ],
     "bridge-t-east": [
-      "bridges/bridge-t-east/bridge-t-east-v001.png"
+      "bridges/bridge-t-east/bridge-t-east-v001.png",
+      "bridges/bridge-t-east/bridge-t-east-v002.png",
+      "bridges/bridge-t-east/bridge-t-east-v003.png"
     ],
     "bridge-t-west": [
-      "bridges/bridge-t-west/bridge-t-west-v001.png"
+      "bridges/bridge-t-west/bridge-t-west-v001.png",
+      "bridges/bridge-t-west/bridge-t-west-v002.png",
+      "bridges/bridge-t-west/bridge-t-west-v003.png"
     ],
     "bridge-t-north": [
-      "bridges/bridge-t-north/bridge-t-north-v001.png"
+      "bridges/bridge-t-north/bridge-t-north-v001.png",
+      "bridges/bridge-t-north/bridge-t-north-v002.png",
+      "bridges/bridge-t-north/bridge-t-north-v003.png"
     ],
     "bridge-t-south": [
-      "bridges/bridge-t-south/bridge-t-south-v001.png"
+      "bridges/bridge-t-south/bridge-t-south-v001.png",
+      "bridges/bridge-t-south/bridge-t-south-v002.png",
+      "bridges/bridge-t-south/bridge-t-south-v003.png"
+    ]
+  },
+  "roads": {
+    "wood-deck": "roads/wood-deck/wood-deck-v002.png",
+    "wood-arch": "roads/wood-arch/wood-arch-v002.png"
+  },
+  "roadArchive": {
+    "wood-deck": [
+      "roads/wood-deck/wood-deck-v001.png",
+      "roads/wood-deck/wood-deck-v002.png"
+    ],
+    "wood-arch": [
+      "roads/wood-arch/wood-arch-v001.png",
+      "roads/wood-arch/wood-arch-v002.png"
     ]
   },
   "worldSurface": "world-surface.png",

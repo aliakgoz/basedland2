@@ -46,7 +46,23 @@ export const enum TileType {
   Dirt = 1,
   Stone = 2,
   Water = 3,
-  Forest = 4
+  Forest = 4,
+  Hill = 5,
+  BarleyField = 6,
+  WheatField = 7,
+  Orchard = 8,
+  Vineyard = 9,
+  Garden = 10,
+  PumpkinPatch = 11,
+  CabbagePatch = 12,
+  BerryGarden = 13,
+  HerbGarden = 14,
+  FallowField = 15,
+  GrassDug = 16,
+  DirtDug = 17,
+  ForestDug = 18,
+  StoneDug = 19,
+  HillDug = 20
 }
 
 export const enum ObjectType {
@@ -73,7 +89,16 @@ export const enum ObjectType {
   Market = 20,
   Manor = 21,
   TownHall = 22,
-  SparkMouse = 23
+  SparkMouse = 23,
+  HillStamp = 24,
+  MountainStamp = 25,
+  GardenStamp = 26,
+  GrainEar = 27,
+  YellowGrainEar = 28,
+  GreenGrainEar = 29,
+  GrapeVine = 30,
+  AppleTree = 31,
+  OliveTree = 32
 }
 
 export const enum Direction {

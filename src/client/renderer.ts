@@ -1,6 +1,6 @@
 import { CHAT_MESSAGE_TTL_MS, TILE_SIZE, WORLD_HEIGHT_TILES, WORLD_WIDTH_TILES } from "../shared/protocol";
 import { getMacroBiome, getVillageCenters, hasBridgeTile, hasGeneratedRoad, isFieldTile } from "../shared/world-layout";
-import { AssetManager, sizeForObject } from "./assets";
+import { AssetManager, CUSTOM_ROAD_WOOD_ARCH, CUSTOM_ROAD_WOOD_DECK, sizeForObject } from "./assets";
 import type { PlayerEntity, StaticProp } from "./entity";
 import { WorldState } from "./world";
 
@@ -161,10 +161,12 @@ export class Renderer {
 
         const roadVariant = world.getRoadVariant(tileX, tileY);
         const bridge = world.hasBridgeAtTile(tileX, tileY);
-        if (roadVariant !== null && !bridge) {
-          this.drawRoadOverlay(screenX, screenY, scaledTileSize, roadVariant);
+        const customRoad =
+          roadVariant === CUSTOM_ROAD_WOOD_DECK ||
+          roadVariant === CUSTOM_ROAD_WOOD_ARCH;
+        if (customRoad && roadVariant !== null) {
+          this.ctx.drawImage(this.assets.getRoadSprite(roadVariant), screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
         }
-
         if (bridge && roadVariant !== null) {
           this.ctx.drawImage(this.assets.getBridgeSprite(roadVariant), screenX, screenY, scaledTileSize + 1, scaledTileSize + 1);
         }

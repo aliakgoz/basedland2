@@ -54,7 +54,16 @@ function interactionText(objectType: ObjectType, action: number): string {
     20: "Stalls are stacked with bread, apples, and cloth.",
     21: "The manor keeps its curtains drawn.",
     22: "Village notices are pinned to the hall door.",
-    23: "The little spark beast crackles and darts away."
+    23: "The little spark beast crackles and darts away.",
+    24: "The hillside rises in layered terraces.",
+    25: "The mountain face towers over the valley.",
+    26: "Trellises and crop rows run across the garden.",
+    27: "A ripe grain stalk bends in the wind.",
+    28: "The yellow ear is dry and ready for harvest.",
+    29: "The green ear is still filling with grain.",
+    30: "A vine hangs heavy with clustered grapes.",
+    31: "The apple tree smells sharp and sweet.",
+    32: "Silvery olive leaves shimmer in the light."
   };
   return map[action] ?? `You inspect object ${objectType}.`;
 }
