@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage } from "node:http";
 import { readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
+import { createInterface } from "node:readline";
 import { WebSocketServer } from "ws";
 import { EMPTY_EDITOR_MAP, type EditorMapData, type EditorPatch, type PersistedEditorMap } from "../shared/editor_map";
 import {
@@ -220,6 +221,61 @@ function queueEditorMapSave(): void {
     editorMapSaveTimer = null;
     liveEditorMap = await saveEditorMap(liveEditorMap.data);
   }, 400);
+}
+
+function baseTileForDug(type: TileType): TileType | null {
+  switch (type) {
+    case TileType.GrassDug:
+      return TileType.Grass;
+    case TileType.DirtDug:
+      return TileType.Dirt;
+    case TileType.ForestDug:
+      return TileType.Forest;
+    case TileType.StoneDug:
+      return TileType.Stone;
+    case TileType.HillDug:
+      return TileType.Hill;
+    default:
+      return null;
+  }
+}
+
+async function clearDugTiles(): Promise<number> {
+  await editorMapReady;
+  const patches: EditorPatch[] = [];
+
+  liveEditorMap.data.ground = liveEditorMap.data.ground.map((item) => {
+    const baseType = baseTileForDug(item.type as TileType);
+    if (baseType === null) {
+      return item;
+    }
+    patches.push({ kind: "ground", x: item.x, y: item.y, tileType: baseType });
+    return { ...item, type: baseType };
+  });
+
+  if (patches.length === 0) {
+    return 0;
+  }
+
+  sortEditorData(liveEditorMap.data);
+  liveEditorMap = {
+    revision: liveEditorMap.revision + patches.length,
+    updatedAt: new Date().toISOString(),
+    data: liveEditorMap.data
+  };
+  worldState.importEditorLayer(liveEditorMap.data);
+  queueEditorMapSave();
+
+  for (const patch of patches) {
+    const packet = encodeEditorPatch(patch);
+    for (const client of wss.clients) {
+      if (client.readyState === 1) {
+        client.send(packet);
+      }
+    }
+  }
+
+  return patches.length;
 }
 
 function sendVisibleChunks(player: ServerPlayer, keys: ChunkKey[]): void {
@@ -475,3 +531,22 @@ setInterval(() => {
 httpServer.listen(serverPort, () => {
   console.log(`BasedLand listening on http://localhost:${serverPort}`);
 });
+
+if (process.stdin.isTTY) {
+  const adminConsole = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  adminConsole.on("line", async (line) => {
+    const command = line.trim().toLowerCase();
+    if (command === "clear-dug") {
+      const cleared = await clearDugTiles();
+      console.log(`Cleared ${cleared} dug tiles.`);
+      return;
+    }
+    if (command.length > 0) {
+      console.log(`Unknown server command: ${command}`);
+    }
+  });
+}
