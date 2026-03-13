@@ -1,4 +1,3 @@
-import { TILE_SIZE } from "../shared/protocol";
 import type { PlayerEntity } from "./entity";
 
 declare global {
@@ -21,17 +20,38 @@ interface TreasureConfig {
   amountDisplay: string;
 }
 
+interface TreasurePayment {
+  enabled: boolean;
+  chainId: number;
+  usdcToken: string;
+  recipient: string;
+  amountUnits: string;
+  amountDisplay: string;
+}
+
 interface PreparedDig {
   digId: string;
   tileX: number;
   tileY: number;
-  payment: TreasureConfig;
+  payment: TreasurePayment;
+}
+
+interface PreparedBury {
+  buryId: string;
+  tileX: number;
+  tileY: number;
+  payment: TreasurePayment;
 }
 
 interface DigResult {
   success: boolean;
   message: string;
   found?: boolean;
+}
+
+interface BuryResult {
+  success: boolean;
+  message: string;
 }
 
 const BASE_CHAIN_HEX = "0x2105";
@@ -97,7 +117,7 @@ export class TreasureClient {
       if (this.account) {
         this.setMessage("Wallet connected.");
       }
-    } catch (error) {
+    } catch {
       this.setWalletState("Wallet", false, false);
       this.setMessage("Wallet connection cancelled.");
     }
@@ -111,66 +131,19 @@ export class TreasureClient {
   }
 
   async digAtPlayerTile(): Promise<void> {
-    if (this.busy) {
-      return;
-    }
-
-    const player = this.getPlayer();
-    if (!player) {
-      return;
-    }
-
-    this.busy = true;
-    this.setWalletState(this.account ? `${this.account.slice(0, 6)}...${this.account.slice(-4)}` : "Wallet", Boolean(this.account), true);
-
-    try {
+    await this.runWithWallet(async () => {
       const config = await this.fetchConfig();
       if (!config.enabled) {
         this.setMessage(config.reason ?? "Treasure digging is disabled.");
         return;
       }
 
-      if (!window.ethereum) {
-        this.setMessage("A Base-compatible wallet is required for paid digs.");
-        return;
-      }
-
-      if (!this.account) {
-        await this.connectWallet();
-      }
-      if (!this.account || !this.provider) {
-        return;
-      }
-
-      await this.ensureBaseNetwork();
-
-      const tileX = Math.floor(player.x / TILE_SIZE);
-      const tileY = Math.floor(player.y / TILE_SIZE);
+      const player = this.requirePlayer();
       const prepared = await this.postJson<PreparedDig>("/api/treasure/prepare", {
-        playerId: player.id,
-        tileX,
-        tileY
+        playerId: player.id
       });
 
-      this.setMessage(`Approve ${prepared.payment.amountDisplay} USDC dig payment...`);
-      const txHash = await this.provider.request<string>({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from: this.account,
-            to: prepared.payment.usdcToken,
-            data: encodeErc20Transfer(prepared.payment.recipient, BigInt(prepared.payment.amountUnits))
-          }
-        ]
-      });
-
-      this.setMessage("Waiting for Base transaction confirmation...");
-      const mined = await pollReceipt(this.provider, txHash);
-      if (!mined) {
-        this.setMessage("Transaction not confirmed in time.");
-        return;
-      }
-
+      const txHash = await this.sendPayment(prepared.payment, `Approve ${prepared.payment.amountDisplay} dig payment...`);
       const result = await this.postJson<DigResult>("/api/treasure/confirm", {
         playerId: player.id,
         digId: prepared.digId,
@@ -178,13 +151,95 @@ export class TreasureClient {
         payer: this.account
       });
       this.setMessage(result.message);
+    });
+  }
+
+  async buryAtPlayerTile(amountDisplay: string): Promise<void> {
+    await this.runWithWallet(async () => {
+      const config = await this.fetchConfig();
+      if (!config.enabled) {
+        this.setMessage(config.reason ?? "Treasure burying is disabled.");
+        return;
+      }
+
+      const player = this.requirePlayer();
+      const prepared = await this.postJson<PreparedBury>("/api/treasure/bury/prepare", {
+        playerId: player.id,
+        amountDisplay
+      });
+
+      const txHash = await this.sendPayment(prepared.payment, `Approve ${prepared.payment.amountDisplay} bury payment...`);
+      const result = await this.postJson<BuryResult>("/api/treasure/bury/confirm", {
+        playerId: player.id,
+        buryId: prepared.buryId,
+        txHash,
+        payer: this.account
+      });
+      this.setMessage(result.message);
+    });
+  }
+
+  private async runWithWallet(work: () => Promise<void>): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+
+    this.busy = true;
+    this.syncWalletState(true);
+
+    try {
+      if (!window.ethereum) {
+        this.setMessage("A Base-compatible wallet is required.");
+        return;
+      }
+      if (!this.account) {
+        await this.connectWallet();
+      }
+      if (!this.account || !this.provider) {
+        return;
+      }
+      await this.ensureBaseNetwork();
+      await work();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Dig payment failed.";
+      const message = error instanceof Error ? error.message : "Treasure payment failed.";
       this.setMessage(message);
     } finally {
       this.busy = false;
-      this.setWalletState(this.account ? `${this.account.slice(0, 6)}...${this.account.slice(-4)}` : "Wallet", Boolean(this.account), false);
+      this.syncWalletState(false);
     }
+  }
+
+  private requirePlayer(): PlayerEntity {
+    const player = this.getPlayer();
+    if (!player) {
+      throw new Error("Player not ready yet.");
+    }
+    return player;
+  }
+
+  private async sendPayment(payment: TreasurePayment, waitingMessage: string): Promise<string> {
+    if (!this.provider || !this.account) {
+      throw new Error("Wallet not connected.");
+    }
+
+    this.setMessage(waitingMessage);
+    const txHash = await this.provider.request<string>({
+      method: "eth_sendTransaction",
+      params: [
+        {
+          from: this.account,
+          to: payment.usdcToken,
+          data: encodeErc20Transfer(payment.recipient, BigInt(payment.amountUnits))
+        }
+      ]
+    });
+
+    this.setMessage("Waiting for Base transaction confirmation...");
+    const mined = await pollReceipt(this.provider, txHash);
+    if (!mined) {
+      throw new Error("Transaction not confirmed in time.");
+    }
+    return txHash;
   }
 
   private async fetchConfig(): Promise<TreasureConfig> {
@@ -199,7 +254,15 @@ export class TreasureClient {
     this.provider = window.ethereum;
     const accounts = await this.provider.request<string[]>({ method: "eth_accounts" });
     this.account = accounts[0] ?? null;
-    this.setWalletState(this.account ? `${this.account.slice(0, 6)}...${this.account.slice(-4)}` : "Connect Wallet", Boolean(this.account), false);
+    this.syncWalletState(false);
+  }
+
+  private syncWalletState(busy: boolean): void {
+    this.setWalletState(
+      this.account ? `${this.account.slice(0, 6)}...${this.account.slice(-4)}` : (window.ethereum ? "Connect Wallet" : "No Wallet"),
+      Boolean(this.account),
+      busy
+    );
   }
 
   private async ensureBaseNetwork(): Promise<void> {
@@ -237,7 +300,7 @@ export class TreasureClient {
 
     const chainAfter = await this.provider.request<string>({ method: "eth_chainId" });
     if (chainAfter !== BASE_CHAIN_HEX && chainAfter !== `0x${BASE_CHAIN_DECIMAL.toString(16)}`) {
-      throw new Error("Switch to Base mainnet to dig.");
+      throw new Error("Switch to Base mainnet to continue.");
     }
   }
 

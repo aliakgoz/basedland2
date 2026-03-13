@@ -11,10 +11,12 @@ export class InputController {
   private pressed = new Set<string>();
   private interactQueued = false;
   private chatToggleQueued = false;
+  private buryToggleQueued = false;
   private mountToggleQueued = false;
   private digQueued = false;
   private textEntryActive = false;
   private digEnabled = true;
+  private uiBlocked = false;
 
   constructor() {
     window.addEventListener("keydown", (event) => {
@@ -24,8 +26,18 @@ export class InputController {
         target instanceof HTMLTextAreaElement ||
         (target instanceof HTMLElement && target.isContentEditable);
 
+      if (this.uiBlocked) {
+        event.preventDefault();
+        return;
+      }
+
       if (event.code === "KeyY" && !event.repeat && !editingText) {
         this.chatToggleQueued = true;
+        event.preventDefault();
+        return;
+      }
+      if (event.code === "KeyF" && !event.repeat && !editingText) {
+        this.buryToggleQueued = true;
         event.preventDefault();
         return;
       }
@@ -61,7 +73,7 @@ export class InputController {
   }
 
   getMask(): number {
-    if (this.textEntryActive) {
+    if (this.textEntryActive || this.uiBlocked) {
       return 0;
     }
     let mask = 0;
@@ -89,6 +101,12 @@ export class InputController {
     return queued;
   }
 
+  consumeBuryToggle(): boolean {
+    const queued = this.buryToggleQueued;
+    this.buryToggleQueued = false;
+    return queued;
+  }
+
   consumeDig(): boolean {
     const queued = this.digQueued;
     this.digQueued = false;
@@ -99,6 +117,7 @@ export class InputController {
     this.textEntryActive = active;
     if (active) {
       this.pressed.clear();
+      this.buryToggleQueued = false;
       this.digQueued = false;
     }
   }
@@ -106,6 +125,18 @@ export class InputController {
   setDigEnabled(enabled: boolean): void {
     this.digEnabled = enabled;
     if (!enabled) {
+      this.digQueued = false;
+    }
+  }
+
+  setUiBlocked(active: boolean): void {
+    this.uiBlocked = active;
+    if (active) {
+      this.pressed.clear();
+      this.interactQueued = false;
+      this.chatToggleQueued = false;
+      this.buryToggleQueued = false;
+      this.mountToggleQueued = false;
       this.digQueued = false;
     }
   }

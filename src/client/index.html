@@ -40,6 +40,179 @@
         image-rendering: pixelated;
       }
 
+      #intro-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at center, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.14) 28%, rgba(0, 0, 0, 0.52) 68%, rgba(0, 0, 0, 0.72) 100%);
+        z-index: 60;
+        pointer-events: auto;
+      }
+
+      #intro-overlay.active {
+        display: flex;
+      }
+
+      #intro-scroll {
+        width: min(760px, calc(100vw - 48px));
+        max-height: min(84vh, 900px);
+        overflow: auto;
+        padding: 36px 38px 24px;
+        position: relative;
+        isolation: isolate;
+        background:
+          linear-gradient(180deg, rgba(255, 248, 232, 0.48), rgba(236, 216, 176, 0.26)),
+          url("./assets/generated/ui/intro-parchment-v001.png");
+        background-size: cover;
+        background-position: center;
+        color: #382513;
+        border: 2px solid rgba(96, 61, 27, 0.55);
+        border-radius: 8px;
+        box-shadow:
+          0 28px 80px rgba(0, 0, 0, 0.48),
+          inset 0 0 0 1px rgba(255, 248, 216, 0.72),
+          inset 0 18px 28px rgba(255, 255, 255, 0.22),
+          inset 0 -14px 24px rgba(92, 55, 18, 0.1),
+          inset 18px 0 28px rgba(95, 62, 30, 0.08),
+          inset -18px 0 28px rgba(95, 62, 30, 0.08);
+        font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      }
+
+      #intro-scroll::-webkit-scrollbar {
+        width: 12px;
+      }
+
+      #intro-scroll::-webkit-scrollbar-track {
+        background: rgba(108, 75, 38, 0.16);
+        border-radius: 999px;
+        box-shadow: inset 0 0 0 1px rgba(116, 82, 44, 0.14);
+      }
+
+      #intro-scroll::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(116, 76, 36, 0.92), rgba(72, 42, 18, 0.96));
+        border: 2px solid rgba(236, 216, 176, 0.36);
+      }
+
+      #intro-scroll::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(180deg, rgba(132, 88, 44, 0.96), rgba(84, 48, 20, 0.98));
+      }
+
+      #intro-copy {
+        max-width: 620px;
+        margin: 0 auto;
+        padding: 10px 22px 4px;
+        position: relative;
+        z-index: 1;
+        background: linear-gradient(180deg, rgba(247, 237, 210, 0.62), rgba(247, 237, 210, 0.34));
+        border-radius: 12px;
+        box-shadow:
+          inset 0 0 0 1px rgba(126, 88, 41, 0.08),
+          0 8px 18px rgba(63, 39, 15, 0.08);
+      }
+
+      #intro-scroll h1 {
+        margin: 0 0 6px;
+        font-size: 30px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #2d1b0c;
+        text-shadow: 0 1px 0 rgba(255, 248, 232, 0.42);
+      }
+
+      #intro-kicker {
+        margin: 0 0 14px;
+        font-size: 12px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: #6b4d2e;
+      }
+
+      #intro-scroll h2 {
+        margin: 18px 0 8px;
+        font-size: 14px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #5a3c20;
+      }
+
+      #intro-scroll p {
+        margin: 0 0 10px;
+        line-height: 1.52;
+        font-size: 15px;
+        color: #2d1d10;
+        text-shadow: 0 1px 0 rgba(255, 250, 236, 0.22);
+      }
+
+      #intro-scroll ul {
+        margin: 0 0 12px 18px;
+        padding: 0;
+      }
+
+      #intro-scroll li {
+        margin-bottom: 6px;
+        line-height: 1.4;
+        font-size: 15px;
+        color: #2d1d10;
+      }
+
+      #intro-scroll strong {
+        color: #16335f;
+      }
+
+      #intro-seal-row {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 18px;
+        margin-top: 14px;
+      }
+
+      #intro-seal-note {
+        max-width: 420px;
+        font-size: 13px;
+        line-height: 1.45;
+        color: rgba(56, 37, 19, 0.78);
+      }
+
+      #intro-seal {
+        width: 150px;
+        height: 150px;
+        object-fit: contain;
+        filter: drop-shadow(0 10px 18px rgba(36, 57, 105, 0.28));
+        transform: rotate(-9deg);
+      }
+
+      #intro-dismiss {
+        margin-top: 8px;
+        text-align: center;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(60, 40, 18, 0.8);
+      }
+
+      @media (max-width: 760px) {
+        #intro-scroll {
+          padding: 22px 18px 18px;
+        }
+
+        #intro-copy {
+          max-width: 100%;
+          padding: 4px 12px 0;
+        }
+
+        #intro-seal-row {
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+        }
+      }
+
       .hud {
         position: fixed;
         inset: 0;
@@ -97,6 +270,15 @@
         z-index: 35;
       }
 
+      #bury-panel {
+        left: 18px;
+        bottom: 72px;
+        width: min(360px, calc(100vw - 36px));
+        padding: 12px;
+        display: none;
+        z-index: 36;
+      }
+
       #wallet-panel {
         top: 72px;
         left: 18px;
@@ -143,11 +325,29 @@
         display: block;
       }
 
+      #bury-panel.active {
+        display: block;
+      }
+
       #chat-panel h2 {
         margin: 0 0 8px;
         font-size: 11px;
         letter-spacing: 0.1em;
         text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      #bury-panel h2 {
+        margin: 0 0 6px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      #bury-panel p {
+        margin: 0 0 10px;
+        font-size: 12px;
         color: var(--muted);
       }
 
@@ -172,6 +372,30 @@
       }
 
       #chat-send {
+        border: 1px solid rgba(217, 169, 75, 0.45);
+        background: rgba(217, 169, 75, 0.16);
+        color: var(--text);
+        padding: 9px 12px;
+        cursor: pointer;
+      }
+
+      #bury-form {
+        display: flex;
+        gap: 8px;
+      }
+
+      #bury-amount {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid rgba(173, 194, 147, 0.26);
+        background: rgba(8, 12, 10, 0.62);
+        color: var(--text);
+        padding: 9px 10px;
+        font: inherit;
+        outline: none;
+      }
+
+      #bury-submit {
         border: 1px solid rgba(217, 169, 75, 0.45);
         background: rgba(217, 169, 75, 0.16);
         color: var(--text);
@@ -220,6 +444,37 @@
         border: 1px solid rgba(173, 194, 147, 0.18);
         background: rgba(6, 12, 10, 0.85);
         cursor: pointer;
+      }
+
+      #treasure-summary {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(173, 194, 147, 0.16);
+      }
+
+      #treasure-summary-kicker {
+        margin: 0 0 4px;
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(184, 199, 159, 0.82);
+      }
+
+      #treasure-summary-amount {
+        margin: 0;
+        font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+        font-size: 24px;
+        line-height: 1;
+        color: #f0e4b3;
+        text-shadow: 0 1px 0 rgba(255, 249, 228, 0.18);
+      }
+
+      #treasure-summary-count {
+        margin: 5px 0 0;
+        font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        color: var(--muted);
       }
 
       #worldmap {
@@ -406,6 +661,45 @@
   </head>
   <body>
     <canvas id="game"></canvas>
+    <div id="intro-overlay" class="active">
+      <div id="intro-scroll">
+        <div id="intro-copy">
+          <h1>BasedLand</h1>
+          <p id="intro-kicker">A Treasure Hunt On Base</p>
+          <p>This realm runs as a live multiplayer hunt layered over Base mainnet. The world behind this parchment is already moving. What follows is the field guide: how to roam, how to hide value, how to unearth it, and why the money trail is transparent even while the treasure map remains secret.</p>
+
+          <h2>The Hunt</h2>
+          <p>Any quiet tile may conceal a cache. Some treasures are seeded by the world itself. Others are planted by players who choose to hide USDC exactly where they stand. Nothing on the surface gives a cache away. The true location, amount, owner, and claim record live only on the server.</p>
+
+          <h2>Field Keys</h2>
+          <ul>
+            <li><strong>W A S D</strong>: move through the world</li>
+            <li><strong>Space</strong>: dig the tile beneath you</li>
+            <li><strong>F</strong>: open the treasure-bury panel</li>
+            <li><strong>Y</strong>: open local chat</li>
+            <li><strong>H</strong>: mount or dismount</li>
+            <li><strong>E</strong>: interact</li>
+            <li><strong>Mouse wheel</strong>: zoom in or out</li>
+          </ul>
+
+          <h2>Hiding Treasure</h2>
+          <p>Press <strong>F</strong> to open the bury panel and choose how much USDC to hide. After your wallet signs the transaction, the server records the stash locally: who buried it, where it lies, how much it holds, and which transaction funded it. If the server restarts, the record remains.</p>
+
+          <h2>Finding Treasure</h2>
+          <p>Press <strong>Space</strong> to dig. The dig payment is verified on Base first. Then the server checks whether your tile truly holds a cache. If it does, the configured payout share of the buried amount is sent automatically to the finder. The remainder stays behind as the house fee.</p>
+
+          <h2>Cryptographic Trust</h2>
+          <p>Payments are authorized with wallet signatures and verified against Base mainnet by RPC. Transaction hashes are public and auditable. Treasure coordinates are not. The chain stays transparent; the map stays hidden. That split is the whole game.</p>
+
+          <div id="intro-seal-row">
+            <div id="intro-seal-note">Blue wax set. Bags packed. Time to hunt.</div>
+            <img id="intro-seal" src="./assets/generated/ui/base-seal-v001.png" alt="Blue wax seal bearing a Base crest" />
+          </div>
+
+          <div id="intro-dismiss">Press any key to break the seal</div>
+        </div>
+      </div>
+    </div>
     <div class="hud">
       <div id="title" class="panel">
         <h1>BasedLand</h1>
@@ -415,6 +709,11 @@
       <div id="minimap" class="panel interactive">
         <h2>World Map</h2>
         <canvas id="minimap-canvas" width="200" height="200"></canvas>
+        <div id="treasure-summary">
+          <p id="treasure-summary-kicker">Buried Treasury</p>
+          <p id="treasure-summary-amount">0 USDC</p>
+          <p id="treasure-summary-count">0 hidden points</p>
+        </div>
       </div>
       <div id="worldmap" class="panel interactive">
         <div id="worldmap-header">
@@ -423,7 +722,7 @@
         </div>
         <canvas id="worldmap-canvas" width="960" height="720"></canvas>
       </div>
-      <div id="hint" class="panel">WASD move, E interact, H mount, Space dig on Base, Y chat, wheel zoom, click minimap to pan, M map maker.</div>
+      <div id="hint" class="panel">WASD move, E interact, H mount, Space dig on Base, F hide treasure, Y chat, wheel zoom, click minimap to pan.</div>
       <div id="wallet-panel" class="panel interactive">
         <button id="wallet-connect" type="button">Connect Wallet</button>
         <span id="wallet-status">Connect Wallet</span>
@@ -434,6 +733,14 @@
         <form id="chat-form">
           <input id="chat-input" type="text" maxlength="80" placeholder="Type a short message..." autocomplete="off" />
           <button id="chat-send" type="submit">Send</button>
+        </form>
+      </div>
+      <div id="bury-panel" class="panel interactive">
+        <h2>Hide Treasure</h2>
+        <p>Hide a USDC cache under your current tile. Only the server knows where it is until someone digs it up.</p>
+        <form id="bury-form">
+          <input id="bury-amount" type="text" inputmode="decimal" placeholder="USDC amount" autocomplete="off" />
+          <button id="bury-submit" type="submit">Hide</button>
         </form>
       </div>
       <div id="message" class="panel">Connecting...</div>

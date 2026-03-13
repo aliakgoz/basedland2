@@ -9,6 +9,7 @@
     "assets:buildings": "node scripts/generate-assets.mjs --only-objects house,pub,inn,barn,stable,blacksmith,windmill,chapel,market,manor,townhall --replace-objects house,pub,inn,barn,stable,blacksmith,windmill,chapel,market,manor,townhall --house-target 20 --building-target 3",
     "assets:terrain": "node scripts/generate-bridge-terrain-tiles.mjs",
     "assets:stamps": "node scripts/generate-landmark-stamps.mjs",
+    "assets:intro": "node scripts/generate-intro-parchment.mjs && node scripts/generate-intro-seal.mjs",
     "assets:import-local": "node scripts/import-local-assets.mjs",
     "outfits:generate": "node scripts/generate-player-outfit-boards.mjs",
     "player:generate": "node scripts/generate-player-sprites.mjs",
@@ -18,6 +19,7 @@
   },
   "dependencies": {
     "dotenv": "^17.2.1",
+    "ethers": "^6.16.0",
     "openai": "^6.4.0",
     "sharp": "^0.34.3",
     "ws": "^8.18.0"

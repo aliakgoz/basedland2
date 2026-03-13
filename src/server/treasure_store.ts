@@ -10,6 +10,26 @@ export interface PersistedTreasureState {
     txHash: string;
     payer: string;
     claimedAt: string;
+    payoutTxHash?: string;
+    payoutTo?: string;
+    payoutError?: string;
+    payoutUpdatedAt?: string;
+  }>;
+  buried: Array<{
+    id: string;
+    x: number;
+    y: number;
+    amountUnits: string;
+    buryTxHash: string;
+    buriedBy: string;
+    buriedAt: string;
+    claimedAt?: string;
+    claimedBy?: string;
+    claimTxHash?: string;
+    payoutTxHash?: string;
+    payoutTo?: string;
+    payoutError?: string;
+    payoutUpdatedAt?: string;
   }>;
   usedTxHashes: string[];
 }
@@ -21,6 +41,7 @@ function emptyStore(): PersistedTreasureState {
     revision: 0,
     updatedAt: new Date(0).toISOString(),
     claimed: [],
+    buried: [],
     usedTxHashes: []
   };
 }
@@ -32,6 +53,7 @@ export async function loadTreasureState(): Promise<PersistedTreasureState> {
       revision: raw.revision ?? 0,
       updatedAt: raw.updatedAt ?? new Date(0).toISOString(),
       claimed: raw.claimed ?? [],
+      buried: raw.buried ?? [],
       usedTxHashes: raw.usedTxHashes ?? []
     };
   } catch {
@@ -44,6 +66,7 @@ export async function saveTreasureState(state: PersistedTreasureState): Promise<
     revision: state.revision + 1,
     updatedAt: new Date().toISOString(),
     claimed: state.claimed,
+    buried: state.buried,
     usedTxHashes: state.usedTxHashes
   };
 

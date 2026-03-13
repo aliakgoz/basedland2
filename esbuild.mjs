@@ -2,6 +2,8 @@ import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
+const mapMakerEnabled = !["0", "false", "off", "no"].includes(String(process.env.MAP_MAKER_ENABLED ?? "1").trim().toLowerCase());
+
 const localImport = spawnSync(process.execPath, ["scripts/import-local-assets.mjs"], {
   stdio: "inherit"
 });
@@ -19,7 +21,8 @@ await build({
   format: "iife",
   target: "es2020",
   define: {
-    __BASEDLAND_WS_URL__: JSON.stringify(process.env.BASEDLAND_WS_URL ?? "")
+    __BASEDLAND_WS_URL__: JSON.stringify(process.env.BASEDLAND_WS_URL ?? ""),
+    __BASEDLAND_MAP_EDITOR_ENABLED__: JSON.stringify(mapMakerEnabled)
   },
   outfile: "dist/client/app.js",
   sourcemap: false,

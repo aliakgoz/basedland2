@@ -9,17 +9,27 @@ import { Renderer } from "./renderer";
 import { TreasureClient } from "./treasure";
 import { WorldState } from "./world";
 
+declare const __BASEDLAND_MAP_EDITOR_ENABLED__: boolean;
+
 const canvas = document.querySelector<HTMLCanvasElement>("#game");
+const introOverlay = document.querySelector<HTMLElement>("#intro-overlay");
 const online = document.querySelector<HTMLElement>("#online");
 const message = document.querySelector<HTMLElement>("#message");
 const chatPanel = document.querySelector<HTMLElement>("#chat-panel");
 const chatForm = document.querySelector<HTMLFormElement>("#chat-form");
 const chatInput = document.querySelector<HTMLInputElement>("#chat-input");
+const buryPanel = document.querySelector<HTMLElement>("#bury-panel");
+const buryForm = document.querySelector<HTMLFormElement>("#bury-form");
+const buryAmount = document.querySelector<HTMLInputElement>("#bury-amount");
 const walletConnect = document.querySelector<HTMLButtonElement>("#wallet-connect");
 const walletStatus = document.querySelector<HTMLElement>("#wallet-status");
 const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disconnect");
+const treasureSummaryAmount = document.querySelector<HTMLElement>("#treasure-summary-amount");
+const treasureSummaryCount = document.querySelector<HTMLElement>("#treasure-summary-count");
+const editorToggle = document.querySelector<HTMLElement>("#editor-toggle");
+const editorDock = document.querySelector<HTMLElement>("#editor-dock");
 
-if (!canvas || !online || !message || !chatPanel || !chatForm || !chatInput || !walletConnect || !walletStatus || !walletDisconnect) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount) {
   throw new Error("HUD elements missing");
 }
 
@@ -28,7 +38,9 @@ const renderer = new Renderer(canvas, { online, message }, assets);
 const input = new InputController();
 const world = new WorldState();
 const network = new NetworkClient();
-const editor = new MapEditor(assets, world, renderer, canvas, () => network.localPlayer, (patch) => network.sendEditorPatch(patch));
+const editor = __BASEDLAND_MAP_EDITOR_ENABLED__
+  ? new MapEditor(assets, world, renderer, canvas, () => network.localPlayer, (patch) => network.sendEditorPatch(patch))
+  : null;
 const treasure = new TreasureClient(
   () => network.localPlayer,
   (text) => renderer.setMessage(text),
@@ -43,6 +55,12 @@ const treasure = new TreasureClient(
 
 renderer.setMessage("Loading pixel assets...");
 assets.loadGeneratedOverrides().then(() => {
+  if (!editor) {
+    if (!network.isConnected()) {
+      renderer.setMessage("Assets ready. Connecting...");
+    }
+    return;
+  }
   void editor.initialize().then(() => {
     editor.refreshPalette();
     if (!network.isConnected()) {
@@ -70,18 +88,78 @@ let lastInputSend = 0;
 let lastInputMask = -1;
 let previousFrame = performance.now();
 const EDITOR_CAMERA_MULTIPLIER = 20;
+const TREASURE_SUMMARY_REFRESH_MS = 10000;
 let chatOpen = false;
+let buryOpen = false;
+let introVisible = true;
+
+interface TreasureSummaryResponse {
+  pointCount: number;
+  totalAmountUnits: string;
+  totalAmountDisplay: string;
+}
+
+function dismissIntro(): void {
+  if (!introVisible) {
+    return;
+  }
+  introVisible = false;
+  introOverlay.classList.remove("active");
+  input.setUiBlocked(false);
+}
+
+async function refreshTreasureSummary(): Promise<void> {
+  try {
+    const response = await fetch("/api/treasure/stats", { cache: "no-store" });
+    if (!response.ok) {
+      return;
+    }
+    const payload = (await response.json()) as TreasureSummaryResponse;
+    treasureSummaryAmount.textContent = payload.totalAmountDisplay;
+    treasureSummaryCount.textContent = `${payload.pointCount} hidden ${payload.pointCount === 1 ? "point" : "points"}`;
+  } catch {
+    // Ignore transient fetch failures.
+  }
+}
+
+function syncTextEntryState(): void {
+  input.setTextEntryActive(chatOpen || buryOpen);
+}
 
 function setChatOpen(next: boolean): void {
   chatOpen = next;
+  if (next) {
+    buryOpen = false;
+    buryPanel.classList.remove("active");
+    buryAmount.blur();
+  }
   chatPanel.classList.toggle("active", next);
-  input.setTextEntryActive(next);
+  syncTextEntryState();
   if (next) {
     chatInput.focus();
     chatInput.select();
   } else {
     chatInput.blur();
     chatInput.value = "";
+  }
+}
+
+function setBuryOpen(next: boolean): void {
+  buryOpen = next;
+  if (next) {
+    chatOpen = false;
+    chatPanel.classList.remove("active");
+    chatInput.blur();
+    chatInput.value = "";
+  }
+  buryPanel.classList.toggle("active", next);
+  syncTextEntryState();
+  if (next) {
+    buryAmount.focus();
+    buryAmount.select();
+  } else {
+    buryAmount.blur();
+    buryAmount.value = "";
   }
 }
 
@@ -103,10 +181,36 @@ chatInput.addEventListener("keydown", (event) => {
   }
 });
 
+buryForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const amount = buryAmount.value.trim();
+  if (amount.length === 0) {
+    setBuryOpen(false);
+    return;
+  }
+  setBuryOpen(false);
+  void treasure.buryAtPlayerTile(amount);
+});
+
+buryAmount.addEventListener("keydown", (event) => {
+  if (event.code === "Escape") {
+    event.preventDefault();
+    setBuryOpen(false);
+  }
+});
+
 window.addEventListener("keydown", (event) => {
-  if (event.code === "Escape" && chatOpen) {
+  if (introVisible) {
+    if (!event.repeat) {
+      dismissIntro();
+    }
+    event.preventDefault();
+    return;
+  }
+  if (event.code === "Escape" && (chatOpen || buryOpen)) {
     event.preventDefault();
     setChatOpen(false);
+    setBuryOpen(false);
   }
 });
 
@@ -118,10 +222,31 @@ walletDisconnect.addEventListener("click", () => {
   treasure.disconnectWallet();
 });
 
+introOverlay.addEventListener("pointerdown", () => {
+  dismissIntro();
+});
+
+if (!__BASEDLAND_MAP_EDITOR_ENABLED__) {
+  editorToggle?.remove();
+  editorDock?.remove();
+}
+
+input.setUiBlocked(true);
+void refreshTreasureSummary();
+window.setInterval(() => {
+  void refreshTreasureSummary();
+}, TREASURE_SUMMARY_REFRESH_MS);
+
 function applyLocalMovement(dt: number): void {
+  if (introVisible) {
+    return;
+  }
   const player = network.localPlayer;
   if (input.consumeChatToggle()) {
     setChatOpen(!chatOpen);
+  }
+  if (input.consumeBuryToggle()) {
+    setBuryOpen(!buryOpen);
   }
   if (!player) {
     return;
@@ -152,7 +277,7 @@ function applyLocalMovement(dt: number): void {
     player.dir = Direction.Right;
   }
 
-  if (editor.isEnabled()) {
+  if (editor?.isEnabled()) {
     if (dx !== 0 || dy !== 0) {
       if (dx !== 0 && dy !== 0) {
         dx *= Math.SQRT1_2;

@@ -3,6 +3,7 @@ import type { PersistedTreasureState } from "./treasure_store";
 
 interface DigSession {
   id: string;
+  kind: "dig";
   playerId: number;
   tileX: number;
   tileY: number;
@@ -10,9 +11,32 @@ interface DigSession {
   expiresAt: number;
 }
 
+interface BurySession {
+  id: string;
+  kind: "bury";
+  playerId: number;
+  tileX: number;
+  tileY: number;
+  amountUnits: bigint;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export interface TreasureClaimResult {
   found: boolean;
   alreadyClaimed: boolean;
+  seededFound: boolean;
+  buriedCount: number;
+  buriedAmountUnits: bigint;
+}
+
+export interface BuriedTreasureResult {
+  amountUnits: bigint;
+}
+
+export interface ActiveBuriedSummary {
+  pointCount: number;
+  totalAmountUnits: bigint;
 }
 
 function hash(value: number): number {
@@ -41,11 +65,17 @@ function tileKey(x: number, y: number): string {
   return `${x},${y}`;
 }
 
+function sessionId(prefix: "dig" | "bury"): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export class TreasureManager {
   private readonly treasureTiles = new Set<string>();
   private readonly claimedTiles = new Map<string, PersistedTreasureState["claimed"][number]>();
+  private readonly buriedTreasures = new Map<string, PersistedTreasureState["buried"][number][]>();
   private readonly usedTxHashes = new Set<string>();
-  private readonly sessions = new Map<string, DigSession>();
+  private readonly digSessions = new Map<string, DigSession>();
+  private readonly burySessions = new Map<string, BurySession>();
 
   constructor(
     private readonly getTileType: (tileX: number, tileY: number) => TileType,
@@ -73,44 +103,73 @@ export class TreasureManager {
     for (const entry of persisted.claimed) {
       this.claimedTiles.set(tileKey(entry.x, entry.y), entry);
     }
+    for (const entry of persisted.buried) {
+      const key = tileKey(entry.x, entry.y);
+      const list = this.buriedTreasures.get(key);
+      if (list) {
+        list.push(entry);
+      } else {
+        this.buriedTreasures.set(key, [entry]);
+      }
+    }
     for (const txHash of persisted.usedTxHashes) {
       this.usedTxHashes.add(txHash.toLowerCase());
     }
   }
 
   prepareDig(playerId: number, tileX: number, tileY: number): DigSession {
-    const id = `dig_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
     const session: DigSession = {
-      id,
+      id: sessionId("dig"),
+      kind: "dig",
       playerId,
       tileX,
       tileY,
       createdAt: Date.now(),
       expiresAt: Date.now() + 5 * 60 * 1000
     };
-    this.sessions.set(id, session);
+    this.digSessions.set(session.id, session);
     return session;
   }
 
-  consumeSession(id: string, playerId: number): DigSession | null {
-    const session = this.sessions.get(id);
+  prepareBury(playerId: number, tileX: number, tileY: number, amountUnits: bigint): BurySession {
+    const session: BurySession = {
+      id: sessionId("bury"),
+      kind: "bury",
+      playerId,
+      tileX,
+      tileY,
+      amountUnits,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 5 * 60 * 1000
+    };
+    this.burySessions.set(session.id, session);
+    return session;
+  }
+
+  consumeDigSession(id: string, playerId: number): DigSession | null {
+    const session = this.digSessions.get(id);
     if (!session) {
       return null;
     }
     if (session.playerId !== playerId || session.expiresAt < Date.now()) {
-      this.sessions.delete(id);
+      this.digSessions.delete(id);
       return null;
     }
-    this.sessions.delete(id);
+    this.digSessions.delete(id);
     return session;
   }
 
-  isTreasureTile(tileX: number, tileY: number): TreasureClaimResult {
-    const key = tileKey(tileX, tileY);
-    if (!this.treasureTiles.has(key)) {
-      return { found: false, alreadyClaimed: false };
+  consumeBurySession(id: string, playerId: number): BurySession | null {
+    const session = this.burySessions.get(id);
+    if (!session) {
+      return null;
     }
-    return { found: !this.claimedTiles.has(key), alreadyClaimed: this.claimedTiles.has(key) };
+    if (session.playerId !== playerId || session.expiresAt < Date.now()) {
+      this.burySessions.delete(id);
+      return null;
+    }
+    this.burySessions.delete(id);
+    return session;
   }
 
   isTxUsed(txHash: string): boolean {
@@ -119,24 +178,134 @@ export class TreasureManager {
 
   claimTreasure(tileX: number, tileY: number, txHash: string, payer: string): TreasureClaimResult {
     const key = tileKey(tileX, tileY);
-    const existing = this.claimedTiles.get(key);
+    const seededClaim = this.claimedTiles.get(key);
+    const buried = this.buriedTreasures.get(key) ?? [];
+    const newlyClaimedBuried = buried.filter((entry) => !entry.claimedAt);
+    const hadClaimedBuried = buried.some((entry) => Boolean(entry.claimedAt));
+    let buriedAmountUnits = 0n;
+
+    for (const entry of newlyClaimedBuried) {
+      buriedAmountUnits += BigInt(entry.amountUnits);
+      entry.claimedAt = new Date().toISOString();
+      entry.claimedBy = payer.toLowerCase();
+      entry.claimTxHash = txHash.toLowerCase();
+    }
+
+    const seededFound = this.treasureTiles.has(key) && !seededClaim;
     this.usedTxHashes.add(txHash.toLowerCase());
 
-    if (!this.treasureTiles.has(key)) {
-      return { found: false, alreadyClaimed: false };
-    }
-    if (existing) {
-      return { found: false, alreadyClaimed: true };
+    if (seededFound) {
+      this.claimedTiles.set(key, {
+        x: tileX,
+        y: tileY,
+        txHash: txHash.toLowerCase(),
+        payer: payer.toLowerCase(),
+        claimedAt: new Date().toISOString()
+      });
     }
 
-    this.claimedTiles.set(key, {
+    const found = seededFound || newlyClaimedBuried.length > 0;
+    if (!found) {
+      return {
+        found: false,
+        alreadyClaimed: (this.treasureTiles.has(key) && Boolean(seededClaim)) || hadClaimedBuried,
+        seededFound: false,
+        buriedCount: 0,
+        buriedAmountUnits: 0n
+      };
+    }
+
+    return {
+      found: true,
+      alreadyClaimed: false,
+      seededFound,
+      buriedCount: newlyClaimedBuried.length,
+      buriedAmountUnits
+    };
+  }
+
+  recordClaimPayout(tileX: number, tileY: number, digTxHash: string, payoutTxHash: string, payoutTo: string): void {
+    const key = tileKey(tileX, tileY);
+    const claimed = this.claimedTiles.get(key);
+    const now = new Date().toISOString();
+    if (claimed && claimed.txHash === digTxHash.toLowerCase()) {
+      claimed.payoutTxHash = payoutTxHash.toLowerCase();
+      claimed.payoutTo = payoutTo.toLowerCase();
+      claimed.payoutError = undefined;
+      claimed.payoutUpdatedAt = now;
+    }
+
+    const buried = this.buriedTreasures.get(key) ?? [];
+    for (const entry of buried) {
+      if (entry.claimTxHash === digTxHash.toLowerCase()) {
+        entry.payoutTxHash = payoutTxHash.toLowerCase();
+        entry.payoutTo = payoutTo.toLowerCase();
+        entry.payoutError = undefined;
+        entry.payoutUpdatedAt = now;
+      }
+    }
+  }
+
+  recordClaimPayoutFailure(tileX: number, tileY: number, digTxHash: string, payoutTo: string, error: string): void {
+    const key = tileKey(tileX, tileY);
+    const claimed = this.claimedTiles.get(key);
+    const now = new Date().toISOString();
+    if (claimed && claimed.txHash === digTxHash.toLowerCase()) {
+      claimed.payoutTo = payoutTo.toLowerCase();
+      claimed.payoutError = error;
+      claimed.payoutUpdatedAt = now;
+    }
+
+    const buried = this.buriedTreasures.get(key) ?? [];
+    for (const entry of buried) {
+      if (entry.claimTxHash === digTxHash.toLowerCase()) {
+        entry.payoutTo = payoutTo.toLowerCase();
+        entry.payoutError = error;
+        entry.payoutUpdatedAt = now;
+      }
+    }
+  }
+
+  buryTreasure(tileX: number, tileY: number, amountUnits: bigint, txHash: string, payer: string): BuriedTreasureResult {
+    const key = tileKey(tileX, tileY);
+    const entry: PersistedTreasureState["buried"][number] = {
+      id: `cache_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
       x: tileX,
       y: tileY,
-      txHash: txHash.toLowerCase(),
-      payer: payer.toLowerCase(),
-      claimedAt: new Date().toISOString()
-    });
-    return { found: true, alreadyClaimed: false };
+      amountUnits: amountUnits.toString(),
+      buryTxHash: txHash.toLowerCase(),
+      buriedBy: payer.toLowerCase(),
+      buriedAt: new Date().toISOString()
+    };
+    const list = this.buriedTreasures.get(key);
+    if (list) {
+      list.push(entry);
+    } else {
+      this.buriedTreasures.set(key, [entry]);
+    }
+    this.usedTxHashes.add(txHash.toLowerCase());
+    return { amountUnits };
+  }
+
+  getActiveBuriedSummary(): ActiveBuriedSummary {
+    const activeTileKeys = new Set<string>();
+    let totalAmountUnits = 0n;
+
+    for (const [key, entries] of this.buriedTreasures) {
+      const activeEntries = entries.filter((entry) => !entry.claimedAt);
+      if (activeEntries.length === 0) {
+        continue;
+      }
+      activeTileKeys.add(key);
+      for (const entry of activeEntries) {
+        totalAmountUnits += BigInt(entry.amountUnits);
+      }
+    }
+
+    return {
+      pointCount: activeTileKeys.size,
+      totalAmountUnits
+    };
   }
 
   exportState(): PersistedTreasureState {
@@ -144,6 +313,9 @@ export class TreasureManager {
       revision: 0,
       updatedAt: new Date().toISOString(),
       claimed: [...this.claimedTiles.values()].sort((a, b) => (a.y - b.y) || (a.x - b.x)),
+      buried: [...this.buriedTreasures.values()]
+        .flat()
+        .sort((a, b) => (a.y - b.y) || (a.x - b.x) || a.buriedAt.localeCompare(b.buriedAt)),
       usedTxHashes: [...this.usedTxHashes].sort()
     };
   }

@@ -41,6 +41,7 @@ import {
 import { loadEditorMap, saveEditorMap } from "./map_store";
 import { PlayerManager, type ServerPlayer } from "./player_manager";
 import { TreasureManager } from "./treasure_manager";
+import { TreasurePayoutService } from "./treasure_payout";
 import { loadTreasureState, saveTreasureState, type PersistedTreasureState } from "./treasure_store";
 import { ServerWorldState } from "./world_state";
 
@@ -49,9 +50,12 @@ const serverPort = Number(process.env.PORT ?? 3000);
 const baseRpcUrl = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
 const treasureRecipient = (process.env.TREASURE_RECIPIENT_ADDRESS ?? "").trim();
 const treasureUsdcAddress = (process.env.TREASURE_USDC_ADDRESS ?? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").trim();
-const treasureAmountDisplay = (process.env.TREASURE_DIG_USDC_AMOUNT ?? "0.01").trim();
+const treasureDigAmountDisplay = (process.env.TREASURE_DIG_USDC_AMOUNT ?? "0.01").trim();
+const treasurePayoutPercentRaw = (process.env.TREASURE_PAYOUT_PERCENT ?? "99").trim();
+const mapMakerEnabled = !["0", "false", "off", "no"].includes((process.env.MAP_MAKER_ENABLED ?? "1").trim().toLowerCase());
 const treasureSecretSalt = process.env.TREASURE_SECRET_SALT ?? "basedland-secret";
 const treasureCount = Math.max(1, Number(process.env.TREASURE_COUNT ?? 128) || 128);
+const treasurePayoutPrivateKey = (process.env.TREASURE_PAYOUT_PRIVATE_KEY ?? "").trim();
 const BASE_CHAIN_ID = 8453;
 const ERC20_TRANSFER_SELECTOR = "0xa9059cbb";
 const mimeTypes: Record<string, string> = {
@@ -81,6 +85,11 @@ const httpServer = createServer(async (req, res) => {
   const pathname = req.url === "/" ? "/index.html" : req.url ?? "/index.html";
 
   if (pathname.startsWith("/api/editor-map")) {
+    if (!mapMakerEnabled) {
+      res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "Map maker is disabled." }));
+      return;
+    }
     await editorMapReady;
     if (req.method === "GET") {
       res.writeHead(200, {
@@ -126,8 +135,19 @@ const httpServer = createServer(async (req, res) => {
       chainId: BASE_CHAIN_ID,
       usdcToken: treasureUsdcAddress,
       recipient: treasureRecipient,
-      amountUnits: treasureAmountUnits.toString(),
-      amountDisplay: `${treasureAmountDisplay} USDC`
+      amountUnits: treasureDigAmountUnits.toString(),
+      amountDisplay: `${treasureDigAmountDisplay} USDC`
+    });
+    return;
+  }
+
+  if (pathname.startsWith("/api/treasure/stats")) {
+    await treasureStateReady;
+    const summary = treasureManager?.getActiveBuriedSummary() ?? { pointCount: 0, totalAmountUnits: 0n };
+    json(res, 200, {
+      pointCount: summary.pointCount,
+      totalAmountUnits: summary.totalAmountUnits.toString(),
+      totalAmountDisplay: `${formatUsdcAmount(summary.totalAmountUnits)} USDC`
     });
     return;
   }
@@ -140,17 +160,18 @@ const httpServer = createServer(async (req, res) => {
 
     try {
       await treasureStateReady;
-      const payload = await readJsonBody<{ playerId?: number; tileX?: number; tileY?: number }>(req);
-      const rawTileX = Number(payload.tileX ?? -1);
-      const rawTileY = Number(payload.tileY ?? -1);
+      const payload = await readJsonBody<{ playerId?: number }>(req);
       const playerId = Number(payload.playerId ?? 0);
-      if (!Number.isFinite(rawTileX) || !Number.isFinite(rawTileY) || !Number.isFinite(playerId)) {
-        json(res, 400, { error: "Invalid dig coordinates." });
+      if (!Number.isFinite(playerId)) {
+        json(res, 400, { error: "Invalid dig request." });
         return;
       }
-      const tileX = Math.max(0, Math.min(WORLD_WIDTH_TILES - 1, rawTileX));
-      const tileY = Math.max(0, Math.min(WORLD_HEIGHT_TILES - 1, rawTileY));
-      const currentType = worldState.getTileType(tileX, tileY);
+      const playerTile = getPlayerTile(playerId);
+      if (!playerTile) {
+        json(res, 404, { error: "Player not found on server." });
+        return;
+      }
+      const { tileX, tileY, currentType } = playerTile;
       const dugType = dugTileFor(currentType);
       if (!treasureManager || !Number.isFinite(playerId) || playerId <= 0 || dugType === null) {
         json(res, 400, { error: "This tile cannot be dug." });
@@ -171,8 +192,8 @@ const httpServer = createServer(async (req, res) => {
           chainId: BASE_CHAIN_ID,
           usdcToken: treasureUsdcAddress,
           recipient: treasureRecipient,
-          amountUnits: treasureAmountUnits.toString(),
-          amountDisplay: `${treasureAmountDisplay} USDC`
+          amountUnits: treasureDigAmountUnits.toString(),
+          amountDisplay: `${treasureDigAmountDisplay} USDC`
         }
       });
     } catch {
@@ -194,7 +215,7 @@ const httpServer = createServer(async (req, res) => {
       const digId = String(payload.digId ?? "");
       const txHash = String(payload.txHash ?? "").toLowerCase();
       const payer = String(payload.payer ?? "");
-      const session = treasureManager?.consumeSession(digId, playerId) ?? null;
+      const session = treasureManager?.consumeDigSession(digId, playerId) ?? null;
 
       if (!session) {
         json(res, 400, { error: "Dig session expired or missing." });
@@ -213,7 +234,7 @@ const httpServer = createServer(async (req, res) => {
         return;
       }
 
-      await verifyTreasurePayment(txHash, payer);
+      await verifyTreasurePayment(txHash, payer, treasureDigAmountUnits);
 
       const currentType = worldState.getTileType(session.tileX, session.tileY);
       const dugType = dugTileFor(currentType);
@@ -231,21 +252,132 @@ const httpServer = createServer(async (req, res) => {
 
       const result = treasureManager?.claimTreasure(session.tileX, session.tileY, txHash, payer) ?? {
         found: false,
-        alreadyClaimed: false
+        alreadyClaimed: false,
+        seededFound: false,
+        buriedCount: 0,
+        buriedAmountUnits: 0n
       };
-      queueTreasureStateSave();
+      const payoutAmountUnits = payoutAmountAfterFee(result.buriedAmountUnits);
+      const feeAmountUnits = result.buriedAmountUnits - payoutAmountUnits;
+      let message = result.found
+        ? describeTreasureFound(result)
+        : result.alreadyClaimed
+          ? "This treasure was already claimed earlier."
+          : "No treasure here. The dig completed and the ground was opened.";
+
+      if (result.found && payoutAmountUnits > 0n) {
+        try {
+          const payout = await payoutService.payoutUsdc(payer, payoutAmountUnits);
+          treasureManager?.recordClaimPayout(session.tileX, session.tileY, txHash, payout.txHash, payer);
+          message = `${message} Automatic payout sent: ${formatUsdcAmount(payoutAmountUnits)} USDC after ${formatUsdcAmount(feeAmountUnits)} USDC fee.`;
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "Automatic payout failed.";
+          treasureManager?.recordClaimPayoutFailure(session.tileX, session.tileY, txHash, payer, reason);
+          message = `${message} Automatic payout failed: ${reason}`;
+        }
+      }
+      await persistTreasureStateNow();
 
       json(res, 200, {
         success: true,
         found: result.found,
-        message: result.found
-          ? "Treasure found. The buried cache was real."
-          : result.alreadyClaimed
-            ? "This treasure was already claimed earlier."
-            : "No treasure here. The dig completed and the ground was opened."
+        message
       });
     } catch (error) {
       json(res, 400, { error: error instanceof Error ? error.message : "Treasure confirmation failed." });
+    }
+    return;
+  }
+
+  if (pathname.startsWith("/api/treasure/bury/prepare") && req.method === "POST") {
+    if (!isTreasureEnabled()) {
+      json(res, 503, { error: "Treasure burying is disabled on this server." });
+      return;
+    }
+
+    try {
+      await treasureStateReady;
+      const payload = await readJsonBody<{ playerId?: number; amountDisplay?: string }>(req);
+      const playerId = Number(payload.playerId ?? 0);
+      const amountUnits = parseClientUsdcAmount(String(payload.amountDisplay ?? "").trim());
+      if (!Number.isFinite(playerId)) {
+        json(res, 400, { error: "Invalid bury request." });
+        return;
+      }
+      const playerTile = getPlayerTile(playerId);
+      if (!playerTile) {
+        json(res, 404, { error: "Player not found on server." });
+        return;
+      }
+      const { tileX, tileY, currentType } = playerTile;
+      const dugType = dugTileFor(currentType);
+      if (!treasureManager || playerId <= 0 || dugType === null || currentType === dugType) {
+        json(res, 400, { error: "You can only hide treasure on solid undug ground." });
+        return;
+      }
+
+      const bury = treasureManager.prepareBury(playerId, tileX, tileY, amountUnits);
+      json(res, 200, {
+        buryId: bury.id,
+        tileX,
+        tileY,
+        payment: {
+          enabled: true,
+          chainId: BASE_CHAIN_ID,
+          usdcToken: treasureUsdcAddress,
+          recipient: treasureRecipient,
+          amountUnits: amountUnits.toString(),
+          amountDisplay: `${formatUsdcAmount(amountUnits)} USDC`
+        }
+      });
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : "Invalid treasure bury payload." });
+    }
+    return;
+  }
+
+  if (pathname.startsWith("/api/treasure/bury/confirm") && req.method === "POST") {
+    if (!isTreasureEnabled()) {
+      json(res, 503, { error: "Treasure burying is disabled on this server." });
+      return;
+    }
+
+    try {
+      await treasureStateReady;
+      const payload = await readJsonBody<{ playerId?: number; buryId?: string; txHash?: string; payer?: string }>(req);
+      const playerId = Number(payload.playerId ?? 0);
+      const buryId = String(payload.buryId ?? "");
+      const txHash = String(payload.txHash ?? "").toLowerCase();
+      const payer = String(payload.payer ?? "");
+      const session = treasureManager?.consumeBurySession(buryId, playerId) ?? null;
+
+      if (!session) {
+        json(res, 400, { error: "Bury session expired or missing." });
+        return;
+      }
+      if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+        json(res, 400, { error: "Invalid transaction hash." });
+        return;
+      }
+      if (!/^0x[a-fA-F0-9]{40}$/.test(payer)) {
+        json(res, 400, { error: "Invalid payer wallet address." });
+        return;
+      }
+      if (treasureManager?.isTxUsed(txHash)) {
+        json(res, 409, { error: "This transaction hash was already used." });
+        return;
+      }
+
+      await verifyTreasurePayment(txHash, payer, session.amountUnits);
+      treasureManager?.buryTreasure(session.tileX, session.tileY, session.amountUnits, txHash, payer);
+      await persistTreasureStateNow();
+
+      json(res, 200, {
+        success: true,
+        message: `Treasure hidden at this tile. Cache amount: ${formatUsdcAmount(session.amountUnits)} USDC.`
+      });
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : "Treasure bury confirmation failed." });
     }
     return;
   }
@@ -276,11 +408,13 @@ const entitySystem = new EntitySystem();
 const horseManager = new HorseManager();
 const worldState = new ServerWorldState();
 const playerManager = new PlayerManager(chunkManager, (tileX, tileY) => worldState.getTileType(tileX, tileY));
+const payoutService = new TreasurePayoutService(baseRpcUrl, treasureUsdcAddress, treasurePayoutPrivateKey);
 let treasureManager: TreasureManager | null = null;
 let persistedTreasureState: PersistedTreasureState = {
   revision: 0,
   updatedAt: new Date(0).toISOString(),
   claimed: [],
+  buried: [],
   usedTxHashes: []
 };
 let liveEditorMap: PersistedEditorMap = {
@@ -398,6 +532,20 @@ function queueTreasureStateSave(): void {
   }, 400);
 }
 
+async function persistTreasureStateNow(): Promise<void> {
+  if (treasureStateSaveTimer) {
+    clearTimeout(treasureStateSaveTimer);
+    treasureStateSaveTimer = null;
+  }
+  if (!treasureManager) {
+    return;
+  }
+  persistedTreasureState = await saveTreasureState({
+    ...treasureManager.exportState(),
+    revision: persistedTreasureState.revision
+  });
+}
+
 function isTreasureEnabled(): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(treasureRecipient);
 }
@@ -409,7 +557,33 @@ function parseUsdcAmountUnits(value: string): bigint {
   return BigInt(normalizedWhole) * 1_000_000n + BigInt(normalizedFraction);
 }
 
-const treasureAmountUnits = parseUsdcAmountUnits(treasureAmountDisplay);
+function parseClientUsdcAmount(value: string): bigint {
+  const normalized = value.replace(",", ".").trim();
+  if (!/^\d+(\.\d{1,6})?$/.test(normalized)) {
+    throw new Error("Enter a valid USDC amount with up to 6 decimals.");
+  }
+  const amountUnits = parseUsdcAmountUnits(normalized);
+  if (amountUnits <= 0n) {
+    throw new Error("USDC amount must be greater than zero.");
+  }
+  return amountUnits;
+}
+
+function formatUsdcAmount(amountUnits: bigint): string {
+  const whole = amountUnits / 1_000_000n;
+  const fraction = (amountUnits % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
+  return fraction.length > 0 ? `${whole.toString()}.${fraction}` : whole.toString();
+}
+
+const treasureDigAmountUnits = parseUsdcAmountUnits(treasureDigAmountDisplay);
+const treasurePayoutPercent = Math.max(0, Math.min(100, Number.parseInt(treasurePayoutPercentRaw, 10) || 99));
+
+function payoutAmountAfterFee(amountUnits: bigint): bigint {
+  if (amountUnits <= 0n) {
+    return 0n;
+  }
+  return (amountUnits * BigInt(treasurePayoutPercent)) / 100n;
+}
 
 function normalizeAddress(value: string): string {
   return value.toLowerCase();
@@ -460,6 +634,20 @@ async function baseRpc<T>(method: string, params: unknown[]): Promise<T> {
   return payload.result as T;
 }
 
+function getPlayerTile(playerId: number): { tileX: number; tileY: number; currentType: TileType } | null {
+  const player = playerManager.players.get(playerId);
+  if (!player) {
+    return null;
+  }
+  const tileX = Math.max(0, Math.min(WORLD_WIDTH_TILES - 1, Math.floor(player.x / TILE_SIZE)));
+  const tileY = Math.max(0, Math.min(WORLD_HEIGHT_TILES - 1, Math.floor(player.y / TILE_SIZE)));
+  return {
+    tileX,
+    tileY,
+    currentType: worldState.getTileType(tileX, tileY)
+  };
+}
+
 function decodeTransferInput(input: string): { recipient: string; amount: bigint } | null {
   if (!input.startsWith(ERC20_TRANSFER_SELECTOR)) {
     return null;
@@ -476,7 +664,7 @@ function decodeTransferInput(input: string): { recipient: string; amount: bigint
   };
 }
 
-async function verifyTreasurePayment(txHash: string, payer: string): Promise<void> {
+async function verifyTreasurePayment(txHash: string, payer: string, expectedAmountUnits: bigint): Promise<void> {
   const tx = await baseRpc<{ to?: string; from?: string; input?: string } | null>("eth_getTransactionByHash", [txHash]);
   const receipt = await baseRpc<{ status?: string } | null>("eth_getTransactionReceipt", [txHash]);
   const chainIdHex = await baseRpc<string>("eth_chainId", []);
@@ -501,9 +689,23 @@ async function verifyTreasurePayment(txHash: string, payer: string): Promise<voi
   if (decoded.recipient !== normalizeAddress(treasureRecipient)) {
     throw new Error("USDC recipient does not match the treasure wallet.");
   }
-  if (decoded.amount !== treasureAmountUnits) {
-    throw new Error("USDC amount does not match the dig fee.");
+  if (decoded.amount !== expectedAmountUnits) {
+    throw new Error("USDC amount does not match the required payment.");
   }
+}
+
+function describeTreasureFound(result: {
+  seededFound: boolean;
+  buriedCount: number;
+  buriedAmountUnits: bigint;
+}): string {
+  if (result.seededFound && result.buriedCount > 0) {
+    return `Treasure found. You uncovered the hidden cache plus ${result.buriedCount} buried player stash worth ${formatUsdcAmount(result.buriedAmountUnits)} USDC.`;
+  }
+  if (result.buriedCount > 0) {
+    return `Treasure found. You uncovered ${result.buriedCount} buried player stash worth ${formatUsdcAmount(result.buriedAmountUnits)} USDC.`;
+  }
+  return "Treasure found. The buried cache was real.";
 }
 
 function json(res: ServerResponse, status: number, payload: unknown): void {
@@ -750,6 +952,9 @@ wss.on("connection", (socket) => {
 
     const patch = parseEditorPatchPacket(buffer);
     if (patch) {
+      if (!mapMakerEnabled) {
+        return;
+      }
       await editorMapReady;
       touchLiveEditorMap(patch);
       queueEditorMapSave();
