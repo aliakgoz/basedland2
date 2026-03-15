@@ -149,12 +149,12 @@ async function refreshEditorAccess(): Promise<void> {
   try {
     const response = await fetch("/api/editor-access", { cache: "no-store" });
     if (!response.ok) {
-      editor.setAdminEnabled(false);
+      editor.setAdminAccess(false);
       return;
     }
     const payload = (await response.json()) as EditorAccessResponse;
     if (!payload.enabled) {
-      editor.setAdminEnabled(false);
+      editor.setAdminAccess(false);
       return;
     }
     if (!editorInitializationStarted) {
@@ -162,9 +162,9 @@ async function refreshEditorAccess(): Promise<void> {
       await editor.initialize();
       editor.refreshPalette();
     }
-    editor.setAdminEnabled(true);
+    editor.setAdminAccess(true);
   } catch {
-    editor.setAdminEnabled(false);
+    editor.setAdminAccess(false);
   }
 }
 

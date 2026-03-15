@@ -1,5 +1,6 @@
 import type { AssetArchiveEntry, AssetArchiveGroup, AssetManager } from "./assets";
 import { EMPTY_EDITOR_MAP, type EditorMapData, type EditorPatch, type PersistedEditorMap } from "../shared/editor_map";
+import { TILE_SIZE } from "../shared/protocol";
 import type { PlayerEntity } from "./entity";
 import { Renderer } from "./renderer";
 import { WorldState } from "./world";
@@ -31,6 +32,7 @@ function makeThumb(source: CanvasImageSource): HTMLCanvasElement {
 
 export class MapEditor {
   private static readonly BRUSH_SIZES = [1, 2, 4, 8] as const;
+  private adminAccess = false;
   private enabled = false;
   private initialized = false;
   private activeGroupId = "ground";
@@ -39,6 +41,8 @@ export class MapEditor {
   private painting = false;
   private eraseMode = false;
   private lastPaintedTile = "";
+  private hoverTileX: number | null = null;
+  private hoverTileY: number | null = null;
   private readonly dock: HTMLElement;
   private readonly groups: HTMLElement;
   private readonly exportButton: HTMLButtonElement;
@@ -119,8 +123,11 @@ export class MapEditor {
     return this.enabled;
   }
 
-  setAdminEnabled(next: boolean): void {
-    this.setEnabled(next);
+  setAdminAccess(next: boolean): void {
+    this.adminAccess = next;
+    if (!next) {
+      this.setEnabled(false);
+    }
   }
 
   private bindUI(): void {
@@ -138,6 +145,20 @@ export class MapEditor {
     this.saveLocalButton.addEventListener("click", () => this.saveLocal());
     this.loadLocalButton.addEventListener("click", () => this.loadLocal());
     this.clearButton.addEventListener("click", () => this.clearAll());
+    window.addEventListener("keydown", (event) => {
+      const target = event.target;
+      const editingText =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (editingText || !this.adminAccess || event.repeat) {
+        return;
+      }
+      if (event.code === "KeyM") {
+        event.preventDefault();
+        this.setEnabled(!this.enabled);
+      }
+    });
     this.canvas.addEventListener("contextmenu", (event) => {
       if (this.enabled) {
         event.preventDefault();
@@ -151,14 +172,25 @@ export class MapEditor {
       event.preventDefault();
       this.painting = true;
       this.eraseMode = event.button === 2 || this.selectedBrush?.kind === "erase";
+      this.updateHoverTile(event.clientX, event.clientY);
       this.applyAtPointer(event.clientX, event.clientY);
     });
 
     this.canvas.addEventListener("mousemove", (event) => {
-      if (!this.enabled || !this.painting) {
+      if (!this.enabled) {
+        return;
+      }
+      this.updateHoverTile(event.clientX, event.clientY);
+      if (!this.painting) {
         return;
       }
       this.applyAtPointer(event.clientX, event.clientY);
+    });
+
+    this.canvas.addEventListener("mouseleave", () => {
+      this.hoverTileX = null;
+      this.hoverTileY = null;
+      this.refreshPlacementPreview();
     });
 
     window.addEventListener("mouseup", () => {
@@ -173,12 +205,16 @@ export class MapEditor {
     this.enabled = next;
     this.dock.classList.toggle("active", next);
     if (!next) {
+      this.hoverTileX = null;
+      this.hoverTileY = null;
+      this.refreshPlacementPreview();
       this.renderer.clearManualCamera();
     } else {
       const localPlayer = this.getLocalPlayer();
       if (localPlayer) {
         this.renderer.setManualCamera(localPlayer.renderX, localPlayer.renderY);
       }
+      this.refreshPlacementPreview();
     }
   }
 
@@ -239,6 +275,7 @@ export class MapEditor {
       button.addEventListener("click", () => {
         this.selectedBrush = entry;
         this.renderPalette();
+        this.refreshPlacementPreview();
       });
       grid.appendChild(button);
     }
@@ -252,16 +289,11 @@ export class MapEditor {
       return;
     }
 
-    const rect = this.canvas.getBoundingClientRect();
-    const screenX = clientX - rect.left;
-    const screenY = clientY - rect.top;
-    const zoom = this.renderer.getZoom();
-    const viewCenter = this.renderer.getViewCenter();
-    const worldX = viewCenter.x + (screenX - this.canvas.width / 2) / zoom;
-    const worldY = viewCenter.y + (screenY - this.canvas.height / 2) / zoom;
-    const tileX = Math.floor(worldX / 32);
-    const tileY = Math.floor(worldY / 32);
-    const tileKey = `${tileX},${tileY},${this.brushSize},${this.eraseMode ? "erase" : this.selectedBrush?.id ?? "none"}`;
+    const tile = this.pointerToTile(clientX, clientY);
+    const tileX = tile.tileX;
+    const tileY = tile.tileY;
+    const effectiveBrushSize = this.usesSinglePlacementBrush() ? 1 : this.brushSize;
+    const tileKey = `${tileX},${tileY},${effectiveBrushSize},${this.eraseMode ? "erase" : this.selectedBrush?.id ?? "none"}`;
 
     if (tileKey === this.lastPaintedTile) {
       return;
@@ -272,8 +304,8 @@ export class MapEditor {
     const startX = tileX;
     const startY = tileY;
 
-    for (let offsetY = 0; offsetY < this.brushSize; offsetY += 1) {
-      for (let offsetX = 0; offsetX < this.brushSize; offsetX += 1) {
+    for (let offsetY = 0; offsetY < effectiveBrushSize; offsetY += 1) {
+      for (let offsetX = 0; offsetX < effectiveBrushSize; offsetX += 1) {
         const currentX = startX + offsetX;
         const currentY = startY + offsetY;
         const patch = this.buildPatchForTile(currentX, currentY);
@@ -322,6 +354,53 @@ export class MapEditor {
     }
 
     return null;
+  }
+
+  private usesSinglePlacementBrush(): boolean {
+    return this.selectedBrush?.kind === "object" && (this.selectedBrush.group === "buildings" || this.selectedBrush.group === "props");
+  }
+
+  private pointerToTile(clientX: number, clientY: number): { tileX: number; tileY: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
+    const zoom = this.renderer.getZoom();
+    const viewCenter = this.renderer.getViewCenter();
+    const worldX = viewCenter.x + (screenX - this.canvas.width / 2) / zoom;
+    const worldY = viewCenter.y + (screenY - this.canvas.height / 2) / zoom;
+    return {
+      tileX: Math.floor(worldX / TILE_SIZE),
+      tileY: Math.floor(worldY / TILE_SIZE)
+    };
+  }
+
+  private updateHoverTile(clientX: number, clientY: number): void {
+    const tile = this.pointerToTile(clientX, clientY);
+    this.hoverTileX = tile.tileX;
+    this.hoverTileY = tile.tileY;
+    this.refreshPlacementPreview();
+  }
+
+  private refreshPlacementPreview(): void {
+    if (
+      !this.enabled ||
+      !this.selectedBrush ||
+      this.selectedBrush.kind !== "object" ||
+      (this.selectedBrush.group !== "buildings" && this.selectedBrush.group !== "props") ||
+      this.hoverTileX === null ||
+      this.hoverTileY === null ||
+      this.selectedBrush.objectType === undefined
+    ) {
+      this.renderer.setEditorPlacementPreview(null);
+      return;
+    }
+
+    this.renderer.setEditorPlacementPreview({
+      tileX: this.hoverTileX,
+      tileY: this.hoverTileY,
+      objectType: this.selectedBrush.objectType,
+      objectVariant: this.selectedBrush.objectVariant
+    });
   }
 
   private syncBrushButtons(): void {

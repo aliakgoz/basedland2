@@ -1,4 +1,4 @@
-import { CHAT_MESSAGE_TTL_MS, TILE_SIZE, WORLD_HEIGHT_TILES, WORLD_WIDTH_TILES } from "../shared/protocol";
+import { CHAT_MESSAGE_TTL_MS, ObjectType, TILE_SIZE, WORLD_HEIGHT_TILES, WORLD_WIDTH_TILES } from "../shared/protocol";
 import { getMacroBiome, getVillageCenters, hasBridgeTile, hasGeneratedRoad, isFieldTile } from "../shared/world-layout";
 import { AssetManager, CUSTOM_ROAD_WOOD_ARCH, CUSTOM_ROAD_WOOD_DECK, sizeForObject } from "./assets";
 import type { PlayerEntity, StaticProp } from "./entity";
@@ -7,6 +7,13 @@ import { WorldState } from "./world";
 interface Hud {
   online: HTMLElement;
   message: HTMLElement;
+}
+
+interface EditorPlacementPreview {
+  tileX: number;
+  tileY: number;
+  objectType: ObjectType;
+  objectVariant?: number;
 }
 
 const PLAYER_RENDER_WIDTH = 64;
@@ -31,6 +38,7 @@ export class Renderer {
   private manualCameraY: number | null = null;
   private currentCameraX = 0;
   private currentCameraY = 0;
+  private editorPlacementPreview: EditorPlacementPreview | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -119,6 +127,10 @@ export class Renderer {
     return { x: this.currentCameraX, y: this.currentCameraY };
   }
 
+  setEditorPlacementPreview(preview: EditorPlacementPreview | null): void {
+    this.editorPlacementPreview = preview;
+  }
+
   render(world: WorldState, localPlayer: PlayerEntity | null, remotePlayers: PlayerEntity[]): void {
     this.ctx.clearRect(0, 0, this.width, this.height);
 
@@ -137,6 +149,7 @@ export class Renderer {
       cameraX,
       cameraY
     );
+    this.drawEditorPlacementPreview(cameraX, cameraY);
     this.drawManualCameraMarker(cameraX, cameraY);
     this.drawVillageLabels(cameraX, cameraY);
     this.drawMinimap(localPlayer);
@@ -338,6 +351,43 @@ export class Renderer {
     for (const player of chatPlayers) {
       this.drawPlayerChat(player, cameraX, cameraY);
     }
+  }
+
+  private drawEditorPlacementPreview(cameraX: number, cameraY: number): void {
+    if (!this.editorPlacementPreview) {
+      return;
+    }
+
+    const { tileX, tileY, objectType, objectVariant } = this.editorPlacementPreview;
+    const { width, height } = sizeForObject(objectType);
+    const scaledWidth = width * this.zoom;
+    const scaledHeight = height * this.zoom;
+    const worldX = tileX * TILE_SIZE + TILE_SIZE / 2;
+    const worldY = tileY * TILE_SIZE + TILE_SIZE / 2;
+    const screenX = Math.floor((worldX - width / 2 - cameraX) * this.zoom + this.width / 2);
+    const screenY = Math.floor((worldY - height / 2 - cameraY) * this.zoom + this.height / 2);
+    const tileScreenX = Math.floor((tileX * TILE_SIZE - cameraX) * this.zoom + this.width / 2);
+    const tileScreenY = Math.floor((tileY * TILE_SIZE - cameraY) * this.zoom + this.height / 2);
+    const scaledTileSize = TILE_SIZE * this.zoom;
+    const sprite = this.assets.getObjectSprite(objectType, objectVariant);
+
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(255, 231, 146, 0.16)";
+    this.ctx.fillRect(tileScreenX, tileScreenY, scaledTileSize, scaledTileSize);
+    this.ctx.strokeStyle = "rgba(255, 231, 146, 0.75)";
+    this.ctx.lineWidth = Math.max(1, this.zoom);
+    this.ctx.strokeRect(tileScreenX + 0.5, tileScreenY + 0.5, scaledTileSize, scaledTileSize);
+    this.ctx.globalAlpha = 0.58;
+    this.ctx.drawImage(sprite, screenX, screenY, scaledWidth, scaledHeight);
+    this.ctx.globalAlpha = 0.2;
+    this.ctx.fillStyle = "#000000";
+    this.ctx.fillRect(
+      screenX + 4 * this.zoom,
+      screenY + scaledHeight - 4 * this.zoom,
+      Math.max(8 * this.zoom, scaledWidth - 8 * this.zoom),
+      Math.max(2, 3 * this.zoom)
+    );
+    this.ctx.restore();
   }
 
   private drawPlayer(player: PlayerEntity, cameraX: number, cameraY: number): void {
