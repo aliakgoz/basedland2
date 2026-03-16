@@ -134,7 +134,8 @@ interface StablePurchaseSession {
 }
 
 const httpServer = createServer(async (req, res) => {
-  const pathname = req.url === "/" ? "/index.html" : req.url ?? "/index.html";
+  const requestUrl = new URL(req.url ?? "/index.html", "http://localhost");
+  const pathname = requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname;
 
   if (pathname.startsWith("/api/editor-map")) {
     if (!mapMakerEnabled || !mapMakerConsoleOpen || !isLoopbackAddress(req.socket.remoteAddress)) {
@@ -184,6 +185,26 @@ const httpServer = createServer(async (req, res) => {
     json(res, 200, {
       enabled: mapMakerEnabled && mapMakerConsoleOpen && isLoopbackAddress(req.socket.remoteAddress)
     });
+    return;
+  }
+
+  if (pathname.startsWith("/api/chunk-peek")) {
+    const tileX = Math.max(0, Math.min(WORLD_WIDTH_TILES - 1, Number.parseInt(requestUrl.searchParams.get("tileX") ?? "0", 10) || 0));
+    const tileY = Math.max(0, Math.min(WORLD_HEIGHT_TILES - 1, Number.parseInt(requestUrl.searchParams.get("tileY") ?? "0", 10) || 0));
+    const radius = Math.max(1, Math.min(3, Number.parseInt(requestUrl.searchParams.get("radius") ?? "2", 10) || 2));
+    const centerKey = `${Math.floor(tileX / CHUNK_SIZE_TILES)},${Math.floor(tileY / CHUNK_SIZE_TILES)}` as ChunkKey;
+    const keys = chunkManager.getNearbyChunkKeys(centerKey, radius);
+    const chunks = keys.map((key) => {
+      const [cx, cy] = key.split(",").map(Number);
+      const staticChunk = entitySystem.getChunkObjects(key);
+      const horses = horseManager.getChunkObjects(key);
+      return {
+        cx,
+        cy,
+        objects: [...staticChunk, ...horses].sort((a, b) => a.id - b.id)
+      };
+    });
+    json(res, 200, { chunks });
     return;
   }
 

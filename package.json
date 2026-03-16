@@ -5,6 +5,8 @@
   "description": "Phase 1 browser MMO prototype with chunked binary networking.",
   "scripts": {
     "build": "node esbuild.mjs",
+    "map:enrich": "node scripts/enrich-current-map.mjs",
+    "map:roads": "node scripts/build-stone-road-network.mjs",
     "assets:generate": "node scripts/generate-assets.mjs",
     "assets:buildings": "node scripts/generate-assets.mjs --only-objects house,pub,inn,barn,stable,blacksmith,windmill,chapel,market,manor,townhall --replace-objects house,pub,inn,barn,stable,blacksmith,windmill,chapel,market,manor,townhall --house-target 20 --building-target 3",
     "assets:terrain": "node scripts/generate-bridge-terrain-tiles.mjs",
@@ -16,7 +18,9 @@
     "player:generate": "node scripts/generate-player-sprites.mjs",
     "world:generate": "node scripts/generate-world-layout.mjs",
     "start": "node dist/server/server.js",
-    "dev": "npm run build && npm run start"
+    "start:timed": "node scripts/start-timed-server.mjs",
+    "dev": "npm run build && npm run start",
+    "dev:timed": "npm run build && npm run start:timed"
   },
   "dependencies": {
     "dotenv": "^17.2.1",

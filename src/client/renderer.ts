@@ -1,7 +1,8 @@
 import { CHAT_MESSAGE_TTL_MS, ObjectType, TILE_SIZE, WORLD_HEIGHT_TILES, WORLD_WIDTH_TILES } from "../shared/protocol";
-import { getMacroBiome, getVillageCenters, hasBridgeTile, hasGeneratedRoad, isFieldTile } from "../shared/world-layout";
+import { getVillageCenters, hasBridgeTile } from "../shared/world-layout";
 import { AssetManager, CUSTOM_ROAD_WOOD_ARCH, CUSTOM_ROAD_WOOD_DECK, sizeForObject } from "./assets";
 import type { PlayerEntity, StaticProp } from "./entity";
+import { minimapColorForObject, minimapColorForTile } from "./minimap_colors";
 import { WorldState } from "./world";
 
 interface Hud {
@@ -39,6 +40,7 @@ export class Renderer {
   private currentCameraX = 0;
   private currentCameraY = 0;
   private editorPlacementPreview: EditorPlacementPreview | null = null;
+  private minimapVisualRevision = -1;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -62,7 +64,6 @@ export class Renderer {
     if (this.minimapBuffer) {
       this.minimapBuffer.width = this.minimapCanvas?.width ?? 200;
       this.minimapBuffer.height = this.minimapCanvas?.height ?? 200;
-      this.paintMinimapBase();
     }
     this.minimapCanvas?.addEventListener("click", (event) => {
       const rect = this.minimapCanvas?.getBoundingClientRect();
@@ -127,12 +128,20 @@ export class Renderer {
     return { x: this.currentCameraX, y: this.currentCameraY };
   }
 
+  getManualCamera(): { x: number; y: number } | null {
+    if (this.manualCameraX === null || this.manualCameraY === null) {
+      return null;
+    }
+    return { x: this.manualCameraX, y: this.manualCameraY };
+  }
+
   setEditorPlacementPreview(preview: EditorPlacementPreview | null): void {
     this.editorPlacementPreview = preview;
   }
 
   render(world: WorldState, localPlayer: PlayerEntity | null, remotePlayers: PlayerEntity[]): void {
     this.ctx.clearRect(0, 0, this.width, this.height);
+    this.refreshMinimapBase(world);
 
     if (!localPlayer) {
       return;
@@ -512,7 +521,19 @@ export class Renderer {
     }
   }
 
-  private paintMinimapBase(): void {
+  private refreshMinimapBase(world: WorldState): void {
+    if (!this.minimapBuffer) {
+      return;
+    }
+    const revision = world.getVisualRevision();
+    if (revision === this.minimapVisualRevision) {
+      return;
+    }
+    this.minimapVisualRevision = revision;
+    this.paintMinimapBase(world);
+  }
+
+  private paintMinimapBase(world: WorldState): void {
     if (!this.minimapBuffer) {
       return;
     }
@@ -532,25 +553,7 @@ export class Renderer {
         const tileX = Math.min(WORLD_WIDTH_TILES - 1, Math.floor((px / width) * WORLD_WIDTH_TILES));
         const tileY = Math.min(WORLD_HEIGHT_TILES - 1, Math.floor((py / height) * WORLD_HEIGHT_TILES));
         const index = (py * width + px) * 4;
-        let color: [number, number, number] = [111, 168, 79];
-        const biome = getMacroBiome(tileX, tileY);
-
-        if (biome === 3) {
-          color = [70, 124, 173];
-        } else if (biome === 2) {
-          color = [134, 138, 142];
-        } else if (biome === 1) {
-          color = [59, 98, 47];
-        } else if (biome === 4) {
-          color = [144, 118, 78];
-        }
-
-        if (isFieldTile(tileX, tileY)) {
-          color = [150, 141, 74];
-        }
-        if (hasGeneratedRoad(tileX, tileY)) {
-          color = [214, 192, 146];
-        }
+        let color = minimapColorForTile(world.getTileType(tileX, tileY));
         if (hasBridgeTile(tileX, tileY)) {
           color = [208, 164, 96];
         }
@@ -563,6 +566,17 @@ export class Renderer {
     }
 
     ctx.putImageData(image, 0, 0);
+    for (const object of world.getEditorObjects()) {
+      const color = minimapColorForObject(object.type);
+      if (!color) {
+        continue;
+      }
+      const x = Math.floor((Math.floor(object.x / TILE_SIZE) / WORLD_WIDTH_TILES) * width);
+      const y = Math.floor((Math.floor(object.y / TILE_SIZE) / WORLD_HEIGHT_TILES) * height);
+      const stamp = object.type === ObjectType.House || object.type === ObjectType.Tree ? 1 : 2;
+      ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+      ctx.fillRect(x - stamp + 1, y - stamp + 1, stamp, stamp);
+    }
     ctx.fillStyle = "rgba(247, 218, 141, 0.95)";
     for (const center of getVillageCenters()) {
       const x = Math.floor((center.tileX / WORLD_WIDTH_TILES) * width);

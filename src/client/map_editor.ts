@@ -124,8 +124,11 @@ export class MapEditor {
   }
 
   setAdminAccess(next: boolean): void {
+    if (this.adminAccess === next) {
+      return;
+    }
     this.adminAccess = next;
-    if (!next) {
+    if (!next && this.enabled) {
       this.setEnabled(false);
     }
   }
@@ -202,16 +205,18 @@ export class MapEditor {
   }
 
   private setEnabled(next: boolean): void {
+    if (this.enabled === next) {
+      return;
+    }
     this.enabled = next;
     this.dock.classList.toggle("active", next);
     if (!next) {
       this.hoverTileX = null;
       this.hoverTileY = null;
       this.refreshPlacementPreview();
-      this.renderer.clearManualCamera();
     } else {
       const localPlayer = this.getLocalPlayer();
-      if (localPlayer) {
+      if (localPlayer && !this.renderer.getManualCamera()) {
         this.renderer.setManualCamera(localPlayer.renderX, localPlayer.renderY);
       }
       this.refreshPlacementPreview();

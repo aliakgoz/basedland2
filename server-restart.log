@@ -1,0 +1,14 @@
+
+> basedland@0.1.0 dev
+> npm run build && npm run start
+
+
+> basedland@0.1.0 build
+> node esbuild.mjs
+
+No local assets found in asset-drop.
+
+> basedland@0.1.0 start
+> node dist/server/server.js
+
+BasedLand listening on http://localhost:3000

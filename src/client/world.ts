@@ -1,7 +1,7 @@
 import { TILE_SIZE, TileType, chunkKey, type StaticObject } from "../shared/protocol";
 import type { EditorMapData, EditorPatch } from "../shared/editor_map";
 import { getTileType } from "../shared/worldgen";
-import { getGeneratedRoadVariant, hasBridgeTile, isFieldTile } from "../shared/world-layout";
+import { isFieldTile } from "../shared/world-layout";
 import type { StaticProp } from "./entity";
 
 export class WorldState {
@@ -10,6 +10,7 @@ export class WorldState {
   private readonly roadOverrides = new Map<string, number>();
   private readonly editorObjects = new Map<string, StaticProp>();
   private readonly hiddenBaseObjectTiles = new Set<string>();
+  private visualRevision = 0;
 
   private tileKey(tileX: number, tileY: number): string {
     return `${tileX},${tileY}`;
@@ -17,6 +18,14 @@ export class WorldState {
 
   getTileType(tileX: number, tileY: number): TileType {
     return this.groundOverrides.get(this.tileKey(tileX, tileY)) ?? getTileType(tileX, tileY);
+  }
+
+  getVisualRevision(): number {
+    return this.visualRevision;
+  }
+
+  getEditorObjects(): StaticProp[] {
+    return [...this.editorObjects.values()];
   }
 
   ingestChunk(cx: number, cy: number, objects: StaticObject[]): void {
@@ -43,13 +52,7 @@ export class WorldState {
 
   getRoadVariant(tileX: number, tileY: number): number | null {
     const key = this.tileKey(tileX, tileY);
-    if (this.roadOverrides.has(key)) {
-      return this.roadOverrides.get(key) ?? null;
-    }
-    if (this.hiddenBaseObjectTiles.has(key)) {
-      return null;
-    }
-    return getGeneratedRoadVariant(tileX, tileY);
+    return this.roadOverrides.get(key) ?? null;
   }
 
   setRoadVariant(tileX: number, tileY: number, variant: number | null): void {
@@ -109,6 +112,7 @@ export class WorldState {
         this.placeEditorObject(patch.x, patch.y, patch.objectType as StaticProp["type"], patch.variant);
         break;
     }
+    this.visualRevision += 1;
   }
 
   exportEditorLayer(): EditorMapData {
@@ -172,6 +176,8 @@ export class WorldState {
     for (const item of data.hiddenTiles ?? []) {
       this.hiddenBaseObjectTiles.add(this.tileKey(item.x, item.y));
     }
+
+    this.visualRevision += 1;
   }
 
   getVisibleObjects(cameraX: number, cameraY: number, viewportWidth: number, viewportHeight: number): StaticProp[] {
@@ -208,7 +214,7 @@ export class WorldState {
   }
 
   hasBridgeAtTile(tileX: number, tileY: number): boolean {
-    return !this.hiddenBaseObjectTiles.has(this.tileKey(tileX, tileY)) && hasBridgeTile(tileX, tileY);
+    return false;
   }
 
   hasFieldAtTile(tileX: number, tileY: number): boolean {

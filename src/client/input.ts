@@ -9,6 +9,7 @@ const KEY_TO_FLAG: Record<string, number> = {
 
 export class InputController {
   private pressed = new Set<string>();
+  private movementFocusResetQueued = false;
   private interactQueued = false;
   private chatToggleQueued = false;
   private buryToggleQueued = false;
@@ -47,6 +48,9 @@ export class InputController {
       }
 
       if (event.code in KEY_TO_FLAG) {
+        if (!event.repeat && !this.pressed.has(event.code)) {
+          this.movementFocusResetQueued = true;
+        }
         this.pressed.add(event.code);
       }
       if (event.code === "KeyE" && !event.repeat) {
@@ -89,6 +93,12 @@ export class InputController {
     return queued;
   }
 
+  consumeMovementFocusReset(): boolean {
+    const queued = this.movementFocusResetQueued;
+    this.movementFocusResetQueued = false;
+    return queued;
+  }
+
   consumeChatToggle(): boolean {
     const queued = this.chatToggleQueued;
     this.chatToggleQueued = false;
@@ -117,6 +127,7 @@ export class InputController {
     this.textEntryActive = active;
     if (active) {
       this.pressed.clear();
+      this.movementFocusResetQueued = false;
       this.buryToggleQueued = false;
       this.digQueued = false;
     }
@@ -133,6 +144,7 @@ export class InputController {
     this.uiBlocked = active;
     if (active) {
       this.pressed.clear();
+      this.movementFocusResetQueued = false;
       this.interactQueued = false;
       this.chatToggleQueued = false;
       this.buryToggleQueued = false;

@@ -113,10 +113,6 @@ export function getTileType(tileX: number, tileY: number): TileType {
     return TileType.Water;
   }
 
-  if (hasBridgeTile(tileX, tileY)) {
-    return TileType.Water;
-  }
-
   const biome = getMacroBiome(tileX, tileY);
   if (biome === MacroBiome.Water) {
     return TileType.Water;
@@ -129,17 +125,15 @@ export function getTileType(tileX: number, tileY: number): TileType {
   const plaza = isPlazaTile(tileX, tileY);
   const housing = isHousingTile(tileX, tileY);
   const road = hasGeneratedRoad(tileX, tileY);
+  const bridge = hasBridgeTile(tileX, tileY);
   const shoreline = isNearWater(tileX, tileY, 2);
 
-  if (plaza) {
+  if (plaza || bridge) {
     return TileType.Stone;
   }
 
   if (road) {
-    if (biome === MacroBiome.Forest) {
-      return TileType.Forest;
-    }
-    return TileType.Grass;
+    return TileType.Stone;
   }
 
   if (housing) {

@@ -1,4 +1,4 @@
-import { AnimationState, Direction, InputFlag, MOUNT_RANGE, MOUNT_SPEED_MULTIPLIER, ObjectType, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
+import { AnimationState, CHUNK_SIZE_TILES, Direction, InputFlag, MOUNT_RANGE, MOUNT_SPEED_MULTIPLIER, ObjectType, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { pruneExpiredOverheadMessages } from "./entity";
@@ -99,6 +99,7 @@ let chatOpen = false;
 let buryOpen = false;
 let stableOpen = false;
 let introVisible = true;
+let lastManualCameraPrefetchKey = "";
 
 interface TreasureSummaryResponse {
   pointCount: number;
@@ -475,7 +476,7 @@ function applyLocalMovement(dt: number): void {
 
   player.animation = dx === 0 && dy === 0 ? AnimationState.Idle : AnimationState.Walk;
 
-  if (dx !== 0 || dy !== 0) {
+  if (input.consumeMovementFocusReset()) {
     renderer.clearManualCamera();
   }
 
@@ -517,6 +518,22 @@ function applyLocalMovement(dt: number): void {
   }
 }
 
+function prefetchManualCameraChunks(): void {
+  const manualCamera = renderer.getManualCamera();
+  if (!manualCamera) {
+    lastManualCameraPrefetchKey = "";
+    return;
+  }
+  const tileX = Math.floor(manualCamera.x / TILE_SIZE);
+  const tileY = Math.floor(manualCamera.y / TILE_SIZE);
+  const key = `${Math.floor(tileX / CHUNK_SIZE_TILES)},${Math.floor(tileY / CHUNK_SIZE_TILES)}`;
+  if (key === lastManualCameraPrefetchKey) {
+    return;
+  }
+  lastManualCameraPrefetchKey = key;
+  void network.prefetchChunksAt(manualCamera.x, manualCamera.y, 2);
+}
+
 function updateRemotePlayers(): void {
   const now = performance.now();
   if (network.localPlayer) {
@@ -535,6 +552,7 @@ function frame(now: number): void {
 
   applyLocalMovement(dt);
   updateRemotePlayers();
+  prefetchManualCameraChunks();
 
   renderer.render(
     world,

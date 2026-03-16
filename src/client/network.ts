@@ -1,6 +1,7 @@
 import {
   AnimationState,
   CHAT_MESSAGE_MAX_LENGTH,
+  CHUNK_SIZE_TILES,
   ClientOpcode,
   Direction,
   InputFlag,
@@ -27,6 +28,20 @@ interface PendingInput {
   seq: number;
   mask: number;
   at: number;
+}
+
+interface ChunkPeekResponse {
+  chunks: Array<{
+    cx: number;
+    cy: number;
+    objects: Array<{
+      id: number;
+      type: ObjectType;
+      x: number;
+      y: number;
+      variant?: number;
+    }>;
+  }>;
 }
 
 function interactionText(objectType: ObjectType, action: number): string {
@@ -190,6 +205,7 @@ export class NetworkClient {
   onInteraction: ((objectType: ObjectType, action: number, text: string) => void) | null = null;
   private reconnectTimer: number | null = null;
   private world: WorldState | null = null;
+  private readonly inFlightChunkPeeks = new Set<string>();
 
   connect(world: WorldState): void {
     this.world = world;
@@ -268,6 +284,36 @@ export class NetworkClient {
 
   isConnected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
+  }
+
+  async prefetchChunksAt(worldX: number, worldY: number, radius = 2): Promise<void> {
+    if (!this.world || !this.isConnected()) {
+      return;
+    }
+    const tileX = Math.max(0, Math.floor(worldX / TILE_SIZE));
+    const tileY = Math.max(0, Math.floor(worldY / TILE_SIZE));
+    const key = `${Math.floor(tileX / CHUNK_SIZE_TILES)},${Math.floor(tileY / CHUNK_SIZE_TILES)},${radius}`;
+    if (this.inFlightChunkPeeks.has(key)) {
+      return;
+    }
+
+    this.inFlightChunkPeeks.add(key);
+    try {
+      const response = await fetch(`/api/chunk-peek?tileX=${tileX}&tileY=${tileY}&radius=${radius}`, {
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as ChunkPeekResponse;
+      for (const chunk of payload.chunks ?? []) {
+        this.world.ingestChunk(chunk.cx, chunk.cy, chunk.objects);
+      }
+    } catch {
+      // Ignore transient chunk peek failures while panning.
+    } finally {
+      this.inFlightChunkPeeks.delete(key);
+    }
   }
 
   sendChat(text: string): void {
@@ -566,6 +612,7 @@ export class NetworkClient {
     this.localPlayer = null;
     this.remotePlayers.clear();
     this.pendingInputs.length = 0;
+    this.inFlightChunkPeeks.clear();
     this.onOnline(0);
     this.world?.chunkObjects.clear();
   }
