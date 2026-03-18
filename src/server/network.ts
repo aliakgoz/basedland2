@@ -9,7 +9,7 @@ import {
   type ChunkKey,
   type StaticObject
 } from "../shared/protocol";
-import type { ServerPlayer } from "./player_manager";
+import type { ServerPlayer, ServerPlayerAppearance } from "./player_manager";
 
 function writeUint16(view: DataView, offset: number, value: number): number {
   view.setUint16(offset, value, true);
@@ -19,6 +19,25 @@ function writeUint16(view: DataView, offset: number, value: number): number {
 function writeUint32(view: DataView, offset: number, value: number): number {
   view.setUint32(offset, value, true);
   return offset + 4;
+}
+
+function writeAppearance(view: DataView, offset: number, appearance: ServerPlayerAppearance): number {
+  view.setUint8(offset, appearance.hair);
+  offset += 1;
+  view.setUint8(offset, appearance.primary);
+  offset += 1;
+  view.setUint8(offset, appearance.secondary);
+  offset += 1;
+  view.setUint8(offset, appearance.accent);
+  offset += 1;
+  view.setUint8(offset, appearance.skin);
+  offset += 1;
+  offset = writeUint16(view, offset, appearance.height);
+  offset = writeUint16(view, offset, appearance.build);
+  offset = writeUint16(view, offset, appearance.headSize);
+  offset = writeUint16(view, offset, appearance.armLength);
+  offset = writeUint16(view, offset, appearance.legLength);
+  return offset;
 }
 
 export function parseInputPacket(buffer: Buffer): { seq: number; mask: number } | null {
@@ -135,9 +154,9 @@ export function encodeWelcome(options: {
   spawnX: number;
   spawnY: number;
   onlineCount: number;
+  appearance: ServerPlayerAppearance;
 }): ArrayBuffer {
-  // Join packets are sent once, so a few spare bytes are preferable to a hard crash from tight sizing.
-  const buffer = new ArrayBuffer(32);
+  const buffer = new ArrayBuffer(40);
   const view = new DataView(buffer);
   let offset = 0;
   view.setUint8(offset, ServerOpcode.Welcome);
@@ -156,7 +175,8 @@ export function encodeWelcome(options: {
   offset = writeUint32(view, offset, options.seed);
   offset = writeUint16(view, offset, Math.round(options.spawnX));
   offset = writeUint16(view, offset, Math.round(options.spawnY));
-  writeUint16(view, offset, options.onlineCount);
+  offset = writeUint16(view, offset, options.onlineCount);
+  writeAppearance(view, offset, options.appearance);
   return buffer;
 }
 
@@ -195,7 +215,7 @@ export function encodeChunkData(chunks: Array<{ key: ChunkKey; objects: StaticOb
 }
 
 export function encodePlayerEnter(players: ServerPlayer[]): ArrayBuffer {
-  const size = 3 + players.length * 9;
+  const size = 3 + players.length * 24;
   const buffer = new ArrayBuffer(size);
   const view = new DataView(buffer);
   let offset = 0;
@@ -213,6 +233,7 @@ export function encodePlayerEnter(players: ServerPlayer[]): ArrayBuffer {
     offset += 1;
     view.setUint8(offset, player.mountedHorseVariant ?? 255);
     offset += 1;
+    offset = writeAppearance(view, offset, player.appearance);
   }
 
   return buffer;

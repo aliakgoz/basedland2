@@ -1,9 +1,11 @@
 import { AnimationState, CHUNK_SIZE_TILES, Direction, InputFlag, MOUNT_RANGE, MOUNT_SPEED_MULTIPLIER, ObjectType, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
+import { EMPTY_EDITOR_MAP, type PersistedEditorMap } from "../shared/editor_map";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { pruneExpiredOverheadMessages } from "./entity";
 import { InputController } from "./input";
 import { MapEditor } from "./map_editor";
+import { BackgroundMusicPlayer } from "./music";
 import { NetworkClient } from "./network";
 import { Renderer } from "./renderer";
 import { TreasureClient } from "./treasure";
@@ -39,6 +41,7 @@ const renderer = new Renderer(canvas, { online, message }, assets);
 const input = new InputController();
 const world = new WorldState();
 const network = new NetworkClient();
+const music = new BackgroundMusicPlayer();
 const editor = __BASEDLAND_MAP_EDITOR_ENABLED__
   ? new MapEditor(assets, world, renderer, canvas, () => network.localPlayer, (patch) => network.sendEditorPatch(patch))
   : null;
@@ -70,7 +73,7 @@ assets.loadGeneratedOverrides().then(() => {
 network.onMessage = (text) => renderer.setMessage(text);
 network.onOnline = (count) => renderer.setOnline(count);
 network.onInteraction = (objectType, _action, text) => {
-  if (objectType === ObjectType.Stable || objectType === ObjectType.TownHall || objectType === ObjectType.Barn) {
+  if (objectType === ObjectType.Stable) {
     setStableOpen(true);
     renderer.setMessage("Stable ledger open. Choose your horse.");
     return;
@@ -120,6 +123,19 @@ const CLIENT_STABLE_FALLBACK_RANGE = 480;
 const EDITOR_ACCESS_REFRESH_MS = 3000;
 let editorInitializationStarted = false;
 
+async function loadInitialWorldLayer(): Promise<void> {
+  try {
+    const response = await fetch("/api/editor-map", { cache: "no-store" });
+    if (!response.ok) {
+      return;
+    }
+    const persisted = (await response.json()) as PersistedEditorMap;
+    world.importEditorLayer(persisted.data ?? EMPTY_EDITOR_MAP);
+  } catch {
+    // Ignore transient bootstrap failures; the base world still renders.
+  }
+}
+
 function dismissIntro(): void {
   if (!introVisible) {
     return;
@@ -127,6 +143,7 @@ function dismissIntro(): void {
   introVisible = false;
   introOverlay.classList.remove("active");
   input.setUiBlocked(false);
+  music.activate();
 }
 
 async function refreshTreasureSummary(): Promise<void> {
@@ -175,18 +192,16 @@ async function handleInteract(): Promise<void> {
     return;
   }
 
-  for (const chunk of world.chunkObjects.values()) {
-    for (const object of chunk) {
-      if (object.type !== ObjectType.Stable && object.type !== ObjectType.TownHall && object.type !== ObjectType.Barn) {
-        continue;
-      }
-      const dx = object.x - player.x;
-      const dy = object.y - player.y;
-      if (dx * dx + dy * dy <= CLIENT_STABLE_FALLBACK_RANGE * CLIENT_STABLE_FALLBACK_RANGE) {
-        setStableOpen(true);
-        renderer.setMessage("Stable ledger open. Choose your horse.");
-        return;
-      }
+  for (const object of world.getVisibleObjects(player.x, player.y, CLIENT_STABLE_FALLBACK_RANGE * 2, CLIENT_STABLE_FALLBACK_RANGE * 2)) {
+    if (object.type !== ObjectType.Stable) {
+      continue;
+    }
+    const dx = object.x - player.x;
+    const dy = object.y - player.y;
+    if (dx * dx + dy * dy <= CLIENT_STABLE_FALLBACK_RANGE * CLIENT_STABLE_FALLBACK_RANGE) {
+      setStableOpen(true);
+      renderer.setMessage("Stable ledger open. Choose your horse.");
+      return;
     }
   }
 
@@ -404,6 +419,8 @@ if (!__BASEDLAND_MAP_EDITOR_ENABLED__) {
 }
 
 input.setUiBlocked(true);
+music.preload();
+void loadInitialWorldLayer();
 void refreshTreasureSummary();
 void refreshEditorAccess();
 window.setInterval(() => {

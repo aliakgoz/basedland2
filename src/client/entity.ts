@@ -43,7 +43,7 @@ export interface StaticProp {
   editorPlaced?: boolean;
 }
 
-export function createPlayerEntity(id: number, x: number, y: number, isLocal: boolean): PlayerEntity {
+export function createPlayerEntity(id: number, x: number, y: number, isLocal: boolean, appearance: PlayerAppearance = {}): PlayerEntity {
   return {
     id,
     x,
@@ -55,7 +55,7 @@ export function createPlayerEntity(id: number, x: number, y: number, isLocal: bo
     dir: Direction.Down,
     animation: AnimationState.Idle,
     isLocal,
-    appearance: {},
+    appearance: { ...appearance },
     overheadMessages: [],
     mountedHorseVariant: null
   };

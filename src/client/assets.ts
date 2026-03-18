@@ -1910,17 +1910,46 @@ function drawEyesPx(
   }
 }
 
-function playerOutfitFor(id: number): PlayerOutfit {
+function appearanceSeedFor(id: number, appearance?: PlayerAppearance): number {
+  if (!appearance) {
+    return id;
+  }
+  const values = [
+    appearance.hair,
+    appearance.primary,
+    appearance.secondary,
+    appearance.accent,
+    appearance.skin,
+    appearance.height,
+    appearance.build,
+    appearance.headSize,
+    appearance.armLength,
+    appearance.legLength
+  ];
+  if (values.every((value) => value === undefined)) {
+    return id;
+  }
+
+  let seed = 0x45d9f3b;
+  for (let index = 0; index < values.length; index += 1) {
+    const value = Math.floor(values[index] ?? 0);
+    seed = hash(seed ^ Math.imul(value + 1, 0x9e3779b1 ^ (index * 0x85ebca6b)));
+  }
+  return seed;
+}
+
+function playerOutfitFor(id: number, appearance?: PlayerAppearance): PlayerOutfit {
+  const seed = appearanceSeedFor(id, appearance);
   return {
-    collar: (hash(id ^ 0x25aa33ef) % 3) as 0 | 1 | 2,
-    shoulderPads: (hash(id ^ 0x17ab91c1) % 2) === 0,
-    cape: (hash(id ^ 0x0faca211) % 5) <= 1,
-    coatTail: (hash(id ^ 0x66aa9911) % 3) as 0 | 1 | 2,
-    gloves: (hash(id ^ 0x44bb2277) % 3) !== 0,
-    bootCuffs: (hash(id ^ 0x91ccd431) % 2) === 0,
-    hairStyle: (hash(id ^ 0x7712eeaa) % 4) as 0 | 1 | 2 | 3,
-    beltPouch: (hash(id ^ 0x8801aa77) % 2) === 0,
-    trim: (hash(id ^ 0x14dd390f) % 3) as 0 | 1 | 2
+    collar: (hash(seed ^ 0x25aa33ef) % 3) as 0 | 1 | 2,
+    shoulderPads: (hash(seed ^ 0x17ab91c1) % 2) === 0,
+    cape: (hash(seed ^ 0x0faca211) % 5) <= 1,
+    coatTail: (hash(seed ^ 0x66aa9911) % 3) as 0 | 1 | 2,
+    gloves: (hash(seed ^ 0x44bb2277) % 3) !== 0,
+    bootCuffs: (hash(seed ^ 0x91ccd431) % 2) === 0,
+    hairStyle: (hash(seed ^ 0x7712eeaa) % 4) as 0 | 1 | 2 | 3,
+    beltPouch: (hash(seed ^ 0x8801aa77) % 2) === 0,
+    trim: (hash(seed ^ 0x14dd390f) % 3) as 0 | 1 | 2
   };
 }
 
@@ -2326,7 +2355,7 @@ function makeFallbackPlayerSheet(): HTMLCanvasElement {
 function buildPlayerFrames(player: PlayerEntity): SpriteSource[] {
   const palette = playerPaletteFor(player.id, player.appearance);
   const build = playerBuildFor(player.id, player.appearance);
-  const outfit = playerOutfitFor(player.id);
+  const outfit = playerOutfitFor(player.id, player.appearance);
   const directions = [Direction.Down, Direction.Left, Direction.Right, Direction.Up];
 
   return directions.flatMap((direction) =>

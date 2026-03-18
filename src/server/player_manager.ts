@@ -30,11 +30,42 @@ export interface ServerPlayer {
   activeChatMessages: ServerChatMessage[];
   mountedHorseId: number | null;
   mountedHorseVariant: number | null;
+  appearance: ServerPlayerAppearance;
 }
 
 export interface ServerChatMessage {
   text: string;
   expiresAt: number;
+}
+
+export interface ServerPlayerAppearance {
+  hair: number;
+  primary: number;
+  secondary: number;
+  accent: number;
+  skin: number;
+  height: number;
+  build: number;
+  headSize: number;
+  armLength: number;
+  legLength: number;
+}
+
+function randomAppearance(): ServerPlayerAppearance {
+  const randomByte = (): number => Math.floor(Math.random() * 256);
+  const randomTrait = (): number => Math.floor(Math.random() * 1000);
+  return {
+    hair: randomByte(),
+    primary: randomByte(),
+    secondary: randomByte(),
+    accent: randomByte(),
+    skin: randomByte(),
+    height: randomTrait(),
+    build: randomTrait(),
+    headSize: randomTrait(),
+    armLength: randomTrait(),
+    legLength: randomTrait()
+  };
 }
 
 export class PlayerManager {
@@ -64,7 +95,8 @@ export class PlayerManager {
       lastSentStates: new Map(),
       activeChatMessages: [],
       mountedHorseId: null,
-      mountedHorseVariant: null
+      mountedHorseVariant: null,
+      appearance: randomAppearance()
     };
 
     this.players.set(id, player);

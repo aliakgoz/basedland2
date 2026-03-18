@@ -125,6 +125,7 @@ const FLORA_TYPES = [
   ObjectType.AppleTree,
   ObjectType.OliveTree
 ];
+const BLOCKED_DECOR_TYPES = new Set([ObjectType.Crate, ObjectType.Sign, ObjectType.Horse]);
 
 const FIELD_TILE_ROTATION = [
   TileType.WheatField,
@@ -528,8 +529,7 @@ function buildVillageStructurePlans() {
         x: center.tileX + 8,
         y: center.tileY - 4,
         variant: hash2d(seed + 121, center.tileX + 8, center.tileY - 4) % structureVariantCount(ObjectType.Market)
-      },
-      { type: ObjectType.Sign, x: center.tileX + center.radius - 4, y: center.tileY + 1 }
+      }
     ];
 
     const specialOffsets = [
@@ -815,6 +815,9 @@ function paintFieldPatch(startX, startY, width, height, tileType) {
 }
 
 function tryPlaceProp(center, aroundX, aroundY, type, variant) {
+  if (BLOCKED_DECOR_TYPES.has(type)) {
+    return false;
+  }
   for (const [offsetX, offsetY] of propSearchOffsets) {
     const tileX = aroundX + offsetX;
     const tileY = aroundY + offsetY;

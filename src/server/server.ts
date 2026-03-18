@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { WebSocketServer } from "ws";
@@ -47,6 +47,7 @@ import { loadTreasureState, saveTreasureState, type PersistedTreasureState } fro
 import { ServerWorldState } from "./world_state";
 
 const clientRoot = resolve(__dirname, "../client");
+const musicRoot = resolve(__dirname, "../../data/music");
 const serverPort = Number(process.env.PORT ?? 3000);
 const baseRpcUrl = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
 const treasureRecipient = (process.env.TREASURE_RECIPIENT_ADDRESS ?? "").trim();
@@ -61,6 +62,8 @@ const treasurePayoutPrivateKey = (process.env.TREASURE_PAYOUT_PRIVATE_KEY ?? "")
 const BASE_CHAIN_ID = 8453;
 const ERC20_TRANSFER_SELECTOR = "0xa9059cbb";
 const STABLE_INTERACTION_RANGE = 480;
+const STABLE_FOOTPRINT_HALF_WIDTH = 134;
+const STABLE_FOOTPRINT_HALF_HEIGHT = 134;
 const mimeTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -69,6 +72,8 @@ const mimeTypes: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
   ".webp": "image/webp",
   ".svg": "image/svg+xml"
 };
@@ -109,6 +114,38 @@ function randomAlreadyDugMessage(): string {
   return ALREADY_DUG_MESSAGES[Math.floor(Math.random() * ALREADY_DUG_MESSAGES.length)] ?? "This tile is already excavated.";
 }
 
+function sqrDistanceToStableFootprint(x: number, y: number, stableX: number, stableY: number): number {
+  const dx = Math.max(0, Math.abs(x - stableX) - STABLE_FOOTPRINT_HALF_WIDTH);
+  const dy = Math.max(0, Math.abs(y - stableY) - STABLE_FOOTPRINT_HALF_HEIGHT);
+  return dx * dx + dy * dy;
+}
+
+function listMusicTracks(): string[] {
+  try {
+    return readdirSync(musicRoot, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && extname(entry.name).toLowerCase() === ".mp3")
+      .map((entry) => entry.name)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+  } catch {
+    return [];
+  }
+}
+
+function serveFile(res: ServerResponse, filePath: string): void {
+  const stats = statSync(filePath);
+  if (!stats.isFile()) {
+    res.writeHead(404).end("Not found");
+    return;
+  }
+
+  const body = readFileSync(filePath);
+  res.writeHead(200, {
+    "Content-Type": mimeTypes[extname(filePath).toLowerCase()] ?? "application/octet-stream",
+    "Cache-Control": "no-store"
+  });
+  res.end(body);
+}
+
 function readJsonBody<T>(req: IncomingMessage): Promise<T> {
   return new Promise((resolveBody, reject) => {
     const chunks: Buffer[] = [];
@@ -138,11 +175,6 @@ const httpServer = createServer(async (req, res) => {
   const pathname = requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname;
 
   if (pathname.startsWith("/api/editor-map")) {
-    if (!mapMakerEnabled || !mapMakerConsoleOpen || !isLoopbackAddress(req.socket.remoteAddress)) {
-      res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ error: "Map maker is disabled." }));
-      return;
-    }
     await editorMapReady;
     if (req.method === "GET") {
       res.writeHead(200, {
@@ -150,6 +182,12 @@ const httpServer = createServer(async (req, res) => {
         "Cache-Control": "no-store"
       });
       res.end(`${JSON.stringify(liveEditorMap)}\n`);
+      return;
+    }
+
+    if (!mapMakerEnabled || !mapMakerConsoleOpen || !isLoopbackAddress(req.socket.remoteAddress)) {
+      res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "Map maker is disabled." }));
       return;
     }
 
@@ -205,6 +243,13 @@ const httpServer = createServer(async (req, res) => {
       };
     });
     json(res, 200, { chunks });
+    return;
+  }
+
+  if (pathname === "/api/music") {
+    json(res, 200, {
+      tracks: listMusicTracks().map((fileName) => `/music/${encodeURIComponent(fileName)}`)
+    });
     return;
   }
 
@@ -602,21 +647,25 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
-  const filePath = join(clientRoot, pathname.replace(/\?.*$/, ""));
-
-  try {
-    const stats = statSync(filePath);
-    if (!stats.isFile()) {
+  if (pathname.startsWith("/music/")) {
+    const requestedName = decodeURIComponent(pathname.slice("/music/".length));
+    const filePath = resolve(musicRoot, requestedName);
+    if (!filePath.startsWith(musicRoot)) {
       res.writeHead(404).end("Not found");
       return;
     }
+    try {
+      serveFile(res, filePath);
+    } catch {
+      res.writeHead(404).end("Not found");
+    }
+    return;
+  }
 
-    const body = readFileSync(filePath);
-    res.writeHead(200, {
-      "Content-Type": mimeTypes[extname(filePath)] ?? "application/octet-stream",
-      "Cache-Control": "no-store"
-    });
-    res.end(body);
+  const filePath = join(clientRoot, pathname.replace(/\?.*$/, ""));
+
+  try {
+    serveFile(res, filePath);
   } catch {
     res.writeHead(404).end("Not found");
   }
@@ -817,25 +866,53 @@ function getNearbyStable(playerId: number): { tileX: number; tileY: number } | n
     return null;
   }
   const searchKeys = chunkManager.getNearbyChunkKeys(currentChunk, 4);
-  const candidateTypes = [ObjectType.Stable, ObjectType.TownHall, ObjectType.Barn] as const;
+  const maxDistanceSq = STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE;
+  let winner:
+    | {
+        worldX: number;
+        worldY: number;
+        distanceSq: number;
+      }
+    | null = null;
 
-  for (const type of candidateTypes) {
-    const stable = entitySystem.findNearestObjectOfType(
-      type,
-      player.x,
-      player.y,
-      searchKeys,
-      STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
-    );
-    if (!stable) {
-      continue;
-    }
-    return {
-      tileX: Math.floor(stable.x / TILE_SIZE),
-      tileY: Math.floor(stable.y / TILE_SIZE)
+  const generatedStable = entitySystem.findNearestObjectOfType(
+    ObjectType.Stable,
+    player.x,
+    player.y,
+    searchKeys,
+    maxDistanceSq
+  );
+  if (generatedStable) {
+    winner = {
+      worldX: generatedStable.x,
+      worldY: generatedStable.y,
+      distanceSq: sqrDistanceToStableFootprint(player.x, player.y, generatedStable.x, generatedStable.y)
     };
   }
-  return null;
+
+  for (const object of liveEditorMap.data.objects ?? []) {
+    if (object.type !== ObjectType.Stable) {
+      continue;
+    }
+    const worldX = object.x * TILE_SIZE + TILE_SIZE / 2;
+    const worldY = object.y * TILE_SIZE + TILE_SIZE / 2;
+    const distanceSq = sqrDistanceToStableFootprint(player.x, player.y, worldX, worldY);
+    if (distanceSq > maxDistanceSq) {
+      continue;
+    }
+    if (!winner || distanceSq < winner.distanceSq) {
+      winner = { worldX, worldY, distanceSq };
+    }
+  }
+
+  if (!winner) {
+    return null;
+  }
+
+  return {
+    tileX: Math.floor(winner.worldX / TILE_SIZE),
+    tileY: Math.floor(winner.worldY / TILE_SIZE)
+  };
 }
 
 function normalizeAddress(value: string): string {
@@ -1130,7 +1207,8 @@ wss.on("connection", (socket) => {
       seed: WORLD_SEED,
       spawnX: player.x,
       spawnY: player.y,
-      onlineCount: playerManager.players.size
+      onlineCount: playerManager.players.size,
+      appearance: player.appearance
     })
   );
 
@@ -1150,32 +1228,12 @@ wss.on("connection", (socket) => {
         return;
       }
 
-      let stable = entitySystem.findNearestObjectOfType(
-        ObjectType.Stable,
-        player.x,
-        player.y,
-        chunkManager.getNearbyChunkKeys(currentChunk, 4),
-        STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
-      );
-      if (!stable) {
-        stable = entitySystem.findNearestObjectOfType(
-          ObjectType.TownHall,
-          player.x,
-          player.y,
-          chunkManager.getNearbyChunkKeys(currentChunk, 4),
-          STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
-        );
+      if (getNearbyStable(player.id)) {
+        socket.send(encodeInteraction(0, ObjectType.Stable, 16));
+        return;
       }
-      if (!stable) {
-        stable = entitySystem.findNearestObjectOfType(
-          ObjectType.Barn,
-          player.x,
-          player.y,
-          chunkManager.getNearbyChunkKeys(currentChunk, 4),
-          STABLE_INTERACTION_RANGE * STABLE_INTERACTION_RANGE
-        );
-      }
-      const object = stable ?? entitySystem.findNearestInteractable(
+
+      const object = entitySystem.findNearestInteractable(
         player.x,
         player.y,
         chunkManager.getNearbyChunkKeys(currentChunk, 1),

@@ -353,8 +353,7 @@ function buildVillageStructurePlans(): VillageStructurePlan[] {
         x: center.tileX + 8,
         y: center.tileY - 4,
         variant: hash2d(seed + 121, center.tileX + 8, center.tileY - 4) % structureVariantCount(ObjectType.Market)
-      },
-      { type: ObjectType.Sign, x: center.tileX + center.radius - 4, y: center.tileY + 1 }
+      }
     ];
 
     const specialOffsets = [
@@ -451,7 +450,6 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       const field = isFieldTile(tileX, tileY);
       const onRoad = hasGeneratedRoad(tileX, tileY);
       const onBridge = hasBridgeTile(tileX, tileY);
-      const horseVariant = hash2d(WORLD_SEED + 551, tileX, tileY) % 3;
       const treeVariant = hash2d(WORLD_SEED + 552, tileX, tileY) % TREE_VARIANT_COUNT;
       const nearRoad = isNearRoad(tileX, tileY, 3);
 
@@ -486,24 +484,16 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       } else if (field) {
         if (isVillageAnimalLot(tileX, tileY) && roll > 0.944 && roll < 0.97) {
           type = ObjectType.Sheep;
-        } else if (isVillageAnimalLot(tileX, tileY) && roll > 0.97 && roll < 0.982) {
-          type = ObjectType.Horse;
         } else if (!nearRoad && roll > 0.996) {
           type = ObjectType.GrassTuft;
         }
       } else if (plaza) {
         if ((tileX + tileY) % 11 === 0 && roll > 0.992) {
           type = ObjectType.Well;
-        } else if ((tileX * 3 + tileY) % 19 === 0 && roll > 0.987 && roll < 0.991) {
-          type = ObjectType.Sign;
         }
       } else if (housing) {
-        if (nearRoad && roll > 0.986 && roll < 0.992) {
-          type = ObjectType.Crate;
-        } else if (!nearRoad && roll > 0.9952 && roll < 0.9964) {
+        if (!nearRoad && roll > 0.9952 && roll < 0.9964) {
           type = ObjectType.SparkMouse;
-        } else if (nearRoad && roll > 0.992 && roll < 0.996) {
-          type = ObjectType.Sign;
         } else if (roll > 0.996 && roll < 0.9985) {
           type = ObjectType.Dog;
         } else if (roll > 0.9985) {
@@ -520,8 +510,6 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
       } else if (biome === MacroBiome.Plains) {
         if (!nearRoad && cluster > 0.58 && roll < 0.04) {
           type = ObjectType.GrassTuft;
-        } else if (nearRoad && roll > 0.996) {
-          type = ObjectType.Sign;
         } else if (!nearRoad && cluster > 0.5 && roll > 0.9988) {
           type = ObjectType.SparkMouse;
         }
@@ -529,7 +517,6 @@ export function generateChunkObjects(cx: number, cy: number): StaticObject[] {
 
       if (type !== null) {
         const variant =
-          type === ObjectType.Horse ? horseVariant :
           type === ObjectType.Tree ? treeVariant :
           undefined;
         pushObject(objects, cx, cy, localIndex, type, tileX, tileY, variant);

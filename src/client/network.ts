@@ -15,7 +15,7 @@ import {
 } from "../shared/protocol";
 import type { EditorPatch } from "../shared/editor_map";
 import { isWalkableTile } from "../shared/worldgen";
-import type { PlayerEntity } from "./entity";
+import type { PlayerAppearance, PlayerEntity } from "./entity";
 import { createPlayerEntity, pushOverheadMessage } from "./entity";
 import type { WorldState } from "./world";
 
@@ -191,6 +191,22 @@ function parseEditorPatch(view: DataView, opcode: number): EditorPatch | null {
     default:
       return null;
   }
+}
+
+function readAppearance(view: DataView, offset: number): { appearance: PlayerAppearance; offset: number } {
+  const appearance: PlayerAppearance = {
+    hair: view.getUint8(offset),
+    primary: view.getUint8(offset + 1),
+    secondary: view.getUint8(offset + 2),
+    accent: view.getUint8(offset + 3),
+    skin: view.getUint8(offset + 4),
+    height: view.getUint16(offset + 5, true),
+    build: view.getUint16(offset + 7, true),
+    headSize: view.getUint16(offset + 9, true),
+    armLength: view.getUint16(offset + 11, true),
+    legLength: view.getUint16(offset + 13, true)
+  };
+  return { appearance, offset: offset + 15 };
 }
 
 export class NetworkClient {
@@ -378,11 +394,24 @@ export class NetworkClient {
   }
 
   private handleWelcome(view: DataView): void {
-    this.playerId = view.getUint16(1, true);
-    const spawnX = view.getUint16(14, true);
-    const spawnY = view.getUint16(16, true);
-    this.onlineCount = view.getUint16(18, true);
-    this.localPlayer = createPlayerEntity(this.playerId, spawnX, spawnY, true);
+    let offset = 1;
+    this.playerId = view.getUint16(offset, true);
+    offset += 2;
+    offset += 2; // worldWidth
+    offset += 2; // worldHeight
+    offset += 1; // tileSize
+    offset += 1; // chunkSize
+    offset += 1; // chunkRadius
+    offset += 1; // networkRate
+    offset += 4; // seed
+    const spawnX = view.getUint16(offset, true);
+    offset += 2;
+    const spawnY = view.getUint16(offset, true);
+    offset += 2;
+    this.onlineCount = view.getUint16(offset, true);
+    offset += 2;
+    const parsed = readAppearance(view, offset);
+    this.localPlayer = createPlayerEntity(this.playerId, spawnX, spawnY, true, parsed.appearance);
     this.onOnline(this.onlineCount);
     this.onMessage("Connected. Prediction enabled.");
   }
@@ -437,12 +466,14 @@ export class NetworkClient {
       offset += 1;
       const mountedHorseVariant = view.getUint8(offset);
       offset += 1;
+      const parsed = readAppearance(view, offset);
+      offset = parsed.offset;
 
       if (id === this.playerId) {
         continue;
       }
 
-      const entity = this.remotePlayers.get(id) ?? createPlayerEntity(id, x, y, false);
+      const entity = this.remotePlayers.get(id) ?? createPlayerEntity(id, x, y, false, parsed.appearance);
       entity.x = x;
       entity.y = y;
       entity.targetX = x;
@@ -451,6 +482,7 @@ export class NetworkClient {
       entity.renderY = y;
       entity.dir = dir;
       entity.animation = animation;
+      entity.appearance = { ...parsed.appearance };
       entity.mountedHorseVariant = mountedHorseVariant === 255 ? null : mountedHorseVariant;
       this.remotePlayers.set(id, entity);
     }
