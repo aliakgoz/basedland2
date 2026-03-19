@@ -647,5 +647,5 @@ Admin commands:
 ```text
 map-maker on
 map-maker off
-clear-dug
+clear-dug   # restores dug tiles and resets active treasure-state.json; backups stay in data/backups
 ```

@@ -312,6 +312,14 @@ export class TreasureManager {
     };
   }
 
+  resetState(): void {
+    this.claimedTiles.clear();
+    this.buriedTreasures.clear();
+    this.usedTxHashes.clear();
+    this.digSessions.clear();
+    this.burySessions.clear();
+  }
+
   exportState(): PersistedTreasureState {
     return {
       revision: 0,

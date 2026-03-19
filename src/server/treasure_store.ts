@@ -35,8 +35,9 @@ export interface PersistedTreasureState {
 }
 
 const storePath = resolve(process.cwd(), "data", "treasure-state.json");
+const backupRoot = resolve(process.cwd(), "data", "backups");
 
-function emptyStore(): PersistedTreasureState {
+export function createEmptyTreasureState(): PersistedTreasureState {
   return {
     revision: 0,
     updatedAt: new Date(0).toISOString(),
@@ -44,6 +45,29 @@ function emptyStore(): PersistedTreasureState {
     buried: [],
     usedTxHashes: []
   };
+}
+
+function backupFileNameFor(state: PersistedTreasureState): string {
+  const stamp = state.updatedAt
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "")
+    .replace("T", "-");
+  return `treasure-state-${stamp}-r${state.revision.toString().padStart(6, "0")}.json`;
+}
+
+function parseBackupState(raw: string): PersistedTreasureState | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedTreasureState>;
+    return {
+      revision: parsed.revision ?? 0,
+      updatedAt: parsed.updatedAt ?? new Date(0).toISOString(),
+      claimed: parsed.claimed ?? [],
+      buried: parsed.buried ?? [],
+      usedTxHashes: parsed.usedTxHashes ?? []
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function loadTreasureState(): Promise<PersistedTreasureState> {
@@ -57,7 +81,7 @@ export async function loadTreasureState(): Promise<PersistedTreasureState> {
       usedTxHashes: raw.usedTxHashes ?? []
     };
   } catch {
-    return emptyStore();
+    return createEmptyTreasureState();
   }
 }
 
@@ -69,8 +93,19 @@ export async function saveTreasureState(state: PersistedTreasureState): Promise<
     buried: state.buried,
     usedTxHashes: state.usedTxHashes
   };
+  const serialized = `${JSON.stringify(next, null, 2)}\n`;
 
+  const existingRaw = await readFile(storePath, "utf8").catch(() => null);
   await mkdir(dirname(storePath), { recursive: true });
-  await writeFile(storePath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  await mkdir(backupRoot, { recursive: true });
+  if (existingRaw !== null) {
+    const previous = parseBackupState(existingRaw);
+    const previousFile = previous
+      ? backupFileNameFor(previous)
+      : `treasure-state-prewrite-${Date.now()}.json`;
+    await writeFile(resolve(backupRoot, previousFile), existingRaw.endsWith("\n") ? existingRaw : `${existingRaw}\n`, "utf8");
+  }
+  await writeFile(storePath, serialized, "utf8");
+  await writeFile(resolve(backupRoot, backupFileNameFor(next)), serialized, "utf8");
   return next;
 }

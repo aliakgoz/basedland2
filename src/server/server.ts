@@ -43,7 +43,7 @@ import { loadEditorMap, saveEditorMap } from "./map_store";
 import { PlayerManager, type ServerPlayer } from "./player_manager";
 import { TreasureManager } from "./treasure_manager";
 import { TreasurePayoutService } from "./treasure_payout";
-import { loadTreasureState, saveTreasureState, type PersistedTreasureState } from "./treasure_store";
+import { createEmptyTreasureState, loadTreasureState, saveTreasureState, type PersistedTreasureState } from "./treasure_store";
 import { ServerWorldState } from "./world_state";
 
 const clientRoot = resolve(__dirname, "../client");
@@ -816,6 +816,21 @@ async function persistTreasureStateNow(): Promise<void> {
   });
 }
 
+async function resetTreasureStateNow(): Promise<void> {
+  if (treasureStateSaveTimer) {
+    clearTimeout(treasureStateSaveTimer);
+    treasureStateSaveTimer = null;
+  }
+  if (!treasureManager) {
+    return;
+  }
+  treasureManager.resetState();
+  persistedTreasureState = await saveTreasureState({
+    ...createEmptyTreasureState(),
+    revision: persistedTreasureState.revision
+  });
+}
+
 function isTreasureEnabled(): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(treasureRecipient);
 }
@@ -1064,7 +1079,7 @@ function baseTileForDug(type: TileType): TileType | null {
 }
 
 async function clearDugTiles(): Promise<number> {
-  await editorMapReady;
+  await Promise.all([editorMapReady, treasureStateReady]);
   const patches: EditorPatch[] = [];
 
   liveEditorMap.data.ground = liveEditorMap.data.ground.map((item) => {
@@ -1076,27 +1091,27 @@ async function clearDugTiles(): Promise<number> {
     return { ...item, type: baseType };
   });
 
-  if (patches.length === 0) {
-    return 0;
-  }
+  if (patches.length > 0) {
+    sortEditorData(liveEditorMap.data);
+    liveEditorMap = {
+      revision: liveEditorMap.revision + patches.length,
+      updatedAt: new Date().toISOString(),
+      data: liveEditorMap.data
+    };
+    worldState.importEditorLayer(liveEditorMap.data);
+    queueEditorMapSave();
 
-  sortEditorData(liveEditorMap.data);
-  liveEditorMap = {
-    revision: liveEditorMap.revision + patches.length,
-    updatedAt: new Date().toISOString(),
-    data: liveEditorMap.data
-  };
-  worldState.importEditorLayer(liveEditorMap.data);
-  queueEditorMapSave();
-
-  for (const patch of patches) {
-    const packet = encodeEditorPatch(patch);
-    for (const client of wss.clients) {
-      if (client.readyState === 1) {
-        client.send(packet);
+    for (const patch of patches) {
+      const packet = encodeEditorPatch(patch);
+      for (const client of wss.clients) {
+        if (client.readyState === 1) {
+          client.send(packet);
+        }
       }
     }
   }
+
+  await resetTreasureStateNow();
 
   return patches.length;
 }
@@ -1378,7 +1393,7 @@ if (process.stdin.isTTY) {
     const command = line.trim().toLowerCase();
     if (command === "clear-dug") {
       const cleared = await clearDugTiles();
-      console.log(`Cleared ${cleared} dug tiles.`);
+      console.log(`Cleared ${cleared} dug tiles and reset treasure state.`);
       return;
     }
     if (command === "map-maker on") {
