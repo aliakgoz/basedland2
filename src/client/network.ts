@@ -22,7 +22,6 @@ import type { WorldState } from "./world";
 
 declare const __BASEDLAND_WS_URL__: string;
 
-const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 interface PendingInput {
@@ -334,7 +333,7 @@ export class NetworkClient {
   }
 
   sendChat(text: string): string | null {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+    if (!this.localPlayer) {
       return null;
     }
 
@@ -343,13 +342,16 @@ export class NetworkClient {
       return null;
     }
 
-    const encoded = textEncoder.encode(normalized);
-    const buffer = new ArrayBuffer(3 + encoded.length);
-    const view = new DataView(buffer);
-    view.setUint8(0, ClientOpcode.Chat);
-    view.setUint16(1, encoded.length, true);
-    new Uint8Array(buffer, 3).set(encoded);
-    this.socket.send(buffer);
+    void fetch(backendUrl("/api/chat"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerId: this.localPlayer.id,
+        text: normalized
+      })
+    }).catch(() => {
+      this.onMessage("Chat could not reach the server.");
+    });
     return normalized;
   }
 

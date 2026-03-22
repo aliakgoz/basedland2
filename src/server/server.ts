@@ -299,6 +299,31 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname.startsWith("/api/chat") && req.method === "POST") {
+    try {
+      const payload = await readJsonBody<{ playerId?: number; text?: string }>(req);
+      const playerId = Number(payload.playerId ?? 0);
+      const text = String(payload.text ?? "").trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
+      if (!Number.isFinite(playerId) || playerId <= 0 || text.length === 0) {
+        json(res, 400, { error: "Invalid chat payload." });
+        return;
+      }
+      const player = playerManager.players.get(playerId);
+      if (!player) {
+        json(res, 404, { error: "Player not found on server." });
+        return;
+      }
+      if (!broadcastPlayerChat(playerId, text)) {
+        json(res, 400, { error: "Chat could not be delivered." });
+        return;
+      }
+      json(res, 200, { success: true });
+    } catch {
+      json(res, 400, { error: "Invalid chat payload." });
+    }
+    return;
+  }
+
   if (pathname.startsWith("/api/stable/nearby") && req.method === "POST") {
     try {
       const payload = await readJsonBody<{ playerId?: number }>(req);
@@ -1205,6 +1230,28 @@ function sendImmediateSnapshot(player: ServerPlayer): void {
   player.socket.send(encodeSnapshot(player, visiblePlayers, serverTick));
 }
 
+function broadcastPlayerChat(playerId: number, text: string): boolean {
+  const message = playerManager.pushChatMessage(playerId, text);
+  if (!message) {
+    return false;
+  }
+
+  const player = playerManager.players.get(playerId);
+  if (!player) {
+    return false;
+  }
+
+  const packet = encodeChat(playerId, message.expiresAt - Date.now(), message.text);
+  const recipients = new Set<number>([playerId, ...player.visiblePlayers]);
+  for (const id of recipients) {
+    const recipient = playerManager.players.get(id);
+    if (recipient?.socket.readyState === 1) {
+      recipient.socket.send(packet);
+    }
+  }
+  return true;
+}
+
 function sendActiveChatMessages(viewer: ServerPlayer, targets: ServerPlayer[], now = Date.now()): void {
   for (const target of targets) {
     const messages = playerManager.getActiveChatMessages(target.id, now);
@@ -1386,19 +1433,7 @@ wss.on("connection", (socket) => {
 
     const chat = parseChatPacket(buffer);
     if (chat) {
-      const message = playerManager.pushChatMessage(player.id, chat.text);
-      if (!message) {
-        return;
-      }
-
-      const packet = encodeChat(player.id, message.expiresAt - Date.now(), message.text);
-      const recipients = new Set<number>([player.id, ...player.visiblePlayers]);
-      for (const id of recipients) {
-        const recipient = playerManager.players.get(id);
-        if (recipient?.socket.readyState === 1) {
-          recipient.socket.send(packet);
-        }
-      }
+      broadcastPlayerChat(player.id, chat.text);
     }
   });
 
