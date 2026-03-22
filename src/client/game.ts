@@ -488,6 +488,24 @@ function submitMobileChat(): void {
   dispatchChat(mobileChatInput.value.trim() || chatDraft.trim());
 }
 
+function requestMobileChatSubmit(event?: Event): void {
+  event?.preventDefault();
+  event?.stopPropagation();
+  syncMobileChatDraftFromInput();
+  if (document.activeElement === mobileChatInput) {
+    mobileChatInput.blur();
+    window.setTimeout(() => {
+      syncMobileChatDraftFromInput();
+      submitMobileChat();
+    }, 40);
+    return;
+  }
+  window.setTimeout(() => {
+    syncMobileChatDraftFromInput();
+    submitMobileChat();
+  }, 0);
+}
+
 function requestChatSubmit(event?: Event): void {
   event?.preventDefault();
   event?.stopPropagation();
@@ -515,6 +533,14 @@ chatPanel.addEventListener("pointerdown", (event) => {
 });
 
 chatPanel.addEventListener("click", (event) => {
+  event.stopPropagation();
+});
+
+mobileChatPanel.addEventListener("pointerdown", (event) => {
+  event.stopPropagation();
+});
+
+mobileChatPanel.addEventListener("click", (event) => {
   event.stopPropagation();
 });
 
@@ -668,9 +694,20 @@ mobileChatCancel.addEventListener("click", () => {
 });
 
 mobileChatSend.addEventListener("click", (event) => {
+  requestMobileChatSubmit(event);
+});
+
+mobileChatSend.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
-  submitMobileChat();
+});
+
+mobileChatSend.addEventListener("pointerup", (event) => {
+  requestMobileChatSubmit(event);
+});
+
+mobileChatSend.addEventListener("touchend", (event) => {
+  requestMobileChatSubmit(event);
 });
 
 mobileChatInput.addEventListener("input", () => {
