@@ -321,6 +321,10 @@ function setChatOpen(next: boolean): void {
   }
 }
 
+function syncChatDraftFromInput(): void {
+  chatDraft = chatInput.value;
+}
+
 function setBuryOpen(next: boolean): void {
   buryOpen = next;
   if (next) {
@@ -397,6 +401,7 @@ function submitChat(): void {
   if (now - lastChatSubmitAt < 250) {
     return;
   }
+  syncChatDraftFromInput();
   const text = (chatInput.value.trim() || chatDraft.trim()).slice(0, 80);
   console.debug("[chat] submit", {
     textLength: text.length,
@@ -404,7 +409,7 @@ function submitChat(): void {
     connected: network.isConnected()
   });
   if (text.length === 0) {
-    setChatOpen(false);
+    renderer.setMessage("Type a message first.");
     return;
   }
   const sent = network.sendChat(text);
@@ -421,10 +426,26 @@ function submitChat(): void {
   setChatOpen(false);
 }
 
+function requestChatSubmit(event?: Event): void {
+  event?.preventDefault();
+  event?.stopPropagation();
+  syncChatDraftFromInput();
+  if (document.activeElement === chatInput) {
+    chatInput.blur();
+    window.setTimeout(() => {
+      syncChatDraftFromInput();
+      submitChat();
+    }, 40);
+    return;
+  }
+  window.setTimeout(() => {
+    syncChatDraftFromInput();
+    submitChat();
+  }, 0);
+}
+
 chatForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  submitChat();
+  requestChatSubmit(event);
 });
 
 chatPanel.addEventListener("pointerdown", (event) => {
@@ -436,29 +457,40 @@ chatPanel.addEventListener("click", (event) => {
 });
 
 chatSend.addEventListener("click", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  submitChat();
+  requestChatSubmit(event);
 });
 
 chatSend.addEventListener("touchend", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  submitChat();
+  requestChatSubmit(event);
 });
 
 chatSend.addEventListener("pointerup", (event) => {
+  requestChatSubmit(event);
+});
+
+chatSend.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
-  submitChat();
 });
 
 chatInput.addEventListener("input", () => {
-  chatDraft = chatInput.value;
+  syncChatDraftFromInput();
 });
 
 chatInput.addEventListener("change", () => {
-  chatDraft = chatInput.value;
+  syncChatDraftFromInput();
+});
+
+chatInput.addEventListener("keyup", () => {
+  syncChatDraftFromInput();
+});
+
+chatInput.addEventListener("blur", () => {
+  syncChatDraftFromInput();
+});
+
+chatInput.addEventListener("compositionend", () => {
+  syncChatDraftFromInput();
 });
 
 chatInput.addEventListener("keydown", (event) => {
