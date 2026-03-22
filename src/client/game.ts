@@ -418,16 +418,33 @@ function submitChat(): void {
 
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  event.stopPropagation();
   submitChat();
+});
+
+chatPanel.addEventListener("pointerdown", (event) => {
+  event.stopPropagation();
+});
+
+chatPanel.addEventListener("click", (event) => {
+  event.stopPropagation();
 });
 
 chatSend.addEventListener("click", (event) => {
   event.preventDefault();
+  event.stopPropagation();
+  submitChat();
+});
+
+chatSend.addEventListener("touchend", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
   submitChat();
 });
 
 chatSend.addEventListener("pointerup", (event) => {
   event.preventDefault();
+  event.stopPropagation();
   submitChat();
 });
 
