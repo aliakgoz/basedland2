@@ -416,15 +416,6 @@ function dispatchChat(text: string): void {
   setChatOpen(false);
 }
 
-function openMobileChatPrompt(): void {
-  const result = window.prompt("Local chat", chatDraft);
-  if (result === null) {
-    return;
-  }
-  chatDraft = result;
-  dispatchChat(result);
-}
-
 function dismissStablePanelOnActivity(mask: number): void {
   if (!stableOpen) {
     return;
@@ -470,14 +461,6 @@ chatPanel.addEventListener("click", (event) => {
 });
 
 chatSend.addEventListener("click", (event) => {
-  requestChatSubmit(event);
-});
-
-chatSend.addEventListener("touchend", (event) => {
-  requestChatSubmit(event);
-});
-
-chatSend.addEventListener("pointerup", (event) => {
   requestChatSubmit(event);
 });
 
@@ -657,32 +640,9 @@ bindActionButton(mobileInteract, () => {
 bindActionButton(mobileMount, () => {
   input.queueVirtualMountToggle();
 });
-if (isLikelyMobile()) {
-  const openMobileChatFromTouch = (event: Event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openMobileChatPrompt();
-    mobileChat.classList.remove("active");
-  };
-  mobileChat.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    mobileChat.classList.add("active");
-  });
-  mobileChat.addEventListener("pointerup", openMobileChatFromTouch);
-  mobileChat.addEventListener("touchend", openMobileChatFromTouch);
-  mobileChat.addEventListener("click", openMobileChatFromTouch);
-  mobileChat.addEventListener("pointercancel", () => {
-    mobileChat.classList.remove("active");
-  });
-  mobileChat.addEventListener("lostpointercapture", () => {
-    mobileChat.classList.remove("active");
-  });
-  mobileChat.addEventListener("contextmenu", (event) => event.preventDefault());
-} else {
-  bindActionButton(mobileChat, () => {
-    input.queueVirtualChatToggle();
-  });
-}
+bindActionButton(mobileChat, () => {
+  input.queueVirtualChatToggle();
+});
 bindActionButton(mobileBury, () => {
   input.queueVirtualBuryToggle();
 });
@@ -729,10 +689,6 @@ function applyLocalMovement(dt: number): void {
   }
   const player = network.localPlayer;
   if (input.consumeChatToggle()) {
-    if (isLikelyMobile()) {
-      openMobileChatPrompt();
-      return;
-    }
     setChatOpen(!chatOpen);
   }
   if (input.consumeBuryToggle()) {
