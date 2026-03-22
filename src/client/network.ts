@@ -333,14 +333,14 @@ export class NetworkClient {
     }
   }
 
-  sendChat(text: string): void {
+  sendChat(text: string): string | null {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      return;
+      return null;
     }
 
     const normalized = text.trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
     if (normalized.length === 0) {
-      return;
+      return null;
     }
 
     const encoded = textEncoder.encode(normalized);
@@ -350,6 +350,7 @@ export class NetworkClient {
     view.setUint16(1, encoded.length, true);
     new Uint8Array(buffer, 3).set(encoded);
     this.socket.send(buffer);
+    return normalized;
   }
 
   private handlePacket(data: ArrayBuffer, world: WorldState): void {

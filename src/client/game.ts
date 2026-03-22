@@ -1,9 +1,9 @@
-import { AnimationState, CHUNK_SIZE_TILES, Direction, InputFlag, MOUNT_RANGE, MOUNT_SPEED_MULTIPLIER, ObjectType, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
+import { AnimationState, CHAT_MESSAGE_TTL_MS, CHUNK_SIZE_TILES, Direction, InputFlag, MOUNT_RANGE, MOUNT_SPEED_MULTIPLIER, ObjectType, PLAYER_SPEED, TILE_SIZE } from "../shared/protocol";
 import { EMPTY_EDITOR_MAP, type PersistedEditorMap } from "../shared/editor_map";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
 import { backendUrl } from "./backend";
-import { pruneExpiredOverheadMessages } from "./entity";
+import { pruneExpiredOverheadMessages, pushOverheadMessage } from "./entity";
 import { InputController } from "./input";
 import { MapEditor } from "./map_editor";
 import { BackgroundMusicPlayer } from "./music";
@@ -123,6 +123,7 @@ let stableOpen = false;
 let walletMobileOpen = false;
 let introVisible = true;
 let lastManualCameraPrefetchKey = "";
+let lastChatSubmitAt = 0;
 
 interface TreasureSummaryResponse {
   pointCount: number;
@@ -388,12 +389,24 @@ function dismissStablePanelOnActivity(mask: number): void {
 }
 
 function submitChat(): void {
+  const now = performance.now();
+  if (now - lastChatSubmitAt < 250) {
+    return;
+  }
   const text = chatInput.value.trim();
   if (text.length === 0) {
     setChatOpen(false);
     return;
   }
-  network.sendChat(text);
+  const sent = network.sendChat(text);
+  if (!sent) {
+    renderer.setMessage("Chat is unavailable until the server connection returns.");
+    return;
+  }
+  lastChatSubmitAt = now;
+  if (network.localPlayer) {
+    pushOverheadMessage(network.localPlayer, sent, CHAT_MESSAGE_TTL_MS, now);
+  }
   setChatOpen(false);
 }
 
@@ -403,6 +416,11 @@ chatForm.addEventListener("submit", (event) => {
 });
 
 chatSend.addEventListener("click", (event) => {
+  event.preventDefault();
+  submitChat();
+});
+
+chatSend.addEventListener("pointerup", (event) => {
   event.preventDefault();
   submitChat();
 });

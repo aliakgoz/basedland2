@@ -70,9 +70,15 @@ export function pruneExpiredOverheadMessages(player: PlayerEntity, now: number):
 
 export function pushOverheadMessage(player: PlayerEntity, text: string, ttlMs: number, now: number): void {
   pruneExpiredOverheadMessages(player, now);
+  const nextExpiresAt = now + ttlMs;
+  const latest = player.overheadMessages[player.overheadMessages.length - 1];
+  if (latest && latest.text === text && Math.abs(latest.expiresAt - nextExpiresAt) <= 1000) {
+    latest.expiresAt = Math.max(latest.expiresAt, nextExpiresAt);
+    return;
+  }
   player.overheadMessages.push({
     text,
-    expiresAt: now + ttlMs
+    expiresAt: nextExpiresAt
   });
   if (player.overheadMessages.length > 6) {
     player.overheadMessages.splice(0, player.overheadMessages.length - 6);
