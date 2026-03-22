@@ -32,8 +32,16 @@ const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disc
 const treasureSummaryAmount = document.querySelector<HTMLElement>("#treasure-summary-amount");
 const treasureSummaryCount = document.querySelector<HTMLElement>("#treasure-summary-count");
 const editorDock = document.querySelector<HTMLElement>("#editor-dock");
+const mobileUp = document.querySelector<HTMLButtonElement>("#mobile-up");
+const mobileDown = document.querySelector<HTMLButtonElement>("#mobile-down");
+const mobileLeft = document.querySelector<HTMLButtonElement>("#mobile-left");
+const mobileRight = document.querySelector<HTMLButtonElement>("#mobile-right");
+const mobileInteract = document.querySelector<HTMLButtonElement>("#mobile-interact");
+const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
+const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
+const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !stablePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !stablePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -401,6 +409,53 @@ window.addEventListener("pointerdown", (event) => {
     return;
   }
   setStableOpen(false);
+});
+
+function bindDirectionButton(button: HTMLButtonElement, code: "KeyW" | "KeyA" | "KeyS" | "KeyD"): void {
+  const release = () => {
+    input.setVirtualDirection(code, false);
+    button.classList.remove("active");
+  };
+
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    input.setVirtualDirection(code, true);
+    button.classList.add("active");
+    button.setPointerCapture(event.pointerId);
+  });
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
+function bindActionButton(button: HTMLButtonElement, action: () => void): void {
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    action();
+    button.classList.add("active");
+  });
+  const clearActive = () => button.classList.remove("active");
+  button.addEventListener("pointerup", clearActive);
+  button.addEventListener("pointercancel", clearActive);
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
+bindDirectionButton(mobileUp, "KeyW");
+bindDirectionButton(mobileDown, "KeyS");
+bindDirectionButton(mobileLeft, "KeyA");
+bindDirectionButton(mobileRight, "KeyD");
+bindActionButton(mobileInteract, () => {
+  input.queueVirtualInteract();
+});
+bindActionButton(mobileMount, () => {
+  input.queueVirtualMountToggle();
+});
+bindActionButton(mobileBury, () => {
+  input.queueVirtualBuryToggle();
+});
+bindActionButton(mobileDig, () => {
+  input.queueVirtualDig();
 });
 
 walletConnect.addEventListener("click", () => {

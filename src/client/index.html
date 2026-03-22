@@ -737,6 +737,249 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+
+      #mobile-controls {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+        z-index: 34;
+      }
+
+      #mobile-dpad,
+      #mobile-actions {
+        position: absolute;
+        pointer-events: auto;
+      }
+
+      #mobile-dpad {
+        left: 14px;
+        bottom: 18px;
+        width: 156px;
+        height: 156px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      #mobile-actions {
+        right: 14px;
+        bottom: 18px;
+        display: grid;
+        grid-auto-flow: row;
+        gap: 10px;
+      }
+
+      .mobile-control {
+        border: 1px solid rgba(255, 232, 186, 0.26);
+        background: linear-gradient(180deg, rgba(24, 34, 28, 0.9), rgba(10, 16, 13, 0.9));
+        color: var(--text);
+        border-radius: 18px;
+        box-shadow:
+          0 10px 24px rgba(0, 0, 0, 0.28),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        font: inherit;
+        font-size: 18px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+      }
+
+      .mobile-control:active,
+      .mobile-control.active {
+        transform: translateY(1px) scale(0.98);
+        border-color: rgba(217, 169, 75, 0.78);
+        background: linear-gradient(180deg, rgba(53, 71, 58, 0.94), rgba(18, 28, 23, 0.94));
+      }
+
+      .mobile-dpad-spacer {
+        pointer-events: none;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+      }
+
+      .mobile-dpad {
+        width: 100%;
+        height: 100%;
+      }
+
+      .mobile-action {
+        width: 72px;
+        height: 56px;
+        font-size: 16px;
+        letter-spacing: 0.06em;
+      }
+
+      @media (hover: none), (pointer: coarse), (max-width: 900px) {
+        #mobile-controls {
+          display: block;
+        }
+
+        #game {
+          touch-action: none;
+        }
+
+        #title {
+          top: 10px;
+          left: 10px;
+          min-width: 0;
+          max-width: calc(100vw - 164px);
+          padding: 8px 10px;
+        }
+
+        #title h1 {
+          font-size: 15px;
+          margin-bottom: 2px;
+        }
+
+        #title p {
+          font-size: 11px;
+        }
+
+        #wallet-panel {
+          top: 86px;
+          left: 10px;
+          right: 10px;
+          width: auto;
+          max-width: calc(100vw - 20px);
+          padding: 8px 10px;
+          gap: 8px;
+          flex-wrap: wrap;
+          row-gap: 6px;
+          align-items: center;
+        }
+
+        #wallet-connect {
+          padding: 7px 10px;
+          font-size: 12px;
+          min-width: 0;
+        }
+
+        #wallet-status {
+          font-size: 11px;
+          flex: 1 1 110px;
+          min-width: 90px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        #minimap {
+          top: 10px;
+          right: 10px;
+          width: min(132px, calc(40vw - 10px));
+          padding: 8px;
+        }
+
+        #minimap h2 {
+          margin-bottom: 6px;
+          font-size: 9px;
+        }
+
+        #treasure-summary {
+          margin-top: 6px;
+          padding-top: 6px;
+        }
+
+        #treasure-summary-kicker {
+          font-size: 8px;
+          margin-bottom: 3px;
+        }
+
+        #treasure-summary-amount {
+          font-size: 15px;
+        }
+
+        #treasure-summary-count {
+          margin-top: 3px;
+          font-size: 10px;
+        }
+
+        #hint {
+          display: none;
+        }
+
+        #message {
+          left: 12px;
+          right: 12px;
+          bottom: 186px;
+          transform: none;
+          text-align: center;
+          font-size: 12px;
+          padding: 8px 10px;
+        }
+
+        #chat-panel,
+        #bury-panel,
+        #stable-panel {
+          left: 10px;
+          right: 10px;
+          bottom: 186px;
+          width: auto;
+          max-width: none;
+        }
+
+        #stable-options {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .stable-option {
+          padding: 8px 6px 10px;
+        }
+
+        .stable-art {
+          height: 78px;
+        }
+
+        .stable-name {
+          font-size: 11px;
+        }
+
+        .stable-price {
+          font-size: 10px;
+        }
+
+        #worldmap {
+          inset: 10px;
+          padding: 10px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        #mobile-dpad {
+          width: 144px;
+          height: 144px;
+          gap: 6px;
+        }
+
+        .mobile-action {
+          width: 66px;
+          height: 52px;
+          font-size: 14px;
+        }
+
+        #wallet-panel {
+          top: 82px;
+        }
+
+        #minimap {
+          width: min(122px, calc(38vw - 8px));
+        }
+
+        #message,
+        #chat-panel,
+        #bury-panel,
+        #stable-panel {
+          bottom: 172px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -867,6 +1110,25 @@
           <input id="editor-import-input" type="file" accept="application/json" hidden />
         </div>
         <div id="editor-groups"></div>
+      </div>
+    </div>
+    <div id="mobile-controls" aria-hidden="true">
+      <div id="mobile-dpad">
+        <div class="mobile-control mobile-dpad-spacer"></div>
+        <button id="mobile-up" class="mobile-control mobile-dpad" type="button" aria-label="Move up">▲</button>
+        <div class="mobile-control mobile-dpad-spacer"></div>
+        <button id="mobile-left" class="mobile-control mobile-dpad" type="button" aria-label="Move left">◀</button>
+        <div class="mobile-control mobile-dpad-spacer"></div>
+        <button id="mobile-right" class="mobile-control mobile-dpad" type="button" aria-label="Move right">▶</button>
+        <div class="mobile-control mobile-dpad-spacer"></div>
+        <button id="mobile-down" class="mobile-control mobile-dpad" type="button" aria-label="Move down">▼</button>
+        <div class="mobile-control mobile-dpad-spacer"></div>
+      </div>
+      <div id="mobile-actions">
+        <button id="mobile-interact" class="mobile-control mobile-action" type="button" aria-label="Interact">E</button>
+        <button id="mobile-mount" class="mobile-control mobile-action" type="button" aria-label="Mount or dismount">H</button>
+        <button id="mobile-bury" class="mobile-control mobile-action" type="button" aria-label="Hide treasure">F</button>
+        <button id="mobile-dig" class="mobile-control mobile-action" type="button" aria-label="Dig">DIG</button>
       </div>
     </div>
     <script src="./app.js"></script>

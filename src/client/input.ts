@@ -152,4 +152,46 @@ export class InputController {
       this.digQueued = false;
     }
   }
+
+  setVirtualDirection(code: keyof typeof KEY_TO_FLAG, active: boolean): void {
+    if (!(code in KEY_TO_FLAG)) {
+      return;
+    }
+    if (active) {
+      if (!this.pressed.has(code)) {
+        this.movementFocusResetQueued = true;
+      }
+      this.pressed.add(code);
+      return;
+    }
+    this.pressed.delete(code);
+  }
+
+  queueVirtualInteract(): void {
+    if (this.uiBlocked || this.textEntryActive) {
+      return;
+    }
+    this.interactQueued = true;
+  }
+
+  queueVirtualMountToggle(): void {
+    if (this.uiBlocked || this.textEntryActive) {
+      return;
+    }
+    this.mountToggleQueued = true;
+  }
+
+  queueVirtualBuryToggle(): void {
+    if (this.uiBlocked) {
+      return;
+    }
+    this.buryToggleQueued = true;
+  }
+
+  queueVirtualDig(): void {
+    if (this.uiBlocked || this.textEntryActive || !this.digEnabled) {
+      return;
+    }
+    this.digQueued = true;
+  }
 }

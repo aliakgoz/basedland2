@@ -85,6 +85,10 @@ function encodeErc20Transfer(recipient: string, amountUnits: bigint): string {
   return `${ERC20_TRANSFER_SELECTOR}${addressWord}${amountWord}`;
 }
 
+function isLikelyMobile(): boolean {
+  return /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
 async function pollReceipt(provider: EthereumProvider, txHash: string, timeoutMs = 120000): Promise<boolean> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -116,7 +120,11 @@ export class TreasureClient {
   async connectWallet(): Promise<void> {
     const provider = window.ethereum;
     if (!provider) {
-      this.setMessage("Base wallet needed. Install Coinbase Wallet or MetaMask.");
+      this.setMessage(
+        isLikelyMobile()
+          ? "Open BasedLand inside Coinbase Wallet or MetaMask mobile browser to connect your wallet."
+          : "Base wallet needed. Install Coinbase Wallet or MetaMask."
+      );
       return;
     }
     this.provider = provider;
