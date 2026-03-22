@@ -866,14 +866,34 @@
       .mobile-action {
         width: 72px;
         height: 56px;
-        font-size: 16px;
-        letter-spacing: 0.06em;
+        padding: 6px 4px;
+        font-size: 15px;
+        letter-spacing: 0.04em;
+        flex-direction: column;
+        gap: 2px;
       }
 
       .mobile-action svg {
-        width: 22px;
-        height: 22px;
+        width: 18px;
+        height: 18px;
         display: block;
+      }
+
+      .mobile-action-main {
+        display: block;
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .mobile-action-label {
+        display: block;
+        font-size: 8px;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: 0.08em;
+        opacity: 0.86;
+        text-transform: uppercase;
       }
 
       @media (hover: none), (pointer: coarse), (max-width: 900px) {
@@ -1238,11 +1258,24 @@
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M4 5h16v10H8l-4 4V5zm2 2v7.17L7.17 13H18V7H6z"/>
           </svg>
+          <span class="mobile-action-label">Chat</span>
         </button>
-        <button id="mobile-interact" class="mobile-control mobile-action" type="button" aria-label="Interact">E</button>
-        <button id="mobile-mount" class="mobile-control mobile-action" type="button" aria-label="Mount or dismount">H</button>
-        <button id="mobile-bury" class="mobile-control mobile-action" type="button" aria-label="Hide treasure">F</button>
-        <button id="mobile-dig" class="mobile-control mobile-action" type="button" aria-label="Dig">DIG</button>
+        <button id="mobile-interact" class="mobile-control mobile-action" type="button" aria-label="Interact">
+          <span class="mobile-action-main">E</span>
+          <span class="mobile-action-label">Interact</span>
+        </button>
+        <button id="mobile-mount" class="mobile-control mobile-action" type="button" aria-label="Mount or dismount">
+          <span class="mobile-action-main">H</span>
+          <span class="mobile-action-label">Mount</span>
+        </button>
+        <button id="mobile-bury" class="mobile-control mobile-action" type="button" aria-label="Hide treasure">
+          <span class="mobile-action-main">F</span>
+          <span class="mobile-action-label">Hide</span>
+        </button>
+        <button id="mobile-dig" class="mobile-control mobile-action" type="button" aria-label="Dig">
+          <span class="mobile-action-main">DIG</span>
+          <span class="mobile-action-label">Dig</span>
+        </button>
       </div>
     </div>
     <script src="./app.js"></script>

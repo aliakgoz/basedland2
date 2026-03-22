@@ -124,6 +124,7 @@ let walletMobileOpen = false;
 let introVisible = true;
 let lastManualCameraPrefetchKey = "";
 let lastChatSubmitAt = 0;
+let localChatPreview: { text: string; expiresAt: number } | null = null;
 
 interface TreasureSummaryResponse {
   pointCount: number;
@@ -407,6 +408,7 @@ function submitChat(): void {
   if (network.localPlayer) {
     pushOverheadMessage(network.localPlayer, sent, CHAT_MESSAGE_TTL_MS, now);
   }
+  localChatPreview = { text: sent, expiresAt: now + CHAT_MESSAGE_TTL_MS };
   setChatOpen(false);
 }
 
@@ -743,6 +745,21 @@ function prefetchManualCameraChunks(): void {
 function updateRemotePlayers(): void {
   const now = performance.now();
   if (network.localPlayer) {
+    if (localChatPreview && localChatPreview.expiresAt > now) {
+      const hasPreview = network.localPlayer.overheadMessages.some(
+        (message) => message.text === localChatPreview?.text && message.expiresAt > now
+      );
+      if (!hasPreview) {
+        pushOverheadMessage(
+          network.localPlayer,
+          localChatPreview.text,
+          Math.max(1, localChatPreview.expiresAt - now),
+          now
+        );
+      }
+    } else {
+      localChatPreview = null;
+    }
     pruneExpiredOverheadMessages(network.localPlayer, now);
   }
   for (const player of network.remotePlayers.values()) {
