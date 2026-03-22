@@ -94,6 +94,50 @@ Recommended normal workflow:
 3. Run `npm start`
 4. Refresh the browser with `Ctrl+F5`
 
+### 4.1 Home Laptop Publish
+
+If you want to host the game from a laptop at home and open it from another laptop on the same network, use:
+
+```bash
+npm run dev:home
+```
+
+This does two things:
+
+- builds the project
+- starts the server and prints the usable LAN URLs such as `http://192.168.x.x:3000`
+
+Then on the second laptop, open one of those LAN URLs in the browser.
+
+What to copy to the host laptop:
+
+- the whole repo
+- `.env`
+- `data/editor-map.json`
+- `data/treasure-state.json`
+- `data/music/`
+
+First-time setup on the host laptop:
+
+```bash
+npm install
+npm run dev:home
+```
+
+For stable home hosting:
+
+- keep the laptop plugged in
+- use Ethernet if possible
+- disable sleep
+- set lid close action to `Do nothing`
+- allow Node.js through Windows Firewall
+
+If players will join over the public internet instead of the same Wi-Fi/LAN:
+
+- forward TCP `3000` on the router to the host laptop
+- keep the host laptop on a fixed local IP or DHCP reservation
+- if your ISP uses CGNAT, direct public hosting will not work without a tunnel or VPS
+
 ## 5. Controls
 
 Gameplay:
@@ -197,6 +241,211 @@ BASEDLAND_WS_URL=wss://your-backend.example.com
 ```
 
 If `BASEDLAND_WS_URL` is not set, the client falls back to `ws://` or `wss://` on the current page host.
+
+#### 6.1.1 Full Home Laptop + Vercel Setup
+
+Use this setup if:
+
+- the website stays on Vercel
+- the game server runs on a laptop at home
+- players will connect through `https://basedland.online`
+
+Recommended host names:
+
+- site: `https://basedland.online`
+- game server: `https://api.basedland.online`
+
+Final topology:
+
+```text
+browser -> basedland.online (Vercel frontend)
+browser -> wss://api.basedland.online (home laptop server through Caddy)
+Caddy on home laptop -> http://127.0.0.1:3000 (Node server)
+```
+
+Important limits before you start:
+
+- if your ISP uses CGNAT, direct home hosting will not work
+- if your public IP changes often, your DNS `A` record must be updated when it changes
+- the laptop must stay awake and powered
+- ports `80` and `443` must reach the laptop from the internet
+
+##### Step 1. Prepare the host laptop
+
+Copy these from your main machine to the host laptop:
+
+- the full repo
+- `.env`
+- `data/editor-map.json`
+- `data/treasure-state.json`
+- `data/music/`
+
+On the host laptop:
+
+```bash
+npm install
+npm run build
+```
+
+For normal hosting on that machine, start the Node server with:
+
+```bash
+npm run start:home
+```
+
+This prints the local and LAN URLs and runs the backend on port `3000`.
+
+##### Step 2. Give the host laptop a stable LAN IP
+
+In your router, create a DHCP reservation for the host laptop so it keeps the same local IP, for example:
+
+```text
+192.168.1.50
+```
+
+Without this, your port forwarding may break after a reboot.
+
+##### Step 3. Add the DNS record for the game server
+
+In the DNS panel for your domain, create an `A` record:
+
+```text
+api.basedland.online -> your current public home IP
+```
+
+If your DNS is managed by Vercel, add the same `A` record there. If your DNS is managed by the registrar or Cloudflare, add it there instead.
+
+##### Step 4. Forward the router ports
+
+Forward these TCP ports from your router to the host laptop's reserved LAN IP:
+
+- `80 -> 80`
+- `443 -> 443`
+
+Do not expose port `3000` publicly if you are using Caddy in front. Keep Node on `localhost:3000` and let Caddy handle public TLS traffic.
+
+##### Step 5. Open Windows Firewall on the host laptop
+
+Open an elevated PowerShell and run:
+
+```powershell
+New-NetFirewallRule -DisplayName "BasedLand HTTP" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+New-NetFirewallRule -DisplayName "BasedLand HTTPS" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
+New-NetFirewallRule -DisplayName "BasedLand Node 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
+```
+
+##### Step 6. Put Caddy in front of the Node server
+
+Download Caddy for Windows and place the binary somewhere permanent, for example:
+
+```text
+C:\caddy\caddy.exe
+```
+
+Then copy this example config:
+
+- [deploy/Caddyfile.example](c:/Genel/99_Python/basedland/deploy/Caddyfile.example)
+
+Create:
+
+```text
+C:\caddy\Caddyfile
+```
+
+with:
+
+```caddyfile
+api.basedland.online {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:3000
+}
+```
+
+Start Caddy from an elevated PowerShell:
+
+```powershell
+cd C:\caddy
+.\caddy.exe run --config C:\caddy\Caddyfile
+```
+
+If DNS and ports are correct, Caddy will get the TLS certificate automatically and your WebSocket endpoint will become:
+
+```text
+wss://api.basedland.online
+```
+
+##### Step 7. Configure Vercel
+
+In your Vercel project, add this Environment Variable:
+
+```text
+BASEDLAND_WS_URL=wss://api.basedland.online
+```
+
+Then redeploy the frontend.
+
+Important:
+
+- this project reads `BASEDLAND_WS_URL` at build time
+- changing it in Vercel does not affect old deployments
+- redeploy after changing the value
+
+##### Step 8. Test in the correct order
+
+1. Start the Node server on the host laptop:
+
+```bash
+npm run start:home
+```
+
+2. Start Caddy:
+
+```powershell
+cd C:\caddy
+.\caddy.exe run --config C:\caddy\Caddyfile
+```
+
+3. Test locally on the host laptop:
+
+```text
+http://localhost:3000
+```
+
+4. Test the public backend:
+
+```text
+https://api.basedland.online
+```
+
+5. Open the site:
+
+```text
+https://basedland.online
+```
+
+6. Open browser devtools and confirm the WebSocket connects to:
+
+```text
+wss://api.basedland.online
+```
+
+##### Step 9. Prevent accidental downtime
+
+On the host laptop:
+
+- keep it plugged in
+- disable sleep
+- set lid close action to `Do nothing`
+- use Ethernet if possible
+- do not let VPN software hijack ports `80` or `443`
+
+If the public site suddenly stops working, check these first:
+
+- public home IP changed
+- router lost the port forward
+- Caddy is not running
+- Node server is not running
+- ISP enabled or moved you behind CGNAT
 
 ## 7. Asset System
 
