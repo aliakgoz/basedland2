@@ -502,6 +502,10 @@
         z-index: 30;
       }
 
+      #message.hidden {
+        display: none;
+      }
+
       #minimap {
         top: 72px;
         right: 18px;
@@ -845,29 +849,43 @@
         #wallet-panel {
           top: 86px;
           left: 10px;
-          right: 10px;
+          right: auto;
           width: auto;
-          max-width: calc(100vw - 20px);
+          max-width: calc(100vw - 160px);
+          min-width: 0;
           padding: 8px 10px;
-          gap: 8px;
-          flex-wrap: wrap;
-          row-gap: 6px;
+          display: inline-grid;
+          grid-template-columns: auto auto;
+          grid-template-areas:
+            "connect disconnect"
+            "status status";
+          column-gap: 8px;
+          row-gap: 5px;
           align-items: center;
         }
 
         #wallet-connect {
+          grid-area: connect;
           padding: 7px 10px;
           font-size: 12px;
           min-width: 0;
+          border-radius: 999px;
+          white-space: nowrap;
         }
 
         #wallet-status {
-          font-size: 11px;
-          flex: 1 1 110px;
-          min-width: 90px;
+          grid-area: status;
+          font-size: 10px;
+          min-width: 0;
+          max-width: 100%;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          opacity: 0.88;
+        }
+
+        #wallet-disconnect {
+          grid-area: disconnect;
         }
 
         #minimap {
@@ -906,13 +924,16 @@
         }
 
         #message {
-          left: 12px;
-          right: 12px;
-          bottom: 186px;
-          transform: none;
+          left: 50%;
+          right: auto;
+          width: min(220px, calc(100vw - 184px));
+          min-width: 120px;
+          bottom: 12px;
+          transform: translateX(-50%);
           text-align: center;
-          font-size: 12px;
-          padding: 8px 10px;
+          font-size: 11px;
+          line-height: 1.25;
+          padding: 7px 9px;
         }
 
         #chat-panel,
@@ -967,17 +988,22 @@
 
         #wallet-panel {
           top: 82px;
+          max-width: calc(100vw - 150px);
         }
 
         #minimap {
           width: min(122px, calc(38vw - 8px));
         }
 
-        #message,
         #chat-panel,
         #bury-panel,
         #stable-panel {
           bottom: 172px;
+        }
+
+        #message {
+          width: min(190px, calc(100vw - 166px));
+          bottom: 10px;
         }
       }
     </style>

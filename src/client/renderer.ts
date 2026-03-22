@@ -41,6 +41,7 @@ export class Renderer {
   private currentCameraY = 0;
   private editorPlacementPreview: EditorPlacementPreview | null = null;
   private minimapVisualRevision = -1;
+  private messageHideTimer: number | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -92,7 +93,22 @@ export class Renderer {
   }
 
   setMessage(text: string): void {
-    this.hud.message.textContent = text;
+    if (this.messageHideTimer !== null) {
+      window.clearTimeout(this.messageHideTimer);
+      this.messageHideTimer = null;
+    }
+
+    const normalized = text.trim();
+    this.hud.message.textContent = normalized;
+    this.hud.message.classList.toggle("hidden", normalized.length === 0);
+    if (normalized.length === 0) {
+      return;
+    }
+
+    this.messageHideTimer = window.setTimeout(() => {
+      this.hud.message.classList.add("hidden");
+      this.messageHideTimer = null;
+    }, 5000);
   }
 
   getZoom(): number {
