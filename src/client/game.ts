@@ -387,32 +387,22 @@ function setWalletMobileOpen(next: boolean): void {
   syncMobileControlsVisibility();
 }
 
-function dismissStablePanelOnActivity(mask: number): void {
-  if (!stableOpen) {
-    return;
-  }
-  if (mask !== 0 || input.consumeInteract() || input.consumeMountToggle() || input.consumeDig() || input.consumeBuryToggle() || input.consumeChatToggle()) {
-    setStableOpen(false);
-  }
-}
-
-function submitChat(): void {
+function dispatchChat(text: string): void {
   const now = performance.now();
   if (now - lastChatSubmitAt < 250) {
     return;
   }
-  syncChatDraftFromInput();
-  const text = (chatInput.value.trim() || chatDraft.trim()).slice(0, 80);
+  const normalized = text.trim().slice(0, 80);
   console.debug("[chat] submit", {
-    textLength: text.length,
+    textLength: normalized.length,
     hasLocalPlayer: Boolean(network.localPlayer),
     connected: network.isConnected()
   });
-  if (text.length === 0) {
+  if (normalized.length === 0) {
     renderer.setMessage("Type a message first.");
     return;
   }
-  const sent = network.sendChat(text);
+  const sent = network.sendChat(normalized);
   if (!sent) {
     renderer.setMessage("Chat is unavailable until the server connection returns.");
     return;
@@ -424,6 +414,29 @@ function submitChat(): void {
   }
   localChatPreview = { text: sent, expiresAt: now + CHAT_MESSAGE_TTL_MS };
   setChatOpen(false);
+}
+
+function openMobileChatPrompt(): void {
+  const result = window.prompt("Local chat", chatDraft);
+  if (result === null) {
+    return;
+  }
+  chatDraft = result;
+  dispatchChat(result);
+}
+
+function dismissStablePanelOnActivity(mask: number): void {
+  if (!stableOpen) {
+    return;
+  }
+  if (mask !== 0 || input.consumeInteract() || input.consumeMountToggle() || input.consumeDig() || input.consumeBuryToggle() || input.consumeChatToggle()) {
+    setStableOpen(false);
+  }
+}
+
+function submitChat(): void {
+  syncChatDraftFromInput();
+  dispatchChat(chatInput.value.trim() || chatDraft.trim());
 }
 
 function requestChatSubmit(event?: Event): void {
@@ -644,9 +657,32 @@ bindActionButton(mobileInteract, () => {
 bindActionButton(mobileMount, () => {
   input.queueVirtualMountToggle();
 });
-bindActionButton(mobileChat, () => {
-  input.queueVirtualChatToggle();
-});
+if (isLikelyMobile()) {
+  const openMobileChatFromTouch = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openMobileChatPrompt();
+    mobileChat.classList.remove("active");
+  };
+  mobileChat.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    mobileChat.classList.add("active");
+  });
+  mobileChat.addEventListener("pointerup", openMobileChatFromTouch);
+  mobileChat.addEventListener("touchend", openMobileChatFromTouch);
+  mobileChat.addEventListener("click", openMobileChatFromTouch);
+  mobileChat.addEventListener("pointercancel", () => {
+    mobileChat.classList.remove("active");
+  });
+  mobileChat.addEventListener("lostpointercapture", () => {
+    mobileChat.classList.remove("active");
+  });
+  mobileChat.addEventListener("contextmenu", (event) => event.preventDefault());
+} else {
+  bindActionButton(mobileChat, () => {
+    input.queueVirtualChatToggle();
+  });
+}
 bindActionButton(mobileBury, () => {
   input.queueVirtualBuryToggle();
 });
@@ -693,6 +729,10 @@ function applyLocalMovement(dt: number): void {
   }
   const player = network.localPlayer;
   if (input.consumeChatToggle()) {
+    if (isLikelyMobile()) {
+      openMobileChatPrompt();
+      return;
+    }
     setChatOpen(!chatOpen);
   }
   if (input.consumeBuryToggle()) {
