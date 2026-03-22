@@ -15,6 +15,7 @@ import {
 } from "../shared/protocol";
 import type { EditorPatch } from "../shared/editor_map";
 import { isWalkableTile } from "../shared/worldgen";
+import { backendUrl } from "./backend";
 import type { PlayerAppearance, PlayerEntity } from "./entity";
 import { createPlayerEntity, pushOverheadMessage } from "./entity";
 import type { WorldState } from "./world";
@@ -315,7 +316,7 @@ export class NetworkClient {
 
     this.inFlightChunkPeeks.add(key);
     try {
-      const response = await fetch(`/api/chunk-peek?tileX=${tileX}&tileY=${tileY}&radius=${radius}`, {
+      const response = await fetch(backendUrl(`/api/chunk-peek?tileX=${tileX}&tileY=${tileY}&radius=${radius}`), {
         cache: "no-store"
       });
       if (!response.ok) {

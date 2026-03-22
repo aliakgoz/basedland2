@@ -1,3 +1,5 @@
+import { backendUrl } from "./backend";
+
 interface MusicManifestResponse {
   tracks?: string[];
 }
@@ -42,13 +44,15 @@ export class BackgroundMusicPlayer {
     if (this.manifestPromise) {
       return this.manifestPromise;
     }
-    this.manifestPromise = fetch("/api/music", { cache: "no-store" })
+    this.manifestPromise = fetch(backendUrl("/api/music"), { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
           return;
         }
         const payload = (await response.json()) as MusicManifestResponse;
-        this.tracks = (payload.tracks ?? []).filter((track) => typeof track === "string" && track.length > 0);
+        this.tracks = (payload.tracks ?? [])
+          .filter((track) => typeof track === "string" && track.length > 0)
+          .map((track) => backendUrl(track));
       })
       .catch(() => {
         this.tracks = [];

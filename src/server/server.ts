@@ -146,6 +146,16 @@ function serveFile(res: ServerResponse, filePath: string): void {
   res.end(body);
 }
 
+function isCorsPath(pathname: string): boolean {
+  return pathname.startsWith("/api/") || pathname.startsWith("/music/");
+}
+
+function applyCors(res: ServerResponse): void {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 function readJsonBody<T>(req: IncomingMessage): Promise<T> {
   return new Promise((resolveBody, reject) => {
     const chunks: Buffer[] = [];
@@ -173,6 +183,15 @@ interface StablePurchaseSession {
 const httpServer = createServer(async (req, res) => {
   const requestUrl = new URL(req.url ?? "/index.html", "http://localhost");
   const pathname = requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname;
+
+  if (isCorsPath(pathname)) {
+    applyCors(res);
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+  }
 
   if (pathname.startsWith("/api/editor-map")) {
     await editorMapReady;

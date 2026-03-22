@@ -2,6 +2,7 @@ import { AnimationState, CHUNK_SIZE_TILES, Direction, InputFlag, MOUNT_RANGE, MO
 import { EMPTY_EDITOR_MAP, type PersistedEditorMap } from "../shared/editor_map";
 import { isWalkableTile } from "../shared/worldgen";
 import { AssetManager } from "./assets";
+import { backendUrl } from "./backend";
 import { pruneExpiredOverheadMessages } from "./entity";
 import { InputController } from "./input";
 import { MapEditor } from "./map_editor";
@@ -125,7 +126,7 @@ let editorInitializationStarted = false;
 
 async function loadInitialWorldLayer(): Promise<void> {
   try {
-    const response = await fetch("/api/editor-map", { cache: "no-store" });
+    const response = await fetch(backendUrl("/api/editor-map"), { cache: "no-store" });
     if (!response.ok) {
       return;
     }
@@ -148,7 +149,7 @@ function dismissIntro(): void {
 
 async function refreshTreasureSummary(): Promise<void> {
   try {
-    const response = await fetch("/api/treasure/stats", { cache: "no-store" });
+    const response = await fetch(backendUrl("/api/treasure/stats"), { cache: "no-store" });
     if (!response.ok) {
       return;
     }
@@ -165,7 +166,7 @@ async function refreshEditorAccess(): Promise<void> {
     return;
   }
   try {
-    const response = await fetch("/api/editor-access", { cache: "no-store" });
+    const response = await fetch(backendUrl("/api/editor-access"), { cache: "no-store" });
     if (!response.ok) {
       editor.setAdminAccess(false);
       return;
@@ -206,7 +207,7 @@ async function handleInteract(): Promise<void> {
   }
 
   try {
-    const response = await fetch("/api/stable/nearby", {
+    const response = await fetch(backendUrl("/api/stable/nearby"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ playerId: player.id })

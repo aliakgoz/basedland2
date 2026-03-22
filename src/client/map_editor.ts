@@ -1,4 +1,5 @@
 import type { AssetArchiveEntry, AssetArchiveGroup, AssetManager } from "./assets";
+import { backendUrl } from "./backend";
 import { EMPTY_EDITOR_MAP, type EditorMapData, type EditorPatch, type PersistedEditorMap } from "../shared/editor_map";
 import { TILE_SIZE } from "../shared/protocol";
 import type { PlayerEntity } from "./entity";
@@ -520,7 +521,7 @@ export class MapEditor {
 
     this.saveInFlight = true;
     try {
-      const response = await fetch("/api/editor-map", {
+      const response = await fetch(backendUrl("/api/editor-map"), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -549,7 +550,7 @@ export class MapEditor {
 
   private async loadOnline(announce: boolean): Promise<boolean> {
     try {
-      const response = await fetch("/api/editor-map", { cache: "no-store" });
+      const response = await fetch(backendUrl("/api/editor-map"), { cache: "no-store" });
       if (!response.ok) {
         return false;
       }

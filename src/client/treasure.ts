@@ -1,4 +1,5 @@
 import type { PlayerEntity } from "./entity";
+import { backendUrl } from "./backend";
 
 declare global {
   interface Window {
@@ -342,15 +343,28 @@ export class TreasureClient {
   }
 
   private async postJson<T>(url: string, body: unknown, method = "POST"): Promise<T> {
-    const response = await fetch(url, {
+    const response = await fetch(backendUrl(url), {
       method,
       headers: body === null ? undefined : { "Content-Type": "application/json" },
       body: body === null ? undefined : JSON.stringify(body)
     });
 
-    const payload = (await response.json()) as T & { error?: string };
+    const raw = await response.text();
+    let payload: (T & { error?: string }) | null = null;
+    try {
+      payload = raw.length > 0 ? (JSON.parse(raw) as T & { error?: string }) : null;
+    } catch {
+      if (!response.ok) {
+        throw new Error(raw.trim() || `Request failed with ${response.status}.`);
+      }
+      throw new Error(`Server returned invalid JSON for ${url}.`);
+    }
+
     if (!response.ok) {
-      throw new Error((payload as { error?: string }).error ?? "Request failed.");
+      throw new Error((payload?.error ?? raw.trim()) || "Request failed.");
+    }
+    if (payload === null) {
+      throw new Error(`Empty response from ${url}.`);
     }
     return payload;
   }
