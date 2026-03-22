@@ -1435,6 +1435,7 @@ wss.on("connection", (socket) => {
 
     const chat = parseChatPacket(buffer);
     if (chat) {
+      console.log("[chat] ws packet", { playerId: player.id, text: chat.text });
       broadcastPlayerChat(player.id, chat.text);
     }
   });

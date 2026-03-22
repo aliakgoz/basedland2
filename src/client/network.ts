@@ -345,6 +345,18 @@ export class NetworkClient {
     }
 
     console.debug("[chat] posting", { playerId: this.localPlayer.id, textLength: normalized.length });
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      const encoded = new TextEncoder().encode(normalized);
+      const buffer = new ArrayBuffer(3 + encoded.length);
+      const view = new DataView(buffer);
+      view.setUint8(0, ClientOpcode.Chat);
+      view.setUint16(1, encoded.length, true);
+      new Uint8Array(buffer, 3).set(encoded);
+      this.socket.send(buffer);
+      console.debug("[chat] websocket packet sent");
+    } else {
+      console.debug("[chat] websocket unavailable, using http only");
+    }
     void fetch(backendUrl("/api/chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
