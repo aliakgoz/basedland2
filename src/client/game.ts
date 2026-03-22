@@ -28,6 +28,7 @@ const buryAmount = document.querySelector<HTMLInputElement>("#bury-amount");
 const stablePanel = document.querySelector<HTMLElement>("#stable-panel");
 const stableOptions = document.querySelectorAll<HTMLButtonElement>("[data-horse-variant]");
 const walletMobilePanel = document.querySelector<HTMLElement>("#wallet-mobile-panel");
+const mobileChatPanel = document.querySelector<HTMLElement>("#mobile-chat-panel");
 const walletConnect = document.querySelector<HTMLButtonElement>("#wallet-connect");
 const walletStatus = document.querySelector<HTMLElement>("#wallet-status");
 const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disconnect");
@@ -40,6 +41,10 @@ const stableClose = document.querySelector<HTMLButtonElement>("#stable-close");
 const walletMobileClose = document.querySelector<HTMLButtonElement>("#wallet-mobile-close");
 const walletOpenCoinbase = document.querySelector<HTMLButtonElement>("#wallet-open-coinbase");
 const walletOpenMetamask = document.querySelector<HTMLButtonElement>("#wallet-open-metamask");
+const mobileChatClose = document.querySelector<HTMLButtonElement>("#mobile-chat-close");
+const mobileChatCancel = document.querySelector<HTMLButtonElement>("#mobile-chat-cancel");
+const mobileChatSend = document.querySelector<HTMLButtonElement>("#mobile-chat-send");
+const mobileChatInput = document.querySelector<HTMLTextAreaElement>("#mobile-chat-input");
 const mobileControls = document.querySelector<HTMLElement>("#mobile-controls");
 const mobileUp = document.querySelector<HTMLButtonElement>("#mobile-up");
 const mobileDown = document.querySelector<HTMLButtonElement>("#mobile-down");
@@ -51,7 +56,7 @@ const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
 const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
 const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatCancel || !mobileChatSend || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -121,13 +126,12 @@ let chatOpen = false;
 let buryOpen = false;
 let stableOpen = false;
 let walletMobileOpen = false;
+let mobileChatOpen = false;
 let introVisible = true;
 let lastManualCameraPrefetchKey = "";
 let lastChatSubmitAt = 0;
 let localChatPreview: { text: string; expiresAt: number } | null = null;
 let chatDraft = "";
-let mobileChatPromptOpen = false;
-let lastMobileChatPromptAt = 0;
 
 interface TreasureSummaryResponse {
   pointCount: number;
@@ -167,7 +171,7 @@ function openMetaMaskWallet(): void {
 }
 
 function syncMobileControlsVisibility(): void {
-  mobileControls.classList.toggle("panel-open", chatOpen || buryOpen || stableOpen || walletMobileOpen);
+  mobileControls.classList.toggle("panel-open", chatOpen || buryOpen || stableOpen || walletMobileOpen || mobileChatOpen);
 }
 
 async function loadInitialWorldLayer(): Promise<void> {
@@ -295,7 +299,7 @@ function hasNearbyHorseForMount(): boolean {
 }
 
 function syncTextEntryState(): void {
-  input.setTextEntryActive(chatOpen || buryOpen || stableOpen || walletMobileOpen);
+  input.setTextEntryActive(chatOpen || buryOpen || stableOpen || walletMobileOpen || mobileChatOpen);
 }
 
 function setChatOpen(next: boolean): void {
@@ -308,6 +312,9 @@ function setChatOpen(next: boolean): void {
     stablePanel.classList.remove("active");
     walletMobileOpen = false;
     walletMobilePanel.classList.remove("active");
+    mobileChatOpen = false;
+    mobileChatPanel.classList.remove("active");
+    mobileChatInput.blur();
   }
   chatPanel.classList.toggle("active", next);
   syncTextEntryState();
@@ -338,6 +345,9 @@ function setBuryOpen(next: boolean): void {
     stablePanel.classList.remove("active");
     walletMobileOpen = false;
     walletMobilePanel.classList.remove("active");
+    mobileChatOpen = false;
+    mobileChatPanel.classList.remove("active");
+    mobileChatInput.blur();
   }
   buryPanel.classList.toggle("active", next);
   syncTextEntryState();
@@ -364,6 +374,9 @@ function setStableOpen(next: boolean): void {
     buryAmount.value = "";
     walletMobileOpen = false;
     walletMobilePanel.classList.remove("active");
+    mobileChatOpen = false;
+    mobileChatPanel.classList.remove("active");
+    mobileChatInput.blur();
   }
   stablePanel.classList.toggle("active", next);
   syncTextEntryState();
@@ -383,10 +396,43 @@ function setWalletMobileOpen(next: boolean): void {
     chatInput.value = "";
     buryAmount.blur();
     buryAmount.value = "";
+    mobileChatOpen = false;
+    mobileChatPanel.classList.remove("active");
+    mobileChatInput.blur();
   }
   walletMobilePanel.classList.toggle("active", next);
   syncTextEntryState();
   syncMobileControlsVisibility();
+}
+
+function setMobileChatOpen(next: boolean): void {
+  mobileChatOpen = next;
+  if (next) {
+    chatOpen = false;
+    buryOpen = false;
+    stableOpen = false;
+    walletMobileOpen = false;
+    chatPanel.classList.remove("active");
+    buryPanel.classList.remove("active");
+    stablePanel.classList.remove("active");
+    walletMobilePanel.classList.remove("active");
+    chatInput.blur();
+    buryAmount.blur();
+    chatInput.value = "";
+    buryAmount.value = "";
+  }
+  mobileChatPanel.classList.toggle("active", next);
+  syncTextEntryState();
+  syncMobileControlsVisibility();
+  if (next) {
+    mobileChatInput.value = chatDraft;
+    window.setTimeout(() => {
+      mobileChatInput.focus();
+      mobileChatInput.select();
+    }, 20);
+  } else {
+    mobileChatInput.blur();
+  }
 }
 
 function dispatchChat(text: string): void {
@@ -416,26 +462,7 @@ function dispatchChat(text: string): void {
   }
   localChatPreview = { text: sent, expiresAt: now + CHAT_MESSAGE_TTL_MS };
   setChatOpen(false);
-}
-
-function openMobileChatPrompt(): void {
-  const now = performance.now();
-  if (mobileChatPromptOpen || now - lastMobileChatPromptAt < 700) {
-    return;
-  }
-  lastMobileChatPromptAt = now;
-  mobileChatPromptOpen = true;
-  try {
-    const result = window.prompt("Local chat", chatDraft);
-    if (result === null) {
-      return;
-    }
-    chatDraft = result;
-    dispatchChat(result);
-  } finally {
-    mobileChatPromptOpen = false;
-    mobileChat.classList.remove("active");
-  }
+  setMobileChatOpen(false);
 }
 
 function dismissStablePanelOnActivity(mask: number): void {
@@ -450,6 +477,15 @@ function dismissStablePanelOnActivity(mask: number): void {
 function submitChat(): void {
   syncChatDraftFromInput();
   dispatchChat(chatInput.value.trim() || chatDraft.trim());
+}
+
+function syncMobileChatDraftFromInput(): void {
+  chatDraft = mobileChatInput.value;
+}
+
+function submitMobileChat(): void {
+  syncMobileChatDraftFromInput();
+  dispatchChat(mobileChatInput.value.trim() || chatDraft.trim());
 }
 
 function requestChatSubmit(event?: Event): void {
@@ -555,12 +591,13 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.code === "Escape" && (chatOpen || buryOpen || stableOpen || walletMobileOpen)) {
+  if (event.code === "Escape" && (chatOpen || buryOpen || stableOpen || walletMobileOpen || mobileChatOpen)) {
     event.preventDefault();
     setChatOpen(false);
     setBuryOpen(false);
     setStableOpen(false);
     setWalletMobileOpen(false);
+    setMobileChatOpen(false);
     return;
   }
   if (stableOpen) {
@@ -622,6 +659,48 @@ walletMobileClose.addEventListener("click", () => {
   setWalletMobileOpen(false);
 });
 
+mobileChatClose.addEventListener("click", () => {
+  setMobileChatOpen(false);
+});
+
+mobileChatCancel.addEventListener("click", () => {
+  setMobileChatOpen(false);
+});
+
+mobileChatSend.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  submitMobileChat();
+});
+
+mobileChatInput.addEventListener("input", () => {
+  syncMobileChatDraftFromInput();
+});
+
+mobileChatInput.addEventListener("change", () => {
+  syncMobileChatDraftFromInput();
+});
+
+mobileChatInput.addEventListener("keyup", () => {
+  syncMobileChatDraftFromInput();
+});
+
+mobileChatInput.addEventListener("compositionend", () => {
+  syncMobileChatDraftFromInput();
+});
+
+mobileChatInput.addEventListener("keydown", (event) => {
+  if (event.code === "Escape") {
+    event.preventDefault();
+    setMobileChatOpen(false);
+    return;
+  }
+  if (event.code === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    submitMobileChat();
+  }
+});
+
 function bindDirectionButton(button: HTMLButtonElement, code: "KeyW" | "KeyA" | "KeyS" | "KeyD"): void {
   const release = () => {
     input.setVirtualDirection(code, false);
@@ -663,28 +742,9 @@ bindActionButton(mobileMount, () => {
   input.queueVirtualMountToggle();
 });
 if (isLikelyMobile()) {
-  const triggerMobileChatPrompt = (event: Event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    mobileChat.classList.remove("active");
-    openMobileChatPrompt();
-  };
-  mobileChat.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    mobileChat.classList.add("active");
+  bindActionButton(mobileChat, () => {
+    setMobileChatOpen(true);
   });
-  mobileChat.addEventListener("click", triggerMobileChatPrompt);
-  mobileChat.addEventListener("pointerup", () => {
-    mobileChat.classList.remove("active");
-  });
-  mobileChat.addEventListener("pointercancel", () => {
-    mobileChat.classList.remove("active");
-  });
-  mobileChat.addEventListener("lostpointercapture", () => {
-    mobileChat.classList.remove("active");
-  });
-  mobileChat.addEventListener("contextmenu", (event) => event.preventDefault());
 } else {
   bindActionButton(mobileChat, () => {
     input.queueVirtualChatToggle();
@@ -736,7 +796,11 @@ function applyLocalMovement(dt: number): void {
   }
   const player = network.localPlayer;
   if (input.consumeChatToggle()) {
-    setChatOpen(!chatOpen);
+    if (isLikelyMobile()) {
+      setMobileChatOpen(!mobileChatOpen);
+    } else {
+      setChatOpen(!chatOpen);
+    }
   }
   if (input.consumeBuryToggle()) {
     setBuryOpen(!buryOpen);
