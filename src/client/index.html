@@ -367,38 +367,26 @@
 
       #mobile-chat-input {
         width: 100%;
-        min-height: 108px;
+        min-height: 72px;
         resize: none;
         border: 1px solid rgba(173, 194, 147, 0.26);
         background: rgba(8, 12, 10, 0.72);
         color: var(--text);
-        padding: 12px;
+        padding: 10px;
         font: inherit;
         outline: none;
-        margin-bottom: 10px;
+        margin-bottom: 6px;
       }
 
       #mobile-chat-input::placeholder {
         color: rgba(184, 199, 159, 0.7);
       }
 
-      #mobile-chat-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-      }
-
-      .mobile-chat-action {
-        border: 1px solid rgba(173, 194, 147, 0.2);
-        background: rgba(255, 255, 255, 0.04);
-        color: var(--text);
-        padding: 9px 12px;
-        cursor: pointer;
-      }
-
-      #mobile-chat-send {
-        border-color: rgba(217, 169, 75, 0.45);
-        background: rgba(217, 169, 75, 0.16);
+      #mobile-chat-note {
+        margin: 0;
+        font-size: 10px;
+        line-height: 1.3;
+        color: rgba(184, 199, 159, 0.84);
       }
 
       #wallet-mobile-panel p {
@@ -1250,13 +1238,8 @@
           <button id="mobile-chat-close" class="panel-close" type="button" aria-label="Close mobile chat">x</button>
         </div>
         <p>Say something nearby players can read above your character.</p>
-        <form id="mobile-chat-form">
-          <textarea id="mobile-chat-input" maxlength="80" rows="4" placeholder="Type a short message..." autocomplete="off"></textarea>
-          <div id="mobile-chat-actions">
-            <button id="mobile-chat-cancel" class="mobile-chat-action" type="button">Cancel</button>
-            <button id="mobile-chat-send" class="mobile-chat-action" type="submit">Send</button>
-          </div>
-        </form>
+        <textarea id="mobile-chat-input" maxlength="80" rows="3" placeholder="Type a short message..." autocomplete="off"></textarea>
+        <p id="mobile-chat-note">Press Enter to send. Press Shift+Enter for a new line.</p>
       </div>
       <div id="bury-panel" class="panel interactive">
         <div class="panel-head">

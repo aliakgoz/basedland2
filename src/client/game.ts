@@ -29,7 +29,6 @@ const stablePanel = document.querySelector<HTMLElement>("#stable-panel");
 const stableOptions = document.querySelectorAll<HTMLButtonElement>("[data-horse-variant]");
 const walletMobilePanel = document.querySelector<HTMLElement>("#wallet-mobile-panel");
 const mobileChatPanel = document.querySelector<HTMLElement>("#mobile-chat-panel");
-const mobileChatForm = document.querySelector<HTMLFormElement>("#mobile-chat-form");
 const walletConnect = document.querySelector<HTMLButtonElement>("#wallet-connect");
 const walletStatus = document.querySelector<HTMLElement>("#wallet-status");
 const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disconnect");
@@ -43,8 +42,6 @@ const walletMobileClose = document.querySelector<HTMLButtonElement>("#wallet-mob
 const walletOpenCoinbase = document.querySelector<HTMLButtonElement>("#wallet-open-coinbase");
 const walletOpenMetamask = document.querySelector<HTMLButtonElement>("#wallet-open-metamask");
 const mobileChatClose = document.querySelector<HTMLButtonElement>("#mobile-chat-close");
-const mobileChatCancel = document.querySelector<HTMLButtonElement>("#mobile-chat-cancel");
-const mobileChatSend = document.querySelector<HTMLButtonElement>("#mobile-chat-send");
 const mobileChatInput = document.querySelector<HTMLTextAreaElement>("#mobile-chat-input");
 const mobileControls = document.querySelector<HTMLElement>("#mobile-controls");
 const mobileUp = document.querySelector<HTMLButtonElement>("#mobile-up");
@@ -57,7 +54,7 @@ const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
 const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
 const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || !mobileChatForm || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatCancel || !mobileChatSend || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -688,14 +685,6 @@ walletMobileClose.addEventListener("click", () => {
 
 mobileChatClose.addEventListener("click", () => {
   setMobileChatOpen(false);
-});
-
-mobileChatCancel.addEventListener("click", () => {
-  setMobileChatOpen(false);
-});
-
-mobileChatForm.addEventListener("submit", (event) => {
-  requestMobileChatSubmit(event);
 });
 
 mobileChatInput.addEventListener("input", () => {
