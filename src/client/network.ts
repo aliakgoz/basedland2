@@ -334,14 +334,17 @@ export class NetworkClient {
 
   sendChat(text: string): string | null {
     if (!this.localPlayer) {
+      console.debug("[chat] skipped, local player missing");
       return null;
     }
 
     const normalized = text.trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
     if (normalized.length === 0) {
+      console.debug("[chat] skipped, empty text");
       return null;
     }
 
+    console.debug("[chat] posting", { playerId: this.localPlayer.id, textLength: normalized.length });
     void fetch(backendUrl("/api/chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -349,9 +352,20 @@ export class NetworkClient {
         playerId: this.localPlayer.id,
         text: normalized
       })
-    }).catch(() => {
-      this.onMessage("Chat could not reach the server.");
-    });
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const raw = await response.text();
+          console.warn("[chat] server rejected", response.status, raw);
+          this.onMessage("Chat could not reach the server.");
+          return;
+        }
+        console.debug("[chat] delivered");
+      })
+      .catch((error) => {
+        console.warn("[chat] request failed", error);
+        this.onMessage("Chat could not reach the server.");
+      });
     return normalized;
   }
 

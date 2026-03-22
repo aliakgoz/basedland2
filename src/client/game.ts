@@ -398,6 +398,11 @@ function submitChat(): void {
     return;
   }
   const text = (chatInput.value.trim() || chatDraft.trim()).slice(0, 80);
+  console.debug("[chat] submit", {
+    textLength: text.length,
+    hasLocalPlayer: Boolean(network.localPlayer),
+    connected: network.isConnected()
+  });
   if (text.length === 0) {
     setChatOpen(false);
     return;

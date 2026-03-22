@@ -304,6 +304,7 @@ const httpServer = createServer(async (req, res) => {
       const payload = await readJsonBody<{ playerId?: number; text?: string }>(req);
       const playerId = Number(payload.playerId ?? 0);
       const text = String(payload.text ?? "").trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
+      console.log("[chat] api request", { playerId, text });
       if (!Number.isFinite(playerId) || playerId <= 0 || text.length === 0) {
         json(res, 400, { error: "Invalid chat payload." });
         return;
@@ -1243,6 +1244,7 @@ function broadcastPlayerChat(playerId: number, text: string): boolean {
 
   const packet = encodeChat(playerId, message.expiresAt - Date.now(), message.text);
   const recipients = new Set<number>([playerId, ...player.visiblePlayers]);
+  console.log("[chat] broadcast", { playerId, recipients: [...recipients], text });
   for (const id of recipients) {
     const recipient = playerManager.players.get(id);
     if (recipient?.socket.readyState === 1) {

@@ -1,8 +1,9 @@
 import { build } from "esbuild";
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const mapMakerEnabled = !["0", "false", "off", "no"].includes(String(process.env.MAP_MAKER_ENABLED ?? "1").trim().toLowerCase());
+const buildId = Date.now().toString(36);
 
 const localImport = spawnSync(process.execPath, ["scripts/import-local-assets.mjs"], {
   stdio: "inherit"
@@ -41,7 +42,8 @@ await build({
   external: ["ws"]
 });
 
-cpSync("src/client/index.html", "dist/client/index.html");
+const clientIndex = readFileSync("src/client/index.html", "utf8").replace(/__BASEDLAND_BUILD_ID__/g, buildId);
+writeFileSync("dist/client/index.html", clientIndex, "utf8");
 
 if (existsSync("src/client/assets")) {
   cpSync("src/client/assets", "dist/client/assets", { recursive: true });
