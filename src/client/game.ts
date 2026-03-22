@@ -29,6 +29,7 @@ const stablePanel = document.querySelector<HTMLElement>("#stable-panel");
 const stableOptions = document.querySelectorAll<HTMLButtonElement>("[data-horse-variant]");
 const walletMobilePanel = document.querySelector<HTMLElement>("#wallet-mobile-panel");
 const mobileChatPanel = document.querySelector<HTMLElement>("#mobile-chat-panel");
+const mobileChatForm = document.querySelector<HTMLFormElement>("#mobile-chat-form");
 const walletConnect = document.querySelector<HTMLButtonElement>("#wallet-connect");
 const walletStatus = document.querySelector<HTMLElement>("#wallet-status");
 const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disconnect");
@@ -56,7 +57,7 @@ const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
 const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
 const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatCancel || !mobileChatSend || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || !mobileChatForm || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatCancel || !mobileChatSend || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -693,7 +694,7 @@ mobileChatCancel.addEventListener("click", () => {
   setMobileChatOpen(false);
 });
 
-mobileChatSend.addEventListener("click", (event) => {
+mobileChatForm.addEventListener("submit", (event) => {
   requestMobileChatSubmit(event);
 });
 
