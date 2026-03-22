@@ -125,6 +125,7 @@ let introVisible = true;
 let lastManualCameraPrefetchKey = "";
 let lastChatSubmitAt = 0;
 let localChatPreview: { text: string; expiresAt: number } | null = null;
+let chatDraft = "";
 
 interface TreasureSummaryResponse {
   pointCount: number;
@@ -310,11 +311,13 @@ function setChatOpen(next: boolean): void {
   syncTextEntryState();
   syncMobileControlsVisibility();
   if (next) {
+    chatInput.value = chatDraft;
     chatInput.focus();
     chatInput.select();
   } else {
     chatInput.blur();
     chatInput.value = "";
+    chatDraft = "";
   }
 }
 
@@ -394,7 +397,7 @@ function submitChat(): void {
   if (now - lastChatSubmitAt < 250) {
     return;
   }
-  const text = chatInput.value.trim();
+  const text = (chatInput.value.trim() || chatDraft.trim()).slice(0, 80);
   if (text.length === 0) {
     setChatOpen(false);
     return;
@@ -405,6 +408,7 @@ function submitChat(): void {
     return;
   }
   lastChatSubmitAt = now;
+  chatDraft = "";
   if (network.localPlayer) {
     pushOverheadMessage(network.localPlayer, sent, CHAT_MESSAGE_TTL_MS, now);
   }
@@ -425,6 +429,14 @@ chatSend.addEventListener("click", (event) => {
 chatSend.addEventListener("pointerup", (event) => {
   event.preventDefault();
   submitChat();
+});
+
+chatInput.addEventListener("input", () => {
+  chatDraft = chatInput.value;
+});
+
+chatInput.addEventListener("change", () => {
+  chatDraft = chatInput.value;
 });
 
 chatInput.addEventListener("keydown", (event) => {
