@@ -61,6 +61,7 @@ const treasureCount = Math.max(1, Number(process.env.TREASURE_COUNT ?? 128) || 1
 const treasurePayoutPrivateKey = (process.env.TREASURE_PAYOUT_PRIVATE_KEY ?? "").trim();
 const BASE_CHAIN_ID = 8453;
 const ERC20_TRANSFER_SELECTOR = "0xa9059cbb";
+const ERC20_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const STABLE_INTERACTION_RANGE = 480;
 const STABLE_FOOTPRINT_HALF_WIDTH = 134;
 const STABLE_FOOTPRINT_HALF_HEIGHT = 134;
@@ -1024,9 +1025,53 @@ function decodeTransferInput(input: string): { recipient: string; amount: bigint
   };
 }
 
+function decodeAddressTopic(topic: string | undefined): string | null {
+  const normalized = strip0x(topic ?? "");
+  if (!/^[a-fA-F0-9]{64}$/.test(normalized)) {
+    return null;
+  }
+  return normalizeAddress(`0x${normalized.slice(24)}`);
+}
+
+function hasMatchingUsdcTransferLog(
+  logs: Array<{ address?: string; topics?: string[]; data?: string }> | undefined,
+  payer: string,
+  recipient: string,
+  expectedAmountUnits: bigint
+): boolean {
+  const normalizedPayer = normalizeAddress(payer);
+  const normalizedRecipient = normalizeAddress(recipient);
+
+  for (const log of logs ?? []) {
+    if (normalizeAddress(log.address ?? "") !== normalizeAddress(treasureUsdcAddress)) {
+      continue;
+    }
+    const topics = log.topics ?? [];
+    if (normalizeAddress(topics[0] ?? "") !== ERC20_TRANSFER_TOPIC) {
+      continue;
+    }
+    const from = decodeAddressTopic(topics[1]);
+    const to = decodeAddressTopic(topics[2]);
+    if (!from || !to) {
+      continue;
+    }
+    let amount = 0n;
+    try {
+      amount = BigInt(log.data ?? "0x0");
+    } catch {
+      continue;
+    }
+    if (from === normalizedPayer && to === normalizedRecipient && amount === expectedAmountUnits) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function verifyTreasurePayment(txHash: string, payer: string, expectedAmountUnits: bigint): Promise<void> {
   const tx = await baseRpc<{ to?: string; from?: string; input?: string } | null>("eth_getTransactionByHash", [txHash]);
-  const receipt = await baseRpc<{ status?: string } | null>("eth_getTransactionReceipt", [txHash]);
+  const receipt = await baseRpc<{ status?: string; logs?: Array<{ address?: string; topics?: string[]; data?: string }> } | null>("eth_getTransactionReceipt", [txHash]);
   const chainIdHex = await baseRpc<string>("eth_chainId", []);
 
   if (!tx || !receipt || receipt.status !== "0x1") {
@@ -1035,23 +1080,25 @@ async function verifyTreasurePayment(txHash: string, payer: string, expectedAmou
   if (Number.parseInt(chainIdHex, 16) !== BASE_CHAIN_ID) {
     throw new Error("RPC endpoint is not Base mainnet.");
   }
-  if (normalizeAddress(tx.to ?? "") !== normalizeAddress(treasureUsdcAddress)) {
-    throw new Error("Transaction target is not Base USDC.");
-  }
-  if (normalizeAddress(tx.from ?? "") !== normalizeAddress(payer)) {
-    throw new Error("Transaction sender does not match the connected wallet.");
+  const normalizedPayer = normalizeAddress(payer);
+  const normalizedRecipient = normalizeAddress(treasureRecipient);
+  const decoded = decodeTransferInput(tx.input ?? "");
+  const directTransferMatches =
+    normalizeAddress(tx.to ?? "") === normalizeAddress(treasureUsdcAddress) &&
+    normalizeAddress(tx.from ?? "") === normalizedPayer &&
+    decoded !== null &&
+    decoded.recipient === normalizedRecipient &&
+    decoded.amount === expectedAmountUnits;
+
+  if (directTransferMatches) {
+    return;
   }
 
-  const decoded = decodeTransferInput(tx.input ?? "");
-  if (!decoded) {
-    throw new Error("Transaction is not a USDC transfer.");
+  if (hasMatchingUsdcTransferLog(receipt.logs, normalizedPayer, normalizedRecipient, expectedAmountUnits)) {
+    return;
   }
-  if (decoded.recipient !== normalizeAddress(treasureRecipient)) {
-    throw new Error("USDC recipient does not match the treasure wallet.");
-  }
-  if (decoded.amount !== expectedAmountUnits) {
-    throw new Error("USDC amount does not match the required payment.");
-  }
+
+  throw new Error("No matching Base USDC transfer to the treasure wallet was found in this transaction.");
 }
 
 function describeTreasureFound(result: {
