@@ -666,6 +666,7 @@ if (isLikelyMobile()) {
   const triggerMobileChatPrompt = (event: Event) => {
     event.preventDefault();
     event.stopPropagation();
+    mobileChat.classList.remove("active");
     openMobileChatPrompt();
   };
   mobileChat.addEventListener("pointerdown", (event) => {
@@ -673,9 +674,10 @@ if (isLikelyMobile()) {
     event.stopPropagation();
     mobileChat.classList.add("active");
   });
-  mobileChat.addEventListener("pointerup", triggerMobileChatPrompt);
-  mobileChat.addEventListener("touchend", triggerMobileChatPrompt);
   mobileChat.addEventListener("click", triggerMobileChatPrompt);
+  mobileChat.addEventListener("pointerup", () => {
+    mobileChat.classList.remove("active");
+  });
   mobileChat.addEventListener("pointercancel", () => {
     mobileChat.classList.remove("active");
   });
