@@ -697,19 +697,6 @@ mobileChatSend.addEventListener("click", (event) => {
   requestMobileChatSubmit(event);
 });
 
-mobileChatSend.addEventListener("pointerdown", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-});
-
-mobileChatSend.addEventListener("pointerup", (event) => {
-  requestMobileChatSubmit(event);
-});
-
-mobileChatSend.addEventListener("touchend", (event) => {
-  requestMobileChatSubmit(event);
-});
-
 mobileChatInput.addEventListener("input", () => {
   syncMobileChatDraftFromInput();
 });
