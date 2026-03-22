@@ -221,6 +221,7 @@ export class TreasureClient {
         txHash,
         payer: this.account
       });
+      player.mountedHorseVariant = result.mountedHorseVariant;
       this.setMessage(result.message);
     });
   }

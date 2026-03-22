@@ -395,10 +395,6 @@ const httpServer = createServer(async (req, res) => {
         json(res, 409, { error: "This transaction hash was already used." });
         return;
       }
-      if (!getNearbyStable(playerId)) {
-        json(res, 403, { error: "Move back to a stable to complete the purchase." });
-        return;
-      }
 
       await verifyTreasurePayment(txHash, payer, stableHorsePriceUnits);
       treasureManager?.markTxUsed(txHash);

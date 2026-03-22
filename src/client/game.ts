@@ -21,6 +21,7 @@ const message = document.querySelector<HTMLElement>("#message");
 const chatPanel = document.querySelector<HTMLElement>("#chat-panel");
 const chatForm = document.querySelector<HTMLFormElement>("#chat-form");
 const chatInput = document.querySelector<HTMLInputElement>("#chat-input");
+const chatSend = document.querySelector<HTMLButtonElement>("#chat-send");
 const buryPanel = document.querySelector<HTMLElement>("#bury-panel");
 const buryForm = document.querySelector<HTMLFormElement>("#bury-form");
 const buryAmount = document.querySelector<HTMLInputElement>("#bury-amount");
@@ -50,7 +51,7 @@ const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
 const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
 const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -386,8 +387,7 @@ function dismissStablePanelOnActivity(mask: number): void {
   }
 }
 
-chatForm.addEventListener("submit", (event) => {
-  event.preventDefault();
+function submitChat(): void {
   const text = chatInput.value.trim();
   if (text.length === 0) {
     setChatOpen(false);
@@ -395,6 +395,16 @@ chatForm.addEventListener("submit", (event) => {
   }
   network.sendChat(text);
   setChatOpen(false);
+}
+
+chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitChat();
+});
+
+chatSend.addEventListener("click", (event) => {
+  event.preventDefault();
+  submitChat();
 });
 
 chatInput.addEventListener("keydown", (event) => {
@@ -462,22 +472,26 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("pointerdown", (event) => {
-  if (!stableOpen) {
-    if (!walletMobileOpen) {
-      return;
-    }
-    const target = event.target;
-    if (target instanceof Node && walletMobilePanel.contains(target)) {
-      return;
-    }
+  const target = event.target;
+  if (!(target instanceof Node)) {
+    return;
+  }
+  if (chatOpen && !chatPanel.contains(target)) {
+    setChatOpen(false);
+    return;
+  }
+  if (buryOpen && !buryPanel.contains(target)) {
+    setBuryOpen(false);
+    return;
+  }
+  if (stableOpen && !stablePanel.contains(target)) {
+    setStableOpen(false);
+    return;
+  }
+  if (walletMobileOpen && !walletMobilePanel.contains(target)) {
     setWalletMobileOpen(false);
     return;
   }
-  const target = event.target;
-  if (target instanceof Node && stablePanel.contains(target)) {
-    return;
-  }
-  setStableOpen(false);
 });
 
 walletOpenCoinbase.addEventListener("click", () => {
