@@ -18,10 +18,10 @@
     "player:generate": "node scripts/generate-player-sprites.mjs",
     "world:generate": "node scripts/generate-world-layout.mjs",
     "start": "node dist/server/server.js",
-    "start:home": "node scripts/start-home-server.mjs",
+    "start:home": "npm run build && node scripts/start-home-server.mjs",
     "start:timed": "node scripts/start-timed-server.mjs",
     "dev": "npm run build && npm run start",
-    "dev:home": "npm run build && npm run start:home",
+    "dev:home": "npm run start:home",
     "dev:timed": "npm run build && npm run start:timed"
   },
   "dependencies": {
