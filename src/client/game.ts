@@ -126,6 +126,8 @@ let lastManualCameraPrefetchKey = "";
 let lastChatSubmitAt = 0;
 let localChatPreview: { text: string; expiresAt: number } | null = null;
 let chatDraft = "";
+let mobileChatPromptOpen = false;
+let lastMobileChatPromptAt = 0;
 
 interface TreasureSummaryResponse {
   pointCount: number;
@@ -416,6 +418,26 @@ function dispatchChat(text: string): void {
   setChatOpen(false);
 }
 
+function openMobileChatPrompt(): void {
+  const now = performance.now();
+  if (mobileChatPromptOpen || now - lastMobileChatPromptAt < 700) {
+    return;
+  }
+  lastMobileChatPromptAt = now;
+  mobileChatPromptOpen = true;
+  try {
+    const result = window.prompt("Local chat", chatDraft);
+    if (result === null) {
+      return;
+    }
+    chatDraft = result;
+    dispatchChat(result);
+  } finally {
+    mobileChatPromptOpen = false;
+    mobileChat.classList.remove("active");
+  }
+}
+
 function dismissStablePanelOnActivity(mask: number): void {
   if (!stableOpen) {
     return;
@@ -640,9 +662,32 @@ bindActionButton(mobileInteract, () => {
 bindActionButton(mobileMount, () => {
   input.queueVirtualMountToggle();
 });
-bindActionButton(mobileChat, () => {
-  input.queueVirtualChatToggle();
-});
+if (isLikelyMobile()) {
+  const triggerMobileChatPrompt = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openMobileChatPrompt();
+  };
+  mobileChat.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    mobileChat.classList.add("active");
+  });
+  mobileChat.addEventListener("pointerup", triggerMobileChatPrompt);
+  mobileChat.addEventListener("touchend", triggerMobileChatPrompt);
+  mobileChat.addEventListener("click", triggerMobileChatPrompt);
+  mobileChat.addEventListener("pointercancel", () => {
+    mobileChat.classList.remove("active");
+  });
+  mobileChat.addEventListener("lostpointercapture", () => {
+    mobileChat.classList.remove("active");
+  });
+  mobileChat.addEventListener("contextmenu", (event) => event.preventDefault());
+} else {
+  bindActionButton(mobileChat, () => {
+    input.queueVirtualChatToggle();
+  });
+}
 bindActionButton(mobileBury, () => {
   input.queueVirtualBuryToggle();
 });
