@@ -330,6 +330,43 @@
         cursor: pointer;
       }
 
+      #wallet-mobile-panel {
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(360px, calc(100vw - 28px));
+        padding: 14px;
+        display: none;
+        z-index: 39;
+      }
+
+      #wallet-mobile-panel.active {
+        display: block;
+      }
+
+      #wallet-mobile-panel p {
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      #wallet-mobile-options {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .wallet-mobile-option {
+        border: 1px solid rgba(173, 194, 147, 0.2);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        padding: 10px 12px;
+        border-radius: 12px;
+        cursor: pointer;
+        text-align: left;
+      }
+
       #chat-panel.active {
         display: block;
       }
@@ -342,28 +379,36 @@
         display: block;
       }
 
-      #chat-panel h2 {
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
         margin: 0 0 8px;
+      }
+
+      .panel-head h2 {
+        margin: 0;
         font-size: 11px;
         letter-spacing: 0.1em;
         text-transform: uppercase;
         color: var(--muted);
       }
 
-      #bury-panel h2 {
-        margin: 0 0 6px;
-        font-size: 11px;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-
-      #stable-panel h2 {
-        margin: 0 0 6px;
-        font-size: 11px;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--muted);
+      .panel-close {
+        width: 28px;
+        height: 28px;
+        border: 1px solid rgba(217, 169, 75, 0.26);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        border-radius: 999px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        line-height: 1;
+        padding: 0;
       }
 
       #bury-panel p {
@@ -750,6 +795,11 @@
         z-index: 34;
       }
 
+      #mobile-controls.panel-open {
+        opacity: 0;
+        pointer-events: none;
+      }
+
       #mobile-dpad,
       #mobile-actions {
         position: absolute;
@@ -818,6 +868,12 @@
         height: 56px;
         font-size: 16px;
         letter-spacing: 0.06em;
+      }
+
+      .mobile-action svg {
+        width: 22px;
+        height: 22px;
+        display: block;
       }
 
       @media (hover: none), (pointer: coarse), (max-width: 900px) {
@@ -938,12 +994,18 @@
 
         #chat-panel,
         #bury-panel,
-        #stable-panel {
+        #stable-panel,
+        #wallet-mobile-panel {
           left: 10px;
           right: 10px;
           bottom: 186px;
           width: auto;
           max-width: none;
+        }
+
+        #wallet-mobile-panel {
+          top: auto;
+          transform: none;
         }
 
         #stable-options {
@@ -997,7 +1059,8 @@
 
         #chat-panel,
         #bury-panel,
-        #stable-panel {
+        #stable-panel,
+        #wallet-mobile-panel {
           bottom: 172px;
         }
 
@@ -1080,15 +1143,32 @@
         <span id="wallet-status">Connect Wallet</span>
         <button id="wallet-disconnect" type="button" aria-label="Disconnect wallet" title="Disconnect wallet">x</button>
       </div>
+      <div id="wallet-mobile-panel" class="panel interactive">
+        <div class="panel-head">
+          <h2>Open Wallet</h2>
+          <button id="wallet-mobile-close" class="panel-close" type="button" aria-label="Close wallet options">x</button>
+        </div>
+        <p>Open BasedLand inside your wallet app browser. If the wallet is installed, choose one below.</p>
+        <div id="wallet-mobile-options">
+          <button id="wallet-open-coinbase" class="wallet-mobile-option" type="button">Open in Coinbase Wallet</button>
+          <button id="wallet-open-metamask" class="wallet-mobile-option" type="button">Open in MetaMask</button>
+        </div>
+      </div>
       <div id="chat-panel" class="panel interactive">
-        <h2>Local Chat</h2>
+        <div class="panel-head">
+          <h2>Local Chat</h2>
+          <button id="chat-close" class="panel-close" type="button" aria-label="Close chat">x</button>
+        </div>
         <form id="chat-form">
           <input id="chat-input" type="text" maxlength="80" placeholder="Type a short message..." autocomplete="off" />
           <button id="chat-send" type="submit">Send</button>
         </form>
       </div>
       <div id="bury-panel" class="panel interactive">
-        <h2>Hide Treasure</h2>
+        <div class="panel-head">
+          <h2>Hide Treasure</h2>
+          <button id="bury-close" class="panel-close" type="button" aria-label="Close treasure hide panel">x</button>
+        </div>
         <p>Hide a USDC cache under your current tile. Only the server knows where it is until someone digs it up.</p>
         <form id="bury-form">
           <input id="bury-amount" type="text" inputmode="decimal" placeholder="USDC amount" autocomplete="off" />
@@ -1096,7 +1176,10 @@
         </form>
       </div>
       <div id="stable-panel" class="panel interactive">
-        <h2>Stable Ledger</h2>
+        <div class="panel-head">
+          <h2>Stable Ledger</h2>
+          <button id="stable-close" class="panel-close" type="button" aria-label="Close stable panel">x</button>
+        </div>
         <p>Select a mount. Payment is <strong>0.5 USDC</strong> and delivery is immediate.</p>
         <div id="stable-options">
           <button class="stable-option" type="button" data-horse-variant="1">
@@ -1151,6 +1234,11 @@
         <div class="mobile-control mobile-dpad-spacer"></div>
       </div>
       <div id="mobile-actions">
+        <button id="mobile-chat" class="mobile-control mobile-action" type="button" aria-label="Open chat">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M4 5h16v10H8l-4 4V5zm2 2v7.17L7.17 13H18V7H6z"/>
+          </svg>
+        </button>
         <button id="mobile-interact" class="mobile-control mobile-action" type="button" aria-label="Interact">E</button>
         <button id="mobile-mount" class="mobile-control mobile-action" type="button" aria-label="Mount or dismount">H</button>
         <button id="mobile-bury" class="mobile-control mobile-action" type="button" aria-label="Hide treasure">F</button>

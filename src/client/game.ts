@@ -26,22 +26,31 @@ const buryForm = document.querySelector<HTMLFormElement>("#bury-form");
 const buryAmount = document.querySelector<HTMLInputElement>("#bury-amount");
 const stablePanel = document.querySelector<HTMLElement>("#stable-panel");
 const stableOptions = document.querySelectorAll<HTMLButtonElement>("[data-horse-variant]");
+const walletMobilePanel = document.querySelector<HTMLElement>("#wallet-mobile-panel");
 const walletConnect = document.querySelector<HTMLButtonElement>("#wallet-connect");
 const walletStatus = document.querySelector<HTMLElement>("#wallet-status");
 const walletDisconnect = document.querySelector<HTMLButtonElement>("#wallet-disconnect");
 const treasureSummaryAmount = document.querySelector<HTMLElement>("#treasure-summary-amount");
 const treasureSummaryCount = document.querySelector<HTMLElement>("#treasure-summary-count");
 const editorDock = document.querySelector<HTMLElement>("#editor-dock");
+const chatClose = document.querySelector<HTMLButtonElement>("#chat-close");
+const buryClose = document.querySelector<HTMLButtonElement>("#bury-close");
+const stableClose = document.querySelector<HTMLButtonElement>("#stable-close");
+const walletMobileClose = document.querySelector<HTMLButtonElement>("#wallet-mobile-close");
+const walletOpenCoinbase = document.querySelector<HTMLButtonElement>("#wallet-open-coinbase");
+const walletOpenMetamask = document.querySelector<HTMLButtonElement>("#wallet-open-metamask");
+const mobileControls = document.querySelector<HTMLElement>("#mobile-controls");
 const mobileUp = document.querySelector<HTMLButtonElement>("#mobile-up");
 const mobileDown = document.querySelector<HTMLButtonElement>("#mobile-down");
 const mobileLeft = document.querySelector<HTMLButtonElement>("#mobile-left");
 const mobileRight = document.querySelector<HTMLButtonElement>("#mobile-right");
+const mobileChat = document.querySelector<HTMLButtonElement>("#mobile-chat");
 const mobileInteract = document.querySelector<HTMLButtonElement>("#mobile-interact");
 const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
 const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
 const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !stablePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
+if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -110,6 +119,7 @@ const TREASURE_SUMMARY_REFRESH_MS = 10000;
 let chatOpen = false;
 let buryOpen = false;
 let stableOpen = false;
+let walletMobileOpen = false;
 let introVisible = true;
 let lastManualCameraPrefetchKey = "";
 
@@ -131,6 +141,28 @@ interface EditorAccessResponse {
 const CLIENT_STABLE_FALLBACK_RANGE = 480;
 const EDITOR_ACCESS_REFRESH_MS = 3000;
 let editorInitializationStarted = false;
+
+function isLikelyMobile(): boolean {
+  return /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function mobileDappUrl(): string {
+  return window.location.href;
+}
+
+function openCoinbaseWallet(): void {
+  window.location.href = `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(mobileDappUrl())}`;
+}
+
+function openMetaMaskWallet(): void {
+  const url = new URL(mobileDappUrl());
+  const dappTarget = `${url.host}${url.pathname}${url.search}${url.hash}`;
+  window.location.href = `https://metamask.app.link/dapp/${dappTarget}`;
+}
+
+function syncMobileControlsVisibility(): void {
+  mobileControls.classList.toggle("panel-open", chatOpen || buryOpen || stableOpen || walletMobileOpen);
+}
 
 async function loadInitialWorldLayer(): Promise<void> {
   try {
@@ -257,7 +289,7 @@ function hasNearbyHorseForMount(): boolean {
 }
 
 function syncTextEntryState(): void {
-  input.setTextEntryActive(chatOpen || buryOpen || stableOpen);
+  input.setTextEntryActive(chatOpen || buryOpen || stableOpen || walletMobileOpen);
 }
 
 function setChatOpen(next: boolean): void {
@@ -268,9 +300,12 @@ function setChatOpen(next: boolean): void {
     buryAmount.blur();
     stableOpen = false;
     stablePanel.classList.remove("active");
+    walletMobileOpen = false;
+    walletMobilePanel.classList.remove("active");
   }
   chatPanel.classList.toggle("active", next);
   syncTextEntryState();
+  syncMobileControlsVisibility();
   if (next) {
     chatInput.focus();
     chatInput.select();
@@ -289,9 +324,12 @@ function setBuryOpen(next: boolean): void {
     chatInput.value = "";
     stableOpen = false;
     stablePanel.classList.remove("active");
+    walletMobileOpen = false;
+    walletMobilePanel.classList.remove("active");
   }
   buryPanel.classList.toggle("active", next);
   syncTextEntryState();
+  syncMobileControlsVisibility();
   if (next) {
     buryAmount.focus();
     buryAmount.select();
@@ -312,9 +350,31 @@ function setStableOpen(next: boolean): void {
     chatInput.value = "";
     buryAmount.blur();
     buryAmount.value = "";
+    walletMobileOpen = false;
+    walletMobilePanel.classList.remove("active");
   }
   stablePanel.classList.toggle("active", next);
   syncTextEntryState();
+  syncMobileControlsVisibility();
+}
+
+function setWalletMobileOpen(next: boolean): void {
+  walletMobileOpen = next;
+  if (next) {
+    chatOpen = false;
+    buryOpen = false;
+    stableOpen = false;
+    chatPanel.classList.remove("active");
+    buryPanel.classList.remove("active");
+    stablePanel.classList.remove("active");
+    chatInput.blur();
+    chatInput.value = "";
+    buryAmount.blur();
+    buryAmount.value = "";
+  }
+  walletMobilePanel.classList.toggle("active", next);
+  syncTextEntryState();
+  syncMobileControlsVisibility();
 }
 
 function dismissStablePanelOnActivity(mask: number): void {
@@ -381,11 +441,12 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.code === "Escape" && (chatOpen || buryOpen || stableOpen)) {
+  if (event.code === "Escape" && (chatOpen || buryOpen || stableOpen || walletMobileOpen)) {
     event.preventDefault();
     setChatOpen(false);
     setBuryOpen(false);
     setStableOpen(false);
+    setWalletMobileOpen(false);
     return;
   }
   if (stableOpen) {
@@ -402,6 +463,14 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("pointerdown", (event) => {
   if (!stableOpen) {
+    if (!walletMobileOpen) {
+      return;
+    }
+    const target = event.target;
+    if (target instanceof Node && walletMobilePanel.contains(target)) {
+      return;
+    }
+    setWalletMobileOpen(false);
     return;
   }
   const target = event.target;
@@ -409,6 +478,30 @@ window.addEventListener("pointerdown", (event) => {
     return;
   }
   setStableOpen(false);
+});
+
+walletOpenCoinbase.addEventListener("click", () => {
+  openCoinbaseWallet();
+});
+
+walletOpenMetamask.addEventListener("click", () => {
+  openMetaMaskWallet();
+});
+
+chatClose.addEventListener("click", () => {
+  setChatOpen(false);
+});
+
+buryClose.addEventListener("click", () => {
+  setBuryOpen(false);
+});
+
+stableClose.addEventListener("click", () => {
+  setStableOpen(false);
+});
+
+walletMobileClose.addEventListener("click", () => {
+  setWalletMobileOpen(false);
 });
 
 function bindDirectionButton(button: HTMLButtonElement, code: "KeyW" | "KeyA" | "KeyS" | "KeyD"): void {
@@ -451,6 +544,9 @@ bindActionButton(mobileInteract, () => {
 bindActionButton(mobileMount, () => {
   input.queueVirtualMountToggle();
 });
+bindActionButton(mobileChat, () => {
+  input.queueVirtualChatToggle();
+});
 bindActionButton(mobileBury, () => {
   input.queueVirtualBuryToggle();
 });
@@ -459,6 +555,11 @@ bindActionButton(mobileDig, () => {
 });
 
 walletConnect.addEventListener("click", () => {
+  if (isLikelyMobile() && !window.ethereum) {
+    setWalletMobileOpen(true);
+    renderer.setMessage("Choose a wallet app to reopen BasedLand.");
+    return;
+  }
   void treasure.connectWallet();
 });
 

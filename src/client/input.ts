@@ -188,6 +188,13 @@ export class InputController {
     this.buryToggleQueued = true;
   }
 
+  queueVirtualChatToggle(): void {
+    if (this.uiBlocked) {
+      return;
+    }
+    this.chatToggleQueued = true;
+  }
+
   queueVirtualDig(): void {
     if (this.uiBlocked || this.textEntryActive || !this.digEnabled) {
       return;
