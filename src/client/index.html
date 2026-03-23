@@ -882,7 +882,7 @@
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         grid-template-rows: repeat(3, 1fr);
-        gap: 4px;
+        gap: 0;
       }
 
       #mobile-actions {
@@ -895,11 +895,11 @@
 
       .mobile-control {
         border: 1px solid rgba(255, 232, 186, 0.24);
-        background: linear-gradient(180deg, rgba(30, 42, 35, 0.7), rgba(9, 14, 11, 0.62));
+        background: linear-gradient(180deg, rgba(30, 42, 35, 0.52), rgba(9, 14, 11, 0.44));
         color: var(--text);
         border-radius: 18px;
         box-shadow:
-          0 10px 24px rgba(0, 0, 0, 0.2),
+          0 8px 18px rgba(0, 0, 0, 0.16),
           inset 0 1px 0 rgba(255, 255, 255, 0.08);
         font: inherit;
         font-size: 18px;
@@ -925,6 +925,7 @@
         background: transparent;
         border: none;
         box-shadow: none;
+        opacity: 0;
       }
 
       .mobile-dpad {
@@ -932,32 +933,48 @@
         height: 100%;
       }
 
+      #mobile-up {
+        margin-bottom: -12px;
+      }
+
+      #mobile-down {
+        margin-top: -12px;
+      }
+
+      #mobile-left {
+        margin-right: -12px;
+      }
+
+      #mobile-right {
+        margin-left: -12px;
+      }
+
       .mobile-action {
-        width: 78px;
-        height: 60px;
-        padding: 6px 4px;
-        font-size: 15px;
+        width: 46px;
+        height: 36px;
+        padding: 4px 2px;
+        font-size: 11px;
         letter-spacing: 0.04em;
         flex-direction: column;
-        gap: 2px;
+        gap: 1px;
       }
 
       .mobile-action svg {
-        width: 18px;
-        height: 18px;
+        width: 12px;
+        height: 12px;
         display: block;
       }
 
       .mobile-action-main {
         display: block;
-        font-size: 15px;
+        font-size: 10px;
         font-weight: 700;
         line-height: 1;
       }
 
       .mobile-action-label {
         display: block;
-        font-size: 8px;
+        font-size: 6px;
         font-weight: 600;
         line-height: 1;
         letter-spacing: 0.08em;
@@ -1132,13 +1149,12 @@
         #mobile-dpad {
           width: 168px;
           height: 168px;
-          gap: 3px;
         }
 
         .mobile-action {
-          width: 74px;
-          height: 56px;
-          font-size: 14px;
+          width: 42px;
+          height: 34px;
+          font-size: 10px;
         }
 
         #wallet-panel {
