@@ -49,13 +49,15 @@ const mobileUp = document.querySelector<HTMLButtonElement>("#mobile-up");
 const mobileDown = document.querySelector<HTMLButtonElement>("#mobile-down");
 const mobileLeft = document.querySelector<HTMLButtonElement>("#mobile-left");
 const mobileRight = document.querySelector<HTMLButtonElement>("#mobile-right");
+const mobileZoomIn = document.querySelector<HTMLButtonElement>("#mobile-zoom-in");
+const mobileZoomOut = document.querySelector<HTMLButtonElement>("#mobile-zoom-out");
 const mobileChat = document.querySelector<HTMLButtonElement>("#mobile-chat");
 const mobileInteract = document.querySelector<HTMLButtonElement>("#mobile-interact");
 const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
 const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
 const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !introClose || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
+if (!canvas || !introOverlay || !introClose || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileZoomIn || !mobileZoomOut || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -751,6 +753,12 @@ bindDirectionButton(mobileUp, "KeyW");
 bindDirectionButton(mobileDown, "KeyS");
 bindDirectionButton(mobileLeft, "KeyA");
 bindDirectionButton(mobileRight, "KeyD");
+bindActionButton(mobileZoomIn, () => {
+  renderer.setZoom(renderer.getZoom() + 0.16);
+});
+bindActionButton(mobileZoomOut, () => {
+  renderer.setZoom(renderer.getZoom() - 0.16);
+});
 bindActionButton(mobileInteract, () => {
   input.queueVirtualInteract();
 });

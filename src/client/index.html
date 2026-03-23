@@ -896,13 +896,13 @@
       .mobile-control {
         border: 1px solid rgba(255, 255, 255, 0.26);
         background:
-          linear-gradient(180deg, rgba(241, 248, 255, 0.16), rgba(150, 176, 202, 0.05)),
-          rgba(10, 16, 13, 0.28);
+          linear-gradient(180deg, rgba(241, 248, 255, 0.11), rgba(150, 176, 202, 0.03)),
+          rgba(10, 16, 13, 0.18);
         color: var(--text);
         border-radius: 18px;
         box-shadow:
-          0 8px 18px rgba(0, 0, 0, 0.14),
-          inset 0 1px 0 rgba(255, 255, 255, 0.2),
+          0 8px 18px rgba(0, 0, 0, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.16),
           inset 0 -1px 0 rgba(255, 255, 255, 0.04);
         font: inherit;
         font-size: 18px;
@@ -941,11 +941,11 @@
       .mobile-control.mobile-dpad {
         border-color: rgba(255, 255, 255, 0.34);
         background:
-          linear-gradient(180deg, rgba(246, 250, 255, 0.2), rgba(169, 188, 210, 0.08)),
-          rgba(10, 16, 13, 0.24);
+          linear-gradient(180deg, rgba(246, 250, 255, 0.12), rgba(169, 188, 210, 0.05)),
+          rgba(10, 16, 13, 0.16);
         box-shadow:
-          0 10px 22px rgba(0, 0, 0, 0.16),
-          inset 0 1px 0 rgba(255, 255, 255, 0.26),
+          0 10px 22px rgba(0, 0, 0, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18),
           inset 0 -1px 0 rgba(255, 255, 255, 0.05);
       }
 
@@ -1354,6 +1354,14 @@
         <div class="mobile-control mobile-dpad-spacer"></div>
       </div>
       <div id="mobile-actions">
+        <button id="mobile-zoom-in" class="mobile-control mobile-action" type="button" aria-label="Zoom in">
+          <span class="mobile-action-main">+</span>
+          <span class="mobile-action-label">Zoom In</span>
+        </button>
+        <button id="mobile-zoom-out" class="mobile-control mobile-action" type="button" aria-label="Zoom out">
+          <span class="mobile-action-main">-</span>
+          <span class="mobile-action-label">Zoom Out</span>
+        </button>
         <button id="mobile-chat" class="mobile-control mobile-action" type="button" aria-label="Open chat">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M4 5h16v10H8l-4 4V5zm2 2v7.17L7.17 13H18V7H6z"/>
