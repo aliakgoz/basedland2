@@ -359,11 +359,12 @@ const httpServer = createServer(async (req, res) => {
         json(res, 400, { error: "Invalid stable purchase request." });
         return;
       }
-      const stable = getNearbyStable(playerId);
-      if (!stable) {
-        json(res, 403, { error: "Move closer to a stable to buy a horse." });
+      const playerTile = getPlayerTile(playerId);
+      if (!playerTile) {
+        json(res, 404, { error: "Player not found on server." });
         return;
       }
+      const stable = getNearbyStable(playerId) ?? { tileX: playerTile.tileX, tileY: playerTile.tileY };
       const id = `stable_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
       stablePurchaseSessions.set(id, {
         id,
@@ -619,7 +620,7 @@ const httpServer = createServer(async (req, res) => {
       const { tileX, tileY, currentType } = playerTile;
       const dugType = dugTileFor(currentType);
       if (!treasureManager || playerId <= 0 || dugType === null || currentType === dugType) {
-        json(res, 400, { error: "You can only hide treasure on solid undug ground." });
+        json(res, 400, { error: "You can only hide treasure away from water and existing dig sites." });
         return;
       }
 
@@ -982,6 +983,8 @@ function strip0x(value: string): string {
 
 function dugTileFor(type: TileType): TileType | null {
   switch (type) {
+    case TileType.Water:
+      return null;
     case TileType.Grass:
       return TileType.GrassDug;
     case TileType.Dirt:
@@ -999,7 +1002,7 @@ function dugTileFor(type: TileType): TileType | null {
     case TileType.HillDug:
       return type;
     default:
-      return null;
+      return TileType.GrassDug;
   }
 }
 

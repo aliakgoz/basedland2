@@ -611,10 +611,15 @@ export class Renderer {
 
     const px = Math.floor((localPlayer.renderX / TILE_SIZE / WORLD_WIDTH_TILES) * this.minimapCanvas.width);
     const py = Math.floor((localPlayer.renderY / TILE_SIZE / WORLD_HEIGHT_TILES) * this.minimapCanvas.height);
+    const mobileMarker = window.matchMedia("(hover: none), (pointer: coarse), (max-width: 900px)").matches;
+    const halfSize = mobileMarker ? 4 : 2;
+    const markerSize = mobileMarker ? 9 : 5;
+    const outlineOffset = mobileMarker ? 5 : 3;
+    const outlineSize = mobileMarker ? 11 : 7;
     this.minimapCtx.fillStyle = "#f35f5f";
-    this.minimapCtx.fillRect(px - 2, py - 2, 5, 5);
+    this.minimapCtx.fillRect(px - halfSize, py - halfSize, markerSize, markerSize);
     this.minimapCtx.strokeStyle = "rgba(255,255,255,0.8)";
-    this.minimapCtx.strokeRect(Math.max(0, px - 3), Math.max(0, py - 3), 7, 7);
+    this.minimapCtx.strokeRect(Math.max(0, px - outlineOffset), Math.max(0, py - outlineOffset), outlineSize, outlineSize);
 
     if (this.manualCameraX !== null && this.manualCameraY !== null) {
       const markerX = Math.floor((this.manualCameraX / TILE_SIZE / WORLD_WIDTH_TILES) * this.minimapCanvas.width);

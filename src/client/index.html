@@ -82,6 +82,27 @@
         font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
       }
 
+      #intro-close {
+        position: sticky;
+        top: 0;
+        margin-left: auto;
+        margin-bottom: 8px;
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(96, 61, 27, 0.5);
+        background: rgba(248, 238, 214, 0.78);
+        color: #533418;
+        border-radius: 999px;
+        cursor: pointer;
+        box-shadow:
+          0 8px 16px rgba(52, 32, 12, 0.16),
+          inset 0 1px 0 rgba(255, 255, 255, 0.42);
+        z-index: 2;
+      }
+
       #intro-scroll::-webkit-scrollbar {
         width: 12px;
       }
@@ -306,8 +327,8 @@
       #wallet-disconnect {
         width: 28px;
         height: 28px;
-        border: 1px solid rgba(217, 169, 75, 0.22);
-        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(217, 169, 75, 0.28);
+        background: rgba(255, 255, 255, 0.08);
         color: var(--text);
         display: none;
         align-items: center;
@@ -323,11 +344,13 @@
       }
 
       #wallet-connect {
-        border: 1px solid rgba(62, 148, 255, 0.45);
-        background: rgba(62, 148, 255, 0.12);
+        border: 1px solid rgba(122, 183, 255, 0.42);
+        background: linear-gradient(180deg, rgba(74, 130, 204, 0.26), rgba(27, 54, 87, 0.2));
         color: var(--text);
         padding: 7px 10px;
         cursor: pointer;
+        border-radius: 999px;
+        backdrop-filter: blur(8px);
       }
 
       #wallet-mobile-panel {
@@ -854,12 +877,12 @@
       #mobile-dpad {
         left: 14px;
         bottom: 18px;
-        width: 156px;
-        height: 156px;
+        width: 184px;
+        height: 184px;
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         grid-template-rows: repeat(3, 1fr);
-        gap: 8px;
+        gap: 4px;
       }
 
       #mobile-actions {
@@ -867,16 +890,16 @@
         bottom: 18px;
         display: grid;
         grid-auto-flow: row;
-        gap: 10px;
+        gap: 8px;
       }
 
       .mobile-control {
-        border: 1px solid rgba(255, 232, 186, 0.26);
-        background: linear-gradient(180deg, rgba(24, 34, 28, 0.9), rgba(10, 16, 13, 0.9));
+        border: 1px solid rgba(255, 232, 186, 0.24);
+        background: linear-gradient(180deg, rgba(30, 42, 35, 0.7), rgba(9, 14, 11, 0.62));
         color: var(--text);
         border-radius: 18px;
         box-shadow:
-          0 10px 24px rgba(0, 0, 0, 0.28),
+          0 10px 24px rgba(0, 0, 0, 0.2),
           inset 0 1px 0 rgba(255, 255, 255, 0.08);
         font: inherit;
         font-size: 18px;
@@ -887,6 +910,7 @@
         user-select: none;
         -webkit-user-select: none;
         touch-action: manipulation;
+        backdrop-filter: blur(10px);
       }
 
       .mobile-control:active,
@@ -909,8 +933,8 @@
       }
 
       .mobile-action {
-        width: 72px;
-        height: 56px;
+        width: 78px;
+        height: 60px;
         padding: 6px 4px;
         font-size: 15px;
         letter-spacing: 0.04em;
@@ -983,6 +1007,8 @@
           column-gap: 8px;
           row-gap: 5px;
           align-items: center;
+          background: rgba(13, 20, 17, 0.54);
+          border-color: rgba(173, 194, 147, 0.18);
         }
 
         #wallet-connect {
@@ -1104,14 +1130,14 @@
 
       @media (max-width: 480px) {
         #mobile-dpad {
-          width: 144px;
-          height: 144px;
-          gap: 6px;
+          width: 168px;
+          height: 168px;
+          gap: 3px;
         }
 
         .mobile-action {
-          width: 66px;
-          height: 52px;
+          width: 74px;
+          height: 56px;
           font-size: 14px;
         }
 
@@ -1143,6 +1169,7 @@
     <canvas id="game"></canvas>
     <div id="intro-overlay" class="active">
       <div id="intro-scroll">
+        <button id="intro-close" type="button" aria-label="Close intro">x</button>
         <div id="intro-copy">
           <h1>BasedLand</h1>
           <p id="intro-kicker">A Treasure Hunt On Base</p>
@@ -1158,7 +1185,7 @@
             <li><strong>F</strong>: open the treasure-bury panel</li>
             <li><strong>E near any stable</strong>: open the horse shop and mount a horse after payment</li>
             <li><strong>Y</strong>: open local chat</li>
-            <li><strong>H</strong>: mount or dismount</li>
+            <li><strong>H</strong>: mount nearby horses, dismount, or open the horse shop on foot</li>
             <li><strong>E</strong>: interact</li>
             <li><strong>Mouse wheel</strong>: zoom in or out</li>
           </ul>
@@ -1170,7 +1197,7 @@
           <p>Press <strong>Space</strong> to dig. The dig payment is verified on Base first. Then the server checks whether your tile truly holds a cache. If it does, the configured payout share of the buried amount is sent automatically to the finder. The remainder stays behind as the house fee.</p>
 
           <h2>Stable Mounts</h2>
-          <p>Press <strong>E</strong> near any stable to open the horse ledger. This works on every stable variant in the world and on stables placed later with the editor. Choose a gray, brown, or black mount, pay <strong>0.5 USDC</strong>, and the selected horse is delivered immediately beneath you in mounted form.</p>
+          <p>Press <strong>E</strong> near any stable to open the horse ledger, or tap <strong>H</strong> while on foot to pull it up directly. This works on every stable variant in the world and on stables placed later with the editor. Choose a gray, brown, or black mount, pay <strong>0.5 USDC</strong>, and the selected horse is delivered immediately beneath you in mounted form.</p>
 
           <h2>Cryptographic Trust</h2>
           <p>Payments are authorized with wallet signatures and verified against Base mainnet by RPC. Transaction hashes are public and auditable. Treasure coordinates are not. The chain stays transparent; the map stays hidden. That split is the whole game.</p>
@@ -1180,7 +1207,7 @@
             <img id="intro-seal" src="./assets/generated/ui/base-seal-v001.png" alt="Blue wax seal bearing a Base crest" />
           </div>
 
-          <div id="intro-dismiss">Press any key to break the seal</div>
+          <div id="intro-dismiss">Close this parchment with the wax-marked x.</div>
         </div>
       </div>
     </div>
@@ -1205,7 +1232,7 @@
         </div>
         <canvas id="worldmap-canvas" width="960" height="720"></canvas>
       </div>
-      <div id="hint" class="panel">WASD move, E interact, H mount, Space dig on Base, F hide treasure, Y chat, wheel zoom, click minimap to pan.</div>
+      <div id="hint" class="panel">WASD move, E interact, H mount or open horse shop, Space dig on Base, F hide treasure, Y chat, wheel zoom, click minimap to pan.</div>
       <div id="wallet-panel" class="panel interactive">
         <button id="wallet-connect" type="button">Connect Wallet</button>
         <span id="wallet-status">Connect Wallet</span>

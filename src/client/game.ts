@@ -16,6 +16,7 @@ declare const __BASEDLAND_MAP_EDITOR_ENABLED__: boolean;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game");
 const introOverlay = document.querySelector<HTMLElement>("#intro-overlay");
+const introClose = document.querySelector<HTMLButtonElement>("#intro-close");
 const online = document.querySelector<HTMLElement>("#online");
 const message = document.querySelector<HTMLElement>("#message");
 const chatPanel = document.querySelector<HTMLElement>("#chat-panel");
@@ -54,7 +55,7 @@ const mobileMount = document.querySelector<HTMLButtonElement>("#mobile-mount");
 const mobileBury = document.querySelector<HTMLButtonElement>("#mobile-bury");
 const mobileDig = document.querySelector<HTMLButtonElement>("#mobile-dig");
 
-if (!canvas || !introOverlay || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
+if (!canvas || !introOverlay || !introClose || !online || !message || !chatPanel || !chatForm || !chatInput || !chatSend || !buryPanel || !buryForm || !buryAmount || !stablePanel || !walletMobilePanel || !mobileChatPanel || stableOptions.length === 0 || !walletConnect || !walletStatus || !walletDisconnect || !treasureSummaryAmount || !treasureSummaryCount || !chatClose || !buryClose || !stableClose || !walletMobileClose || !walletOpenCoinbase || !walletOpenMetamask || !mobileChatClose || !mobileChatInput || !mobileControls || !mobileUp || !mobileDown || !mobileLeft || !mobileRight || !mobileChat || !mobileInteract || !mobileMount || !mobileBury || !mobileDig) {
   throw new Error("HUD elements missing");
 }
 
@@ -609,9 +610,6 @@ for (const button of stableOptions) {
 
 window.addEventListener("keydown", (event) => {
   if (introVisible) {
-    if (!event.repeat) {
-      dismissIntro();
-    }
     event.preventDefault();
     return;
   }
@@ -685,6 +683,10 @@ walletMobileClose.addEventListener("click", () => {
 
 mobileChatClose.addEventListener("click", () => {
   setMobileChatOpen(false);
+});
+
+introClose.addEventListener("click", () => {
+  dismissIntro();
 });
 
 mobileChatInput.addEventListener("input", () => {
@@ -784,10 +786,6 @@ walletDisconnect.addEventListener("click", () => {
   treasure.disconnectWallet();
 });
 
-introOverlay.addEventListener("pointerdown", () => {
-  dismissIntro();
-});
-
 if (!__BASEDLAND_MAP_EDITOR_ENABLED__) {
   editorDock?.remove();
 }
@@ -825,7 +823,8 @@ function applyLocalMovement(dt: number): void {
 
   if (input.consumeMountToggle()) {
     if (player.mountedHorseVariant === null && !editor?.isEnabled() && !hasNearbyHorseForMount()) {
-      renderer.setMessage("No horse close enough to mount.");
+      setStableOpen(true);
+      renderer.setMessage("Stable ledger open. Choose your horse.");
     } else {
       network.sendToggleMount();
     }
